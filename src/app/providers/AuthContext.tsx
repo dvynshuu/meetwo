@@ -181,8 +181,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     if (isSupabaseConfigured && supabase) {
       await supabase.auth.signOut();
+      setCurrentUser(null);
+      return;
     }
-    // Switch to guest or default
+    // Local / Demo mode fallback
     const guestUser: User = {
       id: `guest-${Date.now()}`,
       username: 'guest',

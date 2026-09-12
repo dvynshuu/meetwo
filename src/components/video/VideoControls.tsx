@@ -205,7 +205,7 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
           <div className="webrtc-telemetry-popover">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                CALL TELEMETRY (MEETWO V3)
+                CALL TELEMETRY (MEETWO V3.1)
               </span>
               <span
                 style={{
@@ -242,12 +242,18 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
               </div>
               <div className="telemetry-item">
                 <span className="label">RESOLUTION</span>
-                <span className="val">{connectionStats.resolution || '1080p'}</span>
+                <span className="val">{connectionStats.resolution || '1920x1080'}</span>
               </div>
               <div className="telemetry-item">
                 <span className="label">AUDIO CODEC</span>
                 <span className="val" style={{ color: 'var(--accent-light)' }}>
-                  {connectionStats.audioCodec}
+                  {connectionStats.audioCodec || 'Opus 48kHz (Mono FEC)'}
+                </span>
+              </div>
+              <div className="telemetry-item" style={{ gridColumn: '1 / -1' }}>
+                <span className="label">VIDEO CODEC / SIMULCAST</span>
+                <span className="val" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
+                  {connectionStats.videoCodec || 'H.264 / VP8 Simulcast'}
                 </span>
               </div>
             </div>

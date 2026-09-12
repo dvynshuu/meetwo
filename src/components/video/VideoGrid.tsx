@@ -12,31 +12,36 @@ export const VideoGrid: React.FC<VideoGridProps> = ({ participants }) => {
   const { currentUser } = useAuth();
   const { pinnedParticipantId } = useMedia();
 
-  // 1. Identify featured participant: Screen sharer prioritized, then pinned, then active speaker
-  const screenSharer = participants.find((p) => p.isScreenSharing);
+  // 1. Identify screen sharer and pinned participant
+  const screenSharer = participants.find((p) => p.isScreenSharing && (p.screenStream || p.stream));
   const pinnedParticipant = participants.find((p) => p.id === pinnedParticipantId);
 
-  // If there's a screen sharer or a pinned participant, switch to presentation stage mode
-  const featured = screenSharer || pinnedParticipant;
-
-  if (featured && participants.length > 1) {
-    const stripParticipants = participants.filter((p) => p.id !== featured.id);
+  // Case A: Someone is sharing their screen (presentation mode with simultaneous camera facecam!)
+  if (screenSharer) {
+    const isLocalScreen = screenSharer.userId === currentUser?.id;
+    // Dedicated presentation stream
+    const presentationStream = screenSharer.screenStream || screenSharer.stream;
 
     return (
       <div className="video-stage-container" id="video-grid">
-        {/* Main Presentation Stage */}
+        {/* Main Presentation Stage: Screen Share */}
         <div className="video-stage-viewport">
           <VideoTile
-            participant={featured}
-            isLocal={featured.userId === currentUser?.id}
+            participant={{
+              ...screenSharer,
+              stream: presentationStream,
+              displayName: `${screenSharer.displayName || screenSharer.username}'s Screen`,
+            }}
+            isLocal={isLocalScreen}
             isFeatured={true}
+            isScreenTile={true}
           />
         </div>
 
-        {/* Secondary Participant Strip */}
+        {/* Secondary Participant Strip: ALL participants (including presenter's camera tile!) */}
         <div className="video-stage-strip">
-          {stripParticipants.map((p) => (
-            <div key={p.id} className="video-stage-strip-item">
+          {participants.map((p) => (
+            <div key={`strip-${p.id}`} className="video-stage-strip-item">
               <VideoTile
                 participant={p}
                 isLocal={p.userId === currentUser?.id}
@@ -49,7 +54,38 @@ export const VideoGrid: React.FC<VideoGridProps> = ({ participants }) => {
     );
   }
 
-  // 2. Intelligent Adaptive Grid for 1–6 Participants
+  // Case B: A participant is pinned (spotlight mode)
+  if (pinnedParticipant && participants.length > 1) {
+    const remainingParticipants = participants.filter((p) => p.id !== pinnedParticipant.id);
+
+    return (
+      <div className="video-stage-container" id="video-grid">
+        {/* Main Spotlight Stage */}
+        <div className="video-stage-viewport">
+          <VideoTile
+            participant={pinnedParticipant}
+            isLocal={pinnedParticipant.userId === currentUser?.id}
+            isFeatured={true}
+          />
+        </div>
+
+        {/* Secondary Participant Strip */}
+        <div className="video-stage-strip">
+          {remainingParticipants.map((p) => (
+            <div key={`strip-${p.id}`} className="video-stage-strip-item">
+              <VideoTile
+                participant={p}
+                isLocal={p.userId === currentUser?.id}
+                isFeatured={false}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Case C: Intelligent Adaptive Grid for 1–6 Participants
   const count = participants.length;
   let layoutClass = 'layout-1';
 

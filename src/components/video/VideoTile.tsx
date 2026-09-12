@@ -8,9 +8,15 @@ interface VideoTileProps {
   participant: Participant;
   isLocal: boolean;
   isFeatured?: boolean;
+  isScreenTile?: boolean;
 }
 
-export const VideoTile: React.FC<VideoTileProps> = ({ participant, isLocal, isFeatured = false }) => {
+export const VideoTile: React.FC<VideoTileProps> = ({
+  participant,
+  isLocal,
+  isFeatured = false,
+  isScreenTile = false,
+}) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { pinnedParticipantId, setPinnedParticipantId, deviceSettings } = useMedia();
 
@@ -36,11 +42,14 @@ export const VideoTile: React.FC<VideoTileProps> = ({ participant, isLocal, isFe
     }
   }, [deviceSettings.audioOutputId, isLocal]);
 
-  const hasVideoTrack =
-    Boolean(participant.stream) &&
-    participant.stream!.getVideoTracks().length > 0 &&
-    participant.stream!.getVideoTracks()[0].enabled &&
-    !participant.isVideoMuted;
+  const hasVideoTrack = isScreenTile
+    ? Boolean(participant.stream) &&
+      participant.stream!.getVideoTracks().length > 0 &&
+      participant.stream!.getVideoTracks()[0].enabled
+    : Boolean(participant.stream) &&
+      participant.stream!.getVideoTracks().length > 0 &&
+      participant.stream!.getVideoTracks()[0].enabled &&
+      !participant.isVideoMuted;
 
   const isPinned = pinnedParticipantId === participant.id;
 

@@ -7,6 +7,7 @@ export interface MediaSessionEvents {
   onTrackChanged?: (kind: TrackKind, track: MediaStreamTrack | null) => void;
   onAudioLevel?: (level: number, isSpeaking: boolean) => void;
   onDeviceListChanged?: () => void;
+  onDeviceUnplugged?: (kind: 'audio' | 'video') => void;
 }
 
 export class MediaSession {
@@ -98,7 +99,7 @@ export class MediaSession {
       echoCancellation: this.settings.echoCancellation,
       noiseSuppression: this.settings.noiseSuppression,
       autoGainControl: this.settings.autoGainControl,
-      channelCount: { ideal: 2 },
+      channelCount: { ideal: 1 }, // Mono conversational voice for optimal Opus encoding
       sampleRate: { ideal: 48000 },
     };
 
@@ -120,7 +121,11 @@ export class MediaSession {
 
       // Handle external unplug / mute
       track.onended = () => {
+        console.warn('[MediaSession] Microphone track ended (device disconnected/unplugged)');
         this.stopMicrophone();
+        if (this.events.onDeviceUnplugged) {
+          this.events.onDeviceUnplugged('audio');
+        }
       };
 
       if (this.events.onTrackChanged) {
@@ -130,13 +135,27 @@ export class MediaSession {
       return track;
     } catch (err) {
       console.warn('[MediaSession] Microphone with constraints failed, falling back:', err);
-      const fallbackStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const fallbackStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      });
       const fallbackTrack = fallbackStream.getAudioTracks()[0];
       this.microphoneTrack = fallbackTrack;
 
       this.localStream.getAudioTracks().forEach((t) => this.localStream.removeTrack(t));
       this.localStream.addTrack(fallbackTrack);
       this.dspManager.attachStream(fallbackStream, this.settings.inputVolume / 100);
+
+      fallbackTrack.onended = () => {
+        this.stopMicrophone();
+        if (this.events.onDeviceUnplugged) {
+          this.events.onDeviceUnplugged('audio');
+        }
+      };
 
       if (this.events.onTrackChanged) {
         this.events.onTrackChanged('audio', fallbackTrack);
@@ -217,7 +236,11 @@ export class MediaSession {
       this.localStream.addTrack(track);
 
       track.onended = () => {
+        console.warn('[MediaSession] Camera track ended (device disconnected/unplugged)');
         this.stopCamera();
+        if (this.events.onDeviceUnplugged) {
+          this.events.onDeviceUnplugged('video');
+        }
       };
 
       if (this.events.onTrackChanged) {
@@ -237,6 +260,13 @@ export class MediaSession {
 
         this.localStream.getVideoTracks().forEach((t) => this.localStream.removeTrack(t));
         this.localStream.addTrack(fallbackTrack);
+
+        fallbackTrack.onended = () => {
+          this.stopCamera();
+          if (this.events.onDeviceUnplugged) {
+            this.events.onDeviceUnplugged('video');
+          }
+        };
 
         if (this.events.onTrackChanged) {
           this.events.onTrackChanged('video', fallbackTrack);
@@ -287,8 +317,10 @@ export class MediaSession {
       const displayStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           displaySurface: 'monitor',
+          width: { ideal: 1920, max: 3840 },
+          height: { ideal: 1080, max: 2160 },
           frameRate: { ideal: 30, max: 60 },
-        },
+        } as any,
         audio: captureAudio,
       });
 

@@ -8,8 +8,8 @@
  */
 
 export interface OpusSDPOptions {
-  maxBitrate?: number; // default 128000 (128 kbps)
-  stereo?: boolean; // default true
+  maxBitrate?: number; // default 96000 (96 kbps for conversational speech)
+  stereo?: boolean; // default false (mono voice optimized for speech intelligibility)
   inbandFec?: boolean; // default true (resilience against packet loss)
   dtx?: boolean; // default true (discontinuous transmission saves bandwidth when silent)
   minPtime?: number; // default 10ms for low latency
@@ -17,12 +17,12 @@ export interface OpusSDPOptions {
 
 /**
  * Optimizes an SDP session description specifically for studio voice transmission
- * with Opus codec enhancement and packet loss resilience.
+ * with Opus codec enhancement, packet loss resilience (FEC), and DTX.
  */
 export function mungeOpusSDP(sdp: string, options: OpusSDPOptions = {}): string {
   const {
-    maxBitrate = 128000,
-    stereo = true,
+    maxBitrate = 96000,
+    stereo = false,
     inbandFec = true,
     dtx = true,
     minPtime = 10,
@@ -50,7 +50,7 @@ export function mungeOpusSDP(sdp: string, options: OpusSDPOptions = {}): string 
         if (k) params.set(k, v || '1');
       });
 
-      // Set our high-quality defaults
+      // Set our conversational voice defaults
       params.set('minptime', minPtime.toString());
       params.set('useinbandfec', inbandFec ? '1' : '0');
       params.set('usedtx', dtx ? '1' : '0');
@@ -58,6 +58,9 @@ export function mungeOpusSDP(sdp: string, options: OpusSDPOptions = {}): string 
       if (stereo) {
         params.set('stereo', '1');
         params.set('sprop-stereo', '1');
+      } else {
+        params.set('stereo', '0');
+        params.set('sprop-stereo', '0');
       }
       params.set('cbr', '0'); // Variable bitrate adapts intelligently
 
@@ -67,7 +70,7 @@ export function mungeOpusSDP(sdp: string, options: OpusSDPOptions = {}): string 
       newLines.push(`a=fmtp:${opusPt} ${paramStr}`);
     } else {
       newLines.push(line);
-      // If we are at the opus rtpmap and fmtp wasn't right after, we will ensure fmtp is added
+      // If we are at the opus rtpmap and fmtp wasn't right after, ensure fmtp is inserted
       if (line.startsWith(`a=rtpmap:${opusPt} `) && !sdp.includes(`a=fmtp:${opusPt}`)) {
         const paramStr = `minptime=${minPtime};useinbandfec=${inbandFec ? '1' : '0'};usedtx=${dtx ? '1' : '0'};maxaveragebitrate=${maxBitrate};stereo=${stereo ? '1' : '0'};sprop-stereo=${stereo ? '1' : '0'};cbr=0`;
         newLines.push(`a=fmtp:${opusPt} ${paramStr}`);
@@ -80,7 +83,8 @@ export function mungeOpusSDP(sdp: string, options: OpusSDPOptions = {}): string 
 }
 
 /**
- * Web Audio DSP Manager for Realtime Voice Activity, Gain Calibration, and Monitoring
+ * Web Audio DSP Manager for Realtime Voice Activity, Gain Calibration, and Monitoring.
+ * Employs passive analysis (no self-echo) and VAD with speech hangover hysteresis.
  */
 export class AudioDSPManager {
   private audioContext: AudioContext | null = null;
@@ -91,6 +95,16 @@ export class AudioDSPManager {
   private onLevelCallback?: (level: number, isSpeaking: boolean) => void;
   private smoothedLevel: number = 0;
   private isProcessing: boolean = false;
+
+  // VAD Hysteresis & Hangover
+  private readonly speakThreshold: number = 14;
+  private readonly silenceThreshold: number = 9;
+  private readonly hangoverTimeMs: number = 450;
+  private lastAboveThresholdTime: number = 0;
+  private isCurrentlySpeaking: boolean = false;
+  private lastEmitTime: number = 0;
+  private lastEmittedLevel: number = -1;
+  private lastEmittedSpeaking: boolean = false;
 
   constructor() {}
 
@@ -113,11 +127,11 @@ export class AudioDSPManager {
 
       this.analyserNode = this.audioContext.createAnalyser();
       this.analyserNode.fftSize = 512;
-      this.analyserNode.smoothingTimeConstant = 0.4;
+      this.analyserNode.smoothingTimeConstant = 0.35;
 
       this.sourceNode.connect(this.gainNode);
       this.gainNode.connect(this.analyserNode);
-      // Analyser is passive; we do NOT connect to destination to avoid self-echo
+      // Analyser is passive; we strictly do NOT connect to destination to avoid self-echo
 
       this.isProcessing = true;
       this.startMeteringLoop();
@@ -164,12 +178,31 @@ export class AudioDSPManager {
       const instantLevel = Math.min(100, Math.round((avg / 128) * 100));
 
       // Apply low-pass smoothing filter
-      this.smoothedLevel = this.smoothedLevel * 0.7 + instantLevel * 0.3;
+      this.smoothedLevel = this.smoothedLevel * 0.65 + instantLevel * 0.35;
       const roundedLevel = Math.round(this.smoothedLevel);
-      const isSpeaking = roundedLevel > 14;
+      const now = performance.now();
 
-      if (this.onLevelCallback) {
-        this.onLevelCallback(roundedLevel, isSpeaking);
+      // VAD with speech hangover hysteresis
+      if (roundedLevel >= this.speakThreshold) {
+        this.lastAboveThresholdTime = now;
+        this.isCurrentlySpeaking = true;
+      } else if (this.isCurrentlySpeaking) {
+        if (now - this.lastAboveThresholdTime > this.hangoverTimeMs && roundedLevel <= this.silenceThreshold) {
+          this.isCurrentlySpeaking = false;
+        }
+      }
+
+      // Throttle notification: emit immediately on speaking state change,
+      // or every ~35ms if level changed by >= 2% to protect React performance
+      const speakingChanged = this.isCurrentlySpeaking !== this.lastEmittedSpeaking;
+      const levelDiff = Math.abs(roundedLevel - this.lastEmittedLevel);
+      const timeElapsed = now - this.lastEmitTime >= 35;
+
+      if (this.onLevelCallback && (speakingChanged || (timeElapsed && levelDiff >= 2))) {
+        this.lastEmitTime = now;
+        this.lastEmittedLevel = roundedLevel;
+        this.lastEmittedSpeaking = this.isCurrentlySpeaking;
+        this.onLevelCallback(roundedLevel, this.isCurrentlySpeaking);
       }
 
       this.animFrameId = requestAnimationFrame(step);

@@ -44,13 +44,19 @@ export class PeerConnectionManager implements ITransportAdapter {
   private unsubSignal?: () => void;
   private lifecycleState: MediaLifecycleState = 'idle';
 
+  private screenStream: MediaStream | null = null;
+  private remoteStreams: Map<string, MediaStream> = new Map();
+  private remoteScreenStreams: Map<string, MediaStream> = new Map();
+  private peerScreenSharingState: Map<string, boolean> = new Map();
+  private lastBitrateAdaptTime: number = 0;
+
   // Aggregate local connection stats
   private localStats: ConnectionStats = {
     rtt: 28,
     packetLoss: 0,
     jitter: 3,
     bitrate: 1800,
-    audioCodec: 'Opus 48kHz (Stereo FEC)',
+    audioCodec: 'Opus 48kHz (Mono FEC)',
     videoCodec: 'VP8/H.264 HD',
     quality: 'excellent',
   };
@@ -137,6 +143,66 @@ export class PeerConnectionManager implements ITransportAdapter {
   }
 
   // ==========================================
+  // SCREEN SHARING TRACK MANAGEMENT
+  // ==========================================
+
+  public async publishScreenTrack(
+    videoTrack: MediaStreamTrack | null,
+    audioTrack?: MediaStreamTrack | null
+  ): Promise<void> {
+    if (!videoTrack) return;
+
+    this.screenStream = new MediaStream();
+    this.screenStream.addTrack(videoTrack);
+    if (audioTrack) {
+      this.screenStream.addTrack(audioTrack);
+    }
+
+    // Add screen tracks to all peer sessions
+    for (const [peerId, session] of this.peerSessions.entries()) {
+      try {
+        session.pc.addTrack(videoTrack, this.screenStream);
+        if (audioTrack) {
+          session.pc.addTrack(audioTrack, this.screenStream);
+        }
+      } catch (err) {
+        console.warn(`[WebRTC] Failed to add screen track to peer ${peerId}:`, err);
+      }
+    }
+
+    await this.signaling.sendSignal({
+      type: 'track-update',
+      fromPeerId: this.localPeerId,
+      roomId: this.roomId,
+      payload: { isScreenSharing: true },
+    });
+  }
+
+  public async unpublishScreenTrack(): Promise<void> {
+    if (this.screenStream) {
+      const screenTracks = this.screenStream.getTracks();
+      for (const [, session] of this.peerSessions.entries()) {
+        const senders = session.pc.getSenders();
+        for (const sender of senders) {
+          if (sender.track && screenTracks.includes(sender.track)) {
+            try {
+              session.pc.removeTrack(sender);
+            } catch {}
+          }
+        }
+      }
+      this.screenStream = null;
+    }
+
+    await this.signaling.sendSignal({
+      type: 'track-update',
+      fromPeerId: this.localPeerId,
+      roomId: this.roomId,
+      payload: { isScreenSharing: false },
+    });
+  }
+
+  // ==========================================
   // STATE SIGNALING BROADCASTS
   // ==========================================
 
@@ -170,6 +236,25 @@ export class PeerConnectionManager implements ITransportAdapter {
     });
   }
 
+  public async sendTargetedStageAction(
+    targetUserId: string,
+    action: 'invite' | 'demote' | 'lower-hand'
+  ): Promise<void> {
+    const type =
+      action === 'invite'
+        ? 'stage-invite'
+        : action === 'demote'
+        ? 'stage-demote'
+        : 'stage-hand-dismiss';
+
+    await this.signaling.sendSignal({
+      type,
+      fromPeerId: this.localPeerId,
+      roomId: this.roomId,
+      payload: { targetUserId },
+    });
+  }
+
   // ==========================================
   // PERFECT NEGOTIATION WITH OPUS OPTIMIZATION
   // ==========================================
@@ -199,6 +284,33 @@ export class PeerConnectionManager implements ITransportAdapter {
         stageRole: payload.role,
         isHandRaised: payload.isHandRaised,
       });
+      return;
+    }
+
+    if (type === 'stage-invite') {
+      this.callbacks.onTargetedStageAction?.('invite', payload.targetUserId);
+      return;
+    }
+
+    if (type === 'stage-demote') {
+      this.callbacks.onTargetedStageAction?.('demote', payload.targetUserId);
+      return;
+    }
+
+    if (type === 'stage-hand-dismiss') {
+      this.callbacks.onTargetedStageAction?.('lower-hand', payload.targetUserId);
+      return;
+    }
+
+    if (type === 'track-update') {
+      this.peerScreenSharingState.set(fromPeerId, payload.isScreenSharing);
+      this.callbacks.onPeerStateChanged?.(fromPeerId, {
+        isScreenSharing: payload.isScreenSharing,
+      });
+      if (!payload.isScreenSharing) {
+        this.remoteScreenStreams.delete(fromPeerId);
+        this.callbacks.onRemoteScreenStream?.(fromPeerId, null);
+      }
       return;
     }
 
@@ -328,11 +440,39 @@ export class PeerConnectionManager implements ITransportAdapter {
       }
     };
 
-    // Remote Stream Delivery
+    // Remote Stream Delivery with Camera vs Screen Share Stream Isolation
     pc.ontrack = (event) => {
+      const track = event.track;
       const [remoteStream] = event.streams;
-      if (remoteStream) {
-        this.callbacks.onRemoteStream(peerId, remoteStream);
+      const isScreenSharing = this.peerScreenSharingState.get(peerId);
+
+      // If peer is actively screen sharing and already has camera stream, route second video to screen
+      const currentCamStream = this.remoteStreams.get(peerId);
+      if (
+        isScreenSharing &&
+        currentCamStream &&
+        currentCamStream.getVideoTracks().length > 0 &&
+        track.kind === 'video'
+      ) {
+        let scrStream = this.remoteScreenStreams.get(peerId);
+        if (!scrStream) {
+          scrStream = new MediaStream();
+          this.remoteScreenStreams.set(peerId, scrStream);
+        }
+        if (!scrStream.getTracks().includes(track)) {
+          scrStream.addTrack(track);
+        }
+        this.callbacks.onRemoteScreenStream?.(peerId, scrStream);
+      } else {
+        let camStream = this.remoteStreams.get(peerId);
+        if (!camStream) {
+          camStream = remoteStream || new MediaStream();
+          this.remoteStreams.set(peerId, camStream);
+        }
+        if (!camStream.getTracks().includes(track)) {
+          camStream.addTrack(track);
+        }
+        this.callbacks.onRemoteStream(peerId, camStream);
       }
     };
 
@@ -466,6 +606,11 @@ export class PeerConnectionManager implements ITransportAdapter {
   }
 
   private async adaptVideoSenderBitrate(pc: RTCPeerConnection, maxBitrateBps: number): Promise<void> {
+    const now = Date.now();
+    // 4-second hysteresis hold time prevents rapid quality oscillation
+    if (now - this.lastBitrateAdaptTime < 4000 && maxBitrateBps > 300000) return;
+    this.lastBitrateAdaptTime = now;
+
     const videoSender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
     if (!videoSender || !videoSender.getParameters) return;
 
@@ -575,6 +720,9 @@ export class PeerConnectionManager implements ITransportAdapter {
       this.peerSessions.delete(peerId);
     }
     this.pendingCandidates.delete(peerId);
+    this.remoteStreams.delete(peerId);
+    this.remoteScreenStreams.delete(peerId);
+    this.peerScreenSharingState.delete(peerId);
     this.callbacks.onPeerLeft(peerId);
     this.evaluateOverallLifecycle();
   }
@@ -598,6 +746,10 @@ export class PeerConnectionManager implements ITransportAdapter {
     }
     this.peerSessions.clear();
     this.pendingCandidates.clear();
+    this.remoteStreams.clear();
+    this.remoteScreenStreams.clear();
+    this.peerScreenSharingState.clear();
+    this.screenStream = null;
     this.signaling.destroy();
     this.setLifecycleState('idle');
   }

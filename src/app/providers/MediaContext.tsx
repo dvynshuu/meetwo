@@ -16,6 +16,7 @@ import {
 import { MediaSession } from '../../lib/webrtc/mediaSession';
 import { PeerConnectionManager } from '../../lib/webrtc/peerConnection';
 import { LiveKitSFUAdapter, ITransportAdapter } from '../../lib/webrtc/transportAdapter';
+import { getLiveKitToken } from '../../lib/webrtc/livekitToken';
 import { useAuth } from './AuthContext';
 
 interface MediaContextType {
@@ -48,6 +49,9 @@ interface MediaContextType {
   raiseHand: () => Promise<void>;
   lowerHand: () => Promise<void>;
   setStageRole: (role: 'host' | 'speaker' | 'listener') => Promise<void>;
+  inviteToStage: (targetUserId: string) => Promise<void>;
+  demoteToListener: (targetUserId: string) => Promise<void>;
+  lowerParticipantHand: (targetUserId: string) => Promise<void>;
 }
 
 const MediaContext = createContext<MediaContextType | undefined>(undefined);
@@ -61,11 +65,11 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [connectionState, setConnectionState] = useState<MediaLifecycleState>('idle');
   const [connectionStats, setConnectionStats] = useState<ConnectionStats>({
-    rtt: 24,
+    rtt: 25,
     packetLoss: 0,
     jitter: 3,
     bitrate: 1800,
-    audioCodec: 'Opus 48kHz (FEC)',
+    audioCodec: 'Opus 48kHz (Mono FEC)',
     videoCodec: 'VP8/H.264 HD',
     quality: 'excellent',
   });
@@ -110,12 +114,26 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         }
       },
+      onDeviceUnplugged: async (kind) => {
+        console.warn(`[MediaEngine] ${kind} hardware was disconnected/unplugged`);
+        if (kind === 'video') {
+          setIsVideoMuted(true);
+          if (transportRef.current) {
+            await transportRef.current.sendMuteState(isAudioMuted, true);
+          }
+        } else if (kind === 'audio') {
+          setIsAudioMuted(true);
+          if (transportRef.current) {
+            await transportRef.current.sendMuteState(true, isVideoMuted);
+          }
+        }
+      },
     });
 
     return () => {
       mediaSessionRef.current.stopLocalMedia();
     };
-  }, []);
+  }, [isAudioMuted, isVideoMuted]);
 
   const openPreJoin = useCallback((roomId: string) => {
     setPendingRoomId(roomId);
@@ -160,7 +178,18 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         // 2. Select appropriate transport (LiveKit SFU or Direct Enhanced Engine)
         const livekitUrl = (import.meta as any).env?.VITE_LIVEKIT_URL;
-        const livekitToken = (import.meta as any).env?.VITE_LIVEKIT_TOKEN;
+        let livekitToken = (import.meta as any).env?.VITE_LIVEKIT_TOKEN;
+
+        if (livekitUrl) {
+          const dynamicToken = await getLiveKitToken({
+            roomId,
+            userId: currentUser.id,
+            username: currentUser.displayName || currentUser.username,
+          });
+          if (dynamicToken) {
+            livekitToken = dynamicToken;
+          }
+        }
 
         const callbacks = {
           onRemoteStream: (peerId: string, remoteStream: MediaStream) => {
@@ -174,15 +203,31 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 displayName: existing?.displayName || `User ${peerId.slice(-4)}`,
                 avatarUrl: existing?.avatarUrl,
                 stream: remoteStream,
+                screenStream: existing?.screenStream,
                 isAudioMuted: existing?.isAudioMuted || false,
                 isVideoMuted: existing?.isVideoMuted || false,
                 isScreenSharing: existing?.isScreenSharing || false,
                 isSpeaking: existing?.isSpeaking || false,
                 stageRole: existing?.stageRole || 'speaker',
+                isStageSpeaker: existing?.isStageSpeaker ?? true,
                 isHandRaised: existing?.isHandRaised || false,
                 audioLevel: existing?.audioLevel || 0,
                 connectionQuality: existing?.connectionQuality || 'excellent',
               });
+              return next;
+            });
+          },
+          onRemoteScreenStream: (peerId: string, remoteScreenStream: MediaStream | null) => {
+            setRemoteParticipants((prev) => {
+              const next = new Map(prev);
+              const existing = next.get(peerId);
+              if (existing) {
+                next.set(peerId, {
+                  ...existing,
+                  screenStream: remoteScreenStream || undefined,
+                  isScreenSharing: Boolean(remoteScreenStream),
+                });
+              }
               return next;
             });
           },
@@ -199,7 +244,11 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               const next = new Map(prev);
               const target = next.get(peerId);
               if (target) {
-                next.set(peerId, { ...target, ...state });
+                const updated = { ...target, ...state };
+                if (state.stageRole) {
+                  updated.isStageSpeaker = state.stageRole === 'host' || state.stageRole === 'speaker';
+                }
+                next.set(peerId, updated);
               }
               return next;
             });
@@ -224,14 +273,46 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           onConnectionStateChanged: (state: MediaLifecycleState) => {
             setConnectionState(state);
           },
+          onTargetedStageAction: (action: 'invite' | 'demote' | 'lower-hand', targetUserId: string) => {
+            if (targetUserId === currentUser.id) {
+              if (action === 'invite') {
+                setMyStageRole('speaker');
+                setMyHandRaised(false);
+              } else if (action === 'demote') {
+                setMyStageRole('listener');
+              } else if (action === 'lower-hand') {
+                setMyHandRaised(false);
+              }
+            } else {
+              setRemoteParticipants((prev) => {
+                const next = new Map(prev);
+                const target = next.get(targetUserId);
+                if (target) {
+                  const updated = { ...target };
+                  if (action === 'invite') {
+                    updated.stageRole = 'speaker';
+                    updated.isStageSpeaker = true;
+                    updated.isHandRaised = false;
+                  } else if (action === 'demote') {
+                    updated.stageRole = 'listener';
+                    updated.isStageSpeaker = false;
+                  } else if (action === 'lower-hand') {
+                    updated.isHandRaised = false;
+                  }
+                  next.set(targetUserId, updated);
+                }
+                return next;
+              });
+            }
+          },
         };
 
         let transport: ITransportAdapter;
         if (livekitUrl && livekitToken) {
-          console.info('[MediaEngine] Initializing LiveKit SFU Transport');
+          console.info('[MediaEngine] Initializing LiveKit SFU Transport (Primary Production Transport)');
           transport = new LiveKitSFUAdapter(livekitUrl, livekitToken, callbacks);
         } else {
-          console.info('[MediaEngine] Initializing Enhanced Direct Media Engine (Opus FEC/DTX)');
+          console.info('[MediaEngine] Initializing Enhanced Direct Media Engine (Opus Mono FEC/DTX)');
           transport = new PeerConnectionManager(currentUser.id, callbacks);
         }
 
@@ -312,21 +393,20 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, []);
 
-  // Screen Sharing (Independent presentation track)
+  // Screen Sharing (Independent presentation track — camera is NOT replaced!)
   const toggleScreenShare = useCallback(async () => {
     if (isScreenSharing) {
       mediaSessionRef.current.stopScreenShare();
       setScreenStream(null);
       setIsScreenSharing(false);
-      // Revert video track on sender to camera
-      const cameraTrack = mediaSessionRef.current.getCameraTrack();
       if (transportRef.current) {
-        await transportRef.current.replaceTrack('video', cameraTrack);
+        await transportRef.current.unpublishScreenTrack();
       }
     } else {
       try {
-        const { videoTrack } = await mediaSessionRef.current.startScreenShare(true);
-        setScreenStream(mediaSessionRef.current.getScreenStream());
+        const { videoTrack, audioTrack } = await mediaSessionRef.current.startScreenShare(true);
+        const scrStream = mediaSessionRef.current.getScreenStream();
+        setScreenStream(scrStream);
         setIsScreenSharing(true);
 
         videoTrack.onended = () => {
@@ -334,10 +414,10 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
 
         if (transportRef.current) {
-          await transportRef.current.replaceTrack('video', videoTrack);
+          await transportRef.current.publishScreenTrack(videoTrack, audioTrack);
         }
       } catch (err) {
-        console.warn('[MediaEngine] Screen share cancelled:', err);
+        console.warn('[MediaEngine] Screen share cancelled or denied:', err);
       }
     }
   }, [isScreenSharing]);
@@ -364,6 +444,61 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [myHandRaised]);
 
+  // Targeted Stage Moderation Actions (Fixed: alex -> speaker, not moderator!)
+  const inviteToStage = useCallback(async (targetUserId: string) => {
+    if (transportRef.current) {
+      await transportRef.current.sendTargetedStageAction(targetUserId, 'invite');
+    }
+    setRemoteParticipants((prev) => {
+      const next = new Map(prev);
+      const target = next.get(targetUserId);
+      if (target) {
+        next.set(targetUserId, {
+          ...target,
+          stageRole: 'speaker',
+          isStageSpeaker: true,
+          isHandRaised: false,
+        });
+      }
+      return next;
+    });
+  }, []);
+
+  const demoteToListener = useCallback(async (targetUserId: string) => {
+    if (transportRef.current) {
+      await transportRef.current.sendTargetedStageAction(targetUserId, 'demote');
+    }
+    setRemoteParticipants((prev) => {
+      const next = new Map(prev);
+      const target = next.get(targetUserId);
+      if (target) {
+        next.set(targetUserId, {
+          ...target,
+          stageRole: 'listener',
+          isStageSpeaker: false,
+        });
+      }
+      return next;
+    });
+  }, []);
+
+  const lowerParticipantHand = useCallback(async (targetUserId: string) => {
+    if (transportRef.current) {
+      await transportRef.current.sendTargetedStageAction(targetUserId, 'lower-hand');
+    }
+    setRemoteParticipants((prev) => {
+      const next = new Map(prev);
+      const target = next.get(targetUserId);
+      if (target) {
+        next.set(targetUserId, {
+          ...target,
+          isHandRaised: false,
+        });
+      }
+      return next;
+    });
+  }, []);
+
   // Device settings update
   const updateSettings = useCallback((newSettings: Partial<MediaDeviceSettings>) => {
     setDeviceSettings((prev) => {
@@ -387,6 +522,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       displayName: currentUser.displayName,
       avatarUrl: currentUser.avatarUrl,
       stream: localStream || undefined,
+      screenStream: screenStream || undefined,
       isAudioMuted,
       isVideoMuted,
       isScreenSharing,
@@ -440,6 +576,9 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         raiseHand,
         lowerHand,
         setStageRole,
+        inviteToStage,
+        demoteToListener,
+        lowerParticipantHand,
       }}
     >
       {children}

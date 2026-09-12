@@ -1,62 +1,73 @@
-# Meetwo 🚀
-### Next-Generation Realtime Communication & Community Platform
+# Meetwo 🚀 (V3.1)
+### Studio-Grade Realtime Communication & Media Platform for 2–6 Friends
 
-Meetwo is a modern, high-performance real-time communication platform built for communities, broadcasts, and developer collaboration. Inspired by modern collaboration tools like Discord, Slack, and Zoom, Meetwo delivers a sleek obsidian dark-mode interface, sub-second messaging, multi-peer WebRTC video, live broadcast stages, and forum topic discussions.
+Meetwo is a modern, high-performance real-time communication platform designed specifically to provide the highest-quality audio, 1080p video, and screen sharing experience for small private groups of 2–6 friends.
 
 ---
 
-## 🌟 Key Features
+## 📖 Technical Documentation
 
-### 🎙️ 1. Advanced Media Engine & Stage Broadcasts
-- **Multi-Peer WebRTC Mesh & SFU Ready**: Supports Full HD 1080p/720p/480p dynamic video with automatic resolution downscaling.
-- **Stage Broadcast Rooms**: Eliminates mesh scaling bottlenecks by separating **Stage Speakers** (active MediaStreams, audio visualizers, host badges) from **Audience Listeners** (low-overhead attendees).
-- **Interactive Hand-Raising Queue**: Listeners can "Request to Speak"; hosts and speakers receive live alerts with an approval queue to invite attendees to stage or dismiss requests.
-- **Glare-Free Perfect Negotiation**: Deterministic polite/impolite peer signaling preventing race conditions during simultaneous connections.
-- **Web Audio API Diagnostic Suite**: Integrated harmonic two-tone oscillator test chime (523Hz → 880Hz) to test output devices and stereo panning without requiring a remote peer.
-- **Screen Share Stage Mode**: Automatic screen share spotlight with PiP (Picture-in-Picture) and fullscreen modes.
+- **[MEDIA.md](MEDIA.md)**: Deep dive into the Opus audio pipeline, 1080p video adaptation, independent screen sharing, LiveKit SFU, and real WebRTC telemetry.
+- **[REALTIME.md](REALTIME.md)**: Specifications for Perfect Negotiation signaling, targeted Stage moderation protocols, and connection recovery state machines.
+- **[ENVIRONMENT.md](ENVIRONMENT.md)**: Environment variable reference, security best practices, and deployment tiers (Development, Staging, Production).
+- **[ARCHITECTURE.md](ARCHITECTURE.md)**: High-level architectural diagrams, subsystem separation, and small-group optimization principles.
 
-### 📁 2. Channel Hierarchy & Collapsible Categories
-- **Collapsible Server Categories**: Organize channels into *Information & Chat*, *Voice & Hangouts*, *Live Stages & Broadcasts*, and *Community Discussions* with accordion chevron controls.
-- **Rich Channel Types**:
-  - `#` **Text Channels**: Real-time chat, code snippets, and attachments.
-  - `🔊` **Voice & Video**: Low-latency mesh/SFU voice rooms.
-  - `📻` **Stage Broadcasts**: Keynotes and AMAs with speaker/listener roles.
-  - `💬` **Forum Discussions**: Persistent discussion topics with tags and solution markers.
-  - `📢` **Announcements**: Broadcast channels for official server notices.
+---
 
-### 💬 3. Advanced Messaging & Collaboration
-- **⭐ Saved Messages Drawer**: Bookmark messages with a single click and access them across all channels in a dedicated slide-over drawer with one-click jump-to-message navigation.
-- **Dedicated Thread Drawers**: Branch complex conversations off parent messages into side-by-side threads to keep main channels clean.
-- **Pinned Message Banners**: Pinned notices render at the top of channels with direct jump navigation.
-- **Rich Interactive Actions**: Real-time reactions, quoted replies, inline editing (`Enter` to save, `Esc` to cancel), and one-click copy.
-- **Markdown & Syntax Highlighting**: Automatic formatting for code blocks, inline code, URLs, and `@mentions`.
+## 🌟 Key Features (V3.1 Media & Quality Highlights)
 
-### ⚡ 4. Productivity & Observability
-- **Global Command Palette (`Ctrl+K` / `Cmd+K`)**: Instant fuzzy search across all channels, servers, and system actions with arrow-key navigation.
-- **Global Contextual Search**: Full-text message indexing with `from:` and `in:` filter parameters.
-- **Server Governance Audit Logs**: Administrative activity audit logs tracking channel creation, role changes, and pinned messages.
-- **Timed Custom Status**: Set custom status text and emojis with timed expiration (*Don't clear*, *30m*, *1h*, *4h*, *Today*).
-- **Live Telemetry & Health Indicator**: Real-time top bar pill displaying Round-Trip Time (`24ms RTT`), packet loss, signaling status, and Web Audio DSP health.
+### 🎙️ 1. Studio-Quality Audio Engine
+- **Opus 48kHz Mono Voice**: Conversational mono speech capture (`channelCount: 1`) maximizes bandwidth efficiency and intelligibility.
+- **Packet Loss Resilience & DTX**: Enforces in-band Forward Error Correction (`useinbandfec=1`) and Discontinuous Transmission (`usedtx=1`) for crystal-clear voice even across degraded networks.
+- **Web Audio DSP Pipeline**: Passive frequency-band VAD with 450ms speech hangover eliminates speaking indicator flicker without self-echo.
+- **Hardware Diagnostic Suite**: Stereo harmonic test chime (523Hz → 659Hz) and `setSinkId` output device routing.
+
+### 🎥 2. 1080p Full HD Video & Adaptive Simulcast
+- **1080p Target**: Requests `1920x1080` @ 30 FPS with smooth adaptive negotiation (`1080p` → `720p` → `480p` → `360p`).
+- **Quality Stability Hysteresis**: 4-second minimum quality hold time prevents rapid, distracting resolution oscillation.
+- **Audio-First Degradation**: Intelligently throttles video bitrate first under packet loss, ensuring friends never lose audio clarity.
+
+### 🖥️ 3. Independent 4-Track Screen Sharing (Presentation Mode)
+- **Simultaneous Camera + Screen**: Screen sharing does not replace the camera track. Presenters can share full-resolution screen content while their camera facecam remains visible in the strip.
+- **Text & Code Clarity**: Preserves 1080p/4K resolution and sharp text rendering with `displaySurface: 'monitor'`.
+- **Screen Audio**: Transmits system/tab audio concurrently where supported by the browser.
+
+### ⚡ 4. Primary SFU Transport & Resilient P2P Fallback
+- **LiveKit SFU Integration**: Primary production transport (`LiveKitSFUAdapter`) featuring server-side selective forwarding, dynacast, and adaptive streaming.
+- **Dynamic Token Negotiation**: Secure server-side token minting via `livekitToken.ts` without client-side API secret exposure.
+- **Real Connection Telemetry**: Measures genuine candidate-pair RTT, packet loss, jitter, and instantaneous bitrate from WebRTC `getStats()`. Zero fake metrics.
+- **Enhanced P2P Mesh**: Zero-config offline and multi-tab fallback powered by W3C Perfect Negotiation.
+
+### 📻 5. True Stage Broadcast Rooms
+- **Real Participants Only**: Strictly zero simulated or bot participants in production.
+- **Targeted Moderation**: Invitations and hand dismissals target explicit user IDs (`inviteToStage(userId)`), eliminating self-targeting bugs.
+- **Low-Overhead Audience**: Prioritizes speaker bandwidth; audience members consume minimal compute and network resources.
+
+### 📁 6. Community & Messaging Infrastructure
+- **Channel Hierarchy**: Collapsible categories for text channels, voice/video hangouts, live stages, and forum discussions.
+- **Rich Messaging**: Markdown support, code blocks, quote replies, emoji reactions, message pinning, and bookmarks.
+- **Global Command Palette (`Ctrl+K`)**: Quick navigation across servers, channels, and system actions.
 
 ---
 
 ## 🛠️ Technology Stack
 
 - **Frontend**: React 18, TypeScript, Vite
-- **Styling**: Vanilla CSS Design Tokens (Obsidian Dark Mode, Glassmorphism, Zero CSS framework bloat)
+- **Styling**: Vanilla CSS Design Tokens (Obsidian Dark Mode, Glassmorphism)
 - **Icons**: Lucide React
-- **Real-Time & Storage**: Supabase (PostgreSQL with Row Level Security & Realtime) + Built-in resilient MockStore demo layer
-- **Media**: WebRTC (Native RTCPeerConnection), Web Audio API (Oscillators, GainNodes, AnalyserNodes)
+- **Media Transports**: LiveKit Client SFU + Native WebRTC RTCPeerConnection (W3C Perfect Negotiation)
+- **Audio Processing**: Web Audio API (AnalyserNode, GainNode, OscillatorNode)
+- **Data & Realtime**: Supabase (PostgreSQL with RLS & Realtime) + Built-in multi-tab MockStore fallback
 
 ---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (v18 or higher recommended)
-- `npm` or `pnpm`
+- Node.js (v18+)
+- npm or pnpm
 
-### Installation
+### Installation & Run
 
 1. Clone the repository:
    ```bash
@@ -82,20 +93,17 @@ Meetwo is a modern, high-performance real-time communication platform built for 
 
 ---
 
-## ⚙️ Configuration (Optional Supabase Backend)
+## ⚙️ Environment Configuration
 
-By default, Meetwo runs seamlessly in **Demo Mode** with seeded users, servers, channels, and simulated real-time multi-tab events.
+Copy `.env.example` to `.env.local`:
+```bash
+cp .env.example .env.local
+```
 
-To connect a live Supabase project:
-1. Create a `.env` file based on `.env.example`:
-   ```env
-   VITE_SUPABASE_URL=https://your-project.supabase.co
-   VITE_SUPABASE_ANON_KEY=your-anon-key
-   ```
-2. Apply the schema in `supabase/schema.sql` to your Supabase SQL editor.
+For full environment documentation, refer to **[ENVIRONMENT.md](ENVIRONMENT.md)**.
 
 ---
 
 ## 📄 License
 
-MIT License. Feel free to use and build upon this codebase.
+MIT License. Designed for communities and private developer groups.

@@ -82,6 +82,8 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
               deviceId: deviceSettings.audioInputId ? { exact: deviceSettings.audioInputId } : undefined,
               echoCancellation: true,
               noiseSuppression: true,
+              autoGainControl: true,
+              channelCount: 1,
             }
           : false,
       });

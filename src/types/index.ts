@@ -202,7 +202,8 @@ export interface Participant {
   username: string;
   displayName: string;
   avatarUrl?: string;
-  stream?: MediaStream;
+  stream?: MediaStream; // Camera / primary stream
+  screenStream?: MediaStream; // Dedicated screen share stream
   isAudioMuted: boolean;
   isVideoMuted: boolean;
   isScreenSharing: boolean;
@@ -227,6 +228,9 @@ export interface PeerSignalMessage {
     | 'speaking-state'
     | 'hand-raise'
     | 'stage-role'
+    | 'stage-invite'
+    | 'stage-demote'
+    | 'stage-hand-dismiss'
     | 'track-update';
   fromPeerId: string;
   toPeerId?: string;

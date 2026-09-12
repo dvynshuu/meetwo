@@ -42,6 +42,9 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
     raiseHand,
     lowerHand,
     setStageRole,
+    inviteToStage,
+    demoteToListener,
+    lowerParticipantHand,
   } = useMedia();
 
   const [showHandQueue, setShowHandQueue] = useState(false);
@@ -285,7 +288,8 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
                       <button
                         className="btn btn-sm btn-primary"
                         style={{ padding: '4px 10px', fontSize: 11 }}
-                        onClick={() => setStageRole('speaker')}
+                        onClick={() => inviteToStage(req.userId)}
+                        title={`Invite ${req.displayName || req.username} to speak on stage`}
                       >
                         <CheckCircle2 size={12} />
                         <span>Invite to Stage</span>
@@ -293,7 +297,8 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
                       <button
                         className="btn btn-sm btn-ghost"
                         style={{ padding: '4px 8px' }}
-                        onClick={() => lowerHand()}
+                        onClick={() => lowerParticipantHand(req.userId)}
+                        title="Dismiss hand request"
                       >
                         <XCircle size={12} />
                       </button>
