@@ -31,322 +31,48 @@ const STORAGE_KEYS = {
   INVITES: 'meetwo_invites',
   TELEMETRY: 'meetwo_telemetry',
   STAGE_STATES: 'meetwo_stage_states',
+  REGISTERED_USERS: 'meetwo_registered_users',
 };
 
-// Seed Users
-export const SEED_USERS: User[] = [
-  {
-    id: 'user-divyanshu',
-    username: 'divyanshu',
-    displayName: 'Divyanshu',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    bio: 'Building next-gen real-time systems & WebRTC video.',
-    status: 'online',
-    customStatus: { text: 'Building meetwo 🚀', emoji: '💻' },
-    createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-  },
-  {
-    id: 'user-alex',
-    username: 'alex_r',
-    displayName: 'Alex Rivera',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    bio: 'Fullstack Dev & Audio Engineer 🎧',
-    status: 'online',
-    customStatus: { text: 'Tuning audio DSP matrix', emoji: '🎧' },
-    createdAt: new Date(Date.now() - 25 * 86400000).toISOString(),
-  },
-  {
-    id: 'user-sam',
-    username: 'sam_chen',
-    displayName: 'Sam Chen',
-    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
-    bio: 'Product Designer & UI tinkerer ✨',
-    status: 'idle',
-    customStatus: { text: 'Polishing stage UI layouts', emoji: '✨' },
-    createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
-  },
-  {
-    id: 'user-elena',
-    username: 'elena_v',
-    displayName: 'Elena Rostova',
-    avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-    bio: 'Distributed Systems & WebRTC architect ⚡',
-    status: 'dnd',
-    customStatus: { text: 'Deep Focus: SFU benchmarks', emoji: '⚡' },
-    createdAt: new Date(Date.now() - 15 * 86400000).toISOString(),
-  },
-];
+// Automatic one-time purge of legacy mock data from localStorage
+const MOCK_DATA_PURGED_FLAG = 'meetwo_mock_data_purged_v3';
+if (typeof window !== 'undefined') {
+  try {
+    if (!localStorage.getItem(MOCK_DATA_PURGED_FLAG)) {
+      const keysToPurge = [
+        'meetwo_servers',
+        'meetwo_categories',
+        'meetwo_channels',
+        'meetwo_members',
+        'meetwo_messages',
+        'meetwo_forum_posts',
+        'meetwo_bookmarks',
+        'meetwo_audit_logs',
+        'meetwo_current_user',
+        'meetwo_stage_states',
+        'meetwo_registered_users',
+        'mw:dm:conversations',
+        'mw:dm:messages',
+        'mw:dm:friends',
+        'mw:inbox:items',
+        'mw:inbox:read_channels',
+        'mw:nav:recent',
+      ];
+      keysToPurge.forEach((k) => localStorage.removeItem(k));
+      localStorage.setItem(MOCK_DATA_PURGED_FLAG, 'true');
+    }
+  } catch {}
+}
 
-// Seed Servers
-export const SEED_SERVERS: Server[] = [
-  {
-    id: 'server-mothership',
-    name: 'The Mothership',
-    iconUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
-    description: 'Central hub for creative technologists, developers, and creators.',
-    ownerId: 'user-divyanshu',
-    createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
-  },
-  {
-    id: 'server-dev-guild',
-    name: 'Developer Guild',
-    iconUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=150&auto=format&fit=crop&q=80',
-    description: 'Deep technical discussions, code reviews, and WebRTC experiments.',
-    ownerId: 'user-alex',
-    createdAt: new Date(Date.now() - 15 * 86400000).toISOString(),
-  },
-];
-
-// Seed Categories
-export const SEED_CATEGORIES: ChannelCategory[] = [
-  // Mothership categories
-  { id: 'cat-mom-text', serverId: 'server-mothership', name: 'Information & Chat', position: 0 },
-  { id: 'cat-mom-voice', serverId: 'server-mothership', name: 'Voice & Hangouts', position: 1 },
-  { id: 'cat-mom-stages', serverId: 'server-mothership', name: 'Live Stages & Broadcasts', position: 2 },
-  { id: 'cat-mom-forums', serverId: 'server-mothership', name: 'Community Discussions', position: 3 },
-
-  // Dev guild categories
-  { id: 'cat-dev-text', serverId: 'server-dev-guild', name: 'Engineering Channels', position: 0 },
-  { id: 'cat-dev-voice', serverId: 'server-dev-guild', name: 'Voice Rooms', position: 1 },
-  { id: 'cat-dev-stages', serverId: 'server-dev-guild', name: 'Tech Talks & AMAs', position: 2 },
-];
-
-// Seed Channels V3 (with Stage, Forum, Announcement types)
-export const SEED_CHANNELS: Channel[] = [
-  // Mothership
-  {
-    id: 'chan-announcements',
-    serverId: 'server-mothership',
-    categoryId: 'cat-mom-text',
-    name: 'announcements',
-    type: 'announcement',
-    topic: 'Official platform news and V3 release updates.',
-    position: 0,
-    isLocked: true,
-    createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
-  },
-  {
-    id: 'chan-general',
-    serverId: 'server-mothership',
-    categoryId: 'cat-mom-text',
-    name: 'general',
-    type: 'text',
-    topic: 'Welcome to The Mothership! Hang out and share ideas.',
-    position: 1,
-    createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
-  },
-  {
-    id: 'chan-random',
-    serverId: 'server-mothership',
-    categoryId: 'cat-mom-text',
-    name: 'random',
-    type: 'text',
-    topic: 'Off-topic, memes, and casual banter.',
-    position: 2,
-    createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
-  },
-  {
-    id: 'chan-voice-lounge',
-    serverId: 'server-mothership',
-    categoryId: 'cat-mom-voice',
-    name: 'Voice Lounge',
-    type: 'voice',
-    topic: 'Drop-in voice and video room.',
-    position: 3,
-    createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
-  },
-  {
-    id: 'chan-study-room',
-    serverId: 'server-mothership',
-    categoryId: 'cat-mom-voice',
-    name: 'Study Room',
-    type: 'voice',
-    topic: 'Co-working and focus session with cameras.',
-    position: 4,
-    createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
-  },
-  {
-    id: 'chan-main-stage',
-    serverId: 'server-mothership',
-    categoryId: 'cat-mom-stages',
-    name: 'Town Hall Stage',
-    type: 'stage',
-    topic: 'Weekly community AMAs and live keynotes.',
-    position: 5,
-    createdAt: new Date(Date.now() - 10 * 86400000).toISOString(),
-  },
-  {
-    id: 'chan-ideas-forum',
-    serverId: 'server-mothership',
-    categoryId: 'cat-mom-forums',
-    name: 'ideas-and-feedback',
-    type: 'forum',
-    topic: 'Propose feature ideas and vote on product roadmap.',
-    position: 6,
-    createdAt: new Date(Date.now() - 10 * 86400000).toISOString(),
-  },
-
-  // Dev Guild
-  {
-    id: 'chan-dev-frontend',
-    serverId: 'server-dev-guild',
-    categoryId: 'cat-dev-text',
-    name: 'frontend',
-    type: 'text',
-    topic: 'React 18/19, TypeScript, and modern styling.',
-    position: 0,
-    createdAt: new Date(Date.now() - 15 * 86400000).toISOString(),
-  },
-  {
-    id: 'chan-dev-webrtc',
-    serverId: 'server-dev-guild',
-    categoryId: 'cat-dev-text',
-    name: 'webrtc-infra',
-    type: 'text',
-    topic: 'SDP signaling, ICE trickling, and SFU topologies.',
-    position: 1,
-    createdAt: new Date(Date.now() - 15 * 86400000).toISOString(),
-  },
-  {
-    id: 'chan-dev-huddle',
-    serverId: 'server-dev-guild',
-    categoryId: 'cat-dev-voice',
-    name: 'Dev Huddle',
-    type: 'voice',
-    topic: 'Architecture pairing and code review calls.',
-    position: 2,
-    createdAt: new Date(Date.now() - 15 * 86400000).toISOString(),
-  },
-  {
-    id: 'chan-tech-talks',
-    serverId: 'server-dev-guild',
-    categoryId: 'cat-dev-stages',
-    name: 'Tech Talks Stage',
-    type: 'stage',
-    topic: 'Live architectural deep-dives with guest speakers.',
-    position: 3,
-    createdAt: new Date(Date.now() - 10 * 86400000).toISOString(),
-  },
-];
-
-// Seed Members
-export const SEED_MEMBERS: ServerMember[] = [
-  { serverId: 'server-mothership', userId: 'user-divyanshu', role: 'owner', joinedAt: new Date().toISOString() },
-  { serverId: 'server-mothership', userId: 'user-alex', role: 'admin', joinedAt: new Date().toISOString() },
-  { serverId: 'server-mothership', userId: 'user-sam', role: 'moderator', joinedAt: new Date().toISOString() },
-  { serverId: 'server-mothership', userId: 'user-elena', role: 'member', joinedAt: new Date().toISOString() },
-
-  { serverId: 'server-dev-guild', userId: 'user-alex', role: 'owner', joinedAt: new Date().toISOString() },
-  { serverId: 'server-dev-guild', userId: 'user-divyanshu', role: 'admin', joinedAt: new Date().toISOString() },
-  { serverId: 'server-dev-guild', userId: 'user-sam', role: 'member', joinedAt: new Date().toISOString() },
-];
-
-// Seed Messages
-export const SEED_MESSAGES: Message[] = [
-  {
-    id: 'msg-1',
-    channelId: 'chan-general',
-    authorId: 'user-alex',
-    content: 'Welcome to meetwo everyone! The Next-Generation Realtime Platform is officially live with Stage Broadcasts, Forums, and Saved Bookmarks 🚀',
-    createdAt: new Date(Date.now() - 3600000 * 3).toISOString(),
-    reactions: [
-      { emoji: '🚀', count: 3, userIds: ['user-divyanshu', 'user-sam', 'user-elena'] },
-      { emoji: '🔥', count: 2, userIds: ['user-divyanshu', 'user-alex'] },
-    ],
-  },
-  {
-    id: 'msg-2',
-    channelId: 'chan-general',
-    authorId: 'user-sam',
-    content: 'The new **Town Hall Stage** allows speakers to present while hundreds of listeners join in without CPU overload. Try joining it from the channel list! ✨',
-    createdAt: new Date(Date.now() - 3600000 * 2.2).toISOString(),
-    reactions: [
-      { emoji: '✨', count: 2, userIds: ['user-alex', 'user-divyanshu'] },
-      { emoji: '❤️', count: 1, userIds: ['user-divyanshu'] },
-    ],
-  },
-  {
-    id: 'msg-3',
-    channelId: 'chan-general',
-    authorId: 'user-divyanshu',
-    content: 'Notice how you can now ⭐ Bookmark any message into your personal Saved list, or open a dedicated Thread drawer for deep discussion.',
-    createdAt: new Date(Date.now() - 3600000 * 1.5).toISOString(),
-    isPinned: true,
-    reactions: [
-      { emoji: '👏', count: 2, userIds: ['user-sam', 'user-alex'] },
-    ],
-  },
-  {
-    id: 'msg-4',
-    channelId: 'chan-general',
-    authorId: 'user-elena',
-    content: 'The media recovery engine automatically recovers if you swap networks or minimize your browser. Pure resilience!',
-    replyToId: 'msg-3',
-    replyTo: {
-      id: 'msg-3',
-      authorName: 'Divyanshu',
-      content: 'Notice how you can now ⭐ Bookmark any message...',
-    },
-    createdAt: new Date(Date.now() - 3600000 * 0.5).toISOString(),
-    reactions: [
-      { emoji: '⚡', count: 3, userIds: ['user-divyanshu', 'user-sam', 'user-alex'] },
-    ],
-  },
-];
-
-// Seed Forum Posts
-export const SEED_FORUM_POSTS: ForumPost[] = [
-  {
-    id: 'post-1',
-    channelId: 'chan-ideas-forum',
-    authorId: 'user-sam',
-    title: 'How should we handle 4K Screen Share frame rates?',
-    content: 'With 1080p camera capture working seamlessly, for text-heavy screen sharing we can drop to 15fps to conserve massive bandwidth while keeping crisp 4K text legibility.',
-    tags: ['webrtc', 'performance', 'video'],
-    repliesCount: 4,
-    isSolved: true,
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: 'post-2',
-    channelId: 'chan-ideas-forum',
-    authorId: 'user-alex',
-    title: 'Noise Suppression: RNNoise vs Web Audio DSP Biquad Filters',
-    content: 'Exploring browser WebAssembly RNNoise integration to eliminate keyboard clicks during voice calls.',
-    tags: ['audio', 'dsp', 'ai'],
-    repliesCount: 7,
-    isSolved: false,
-    createdAt: new Date(Date.now() - 43200000).toISOString(),
-  },
-];
-
-// Seed Audit Logs
-export const SEED_AUDIT_LOGS: AuditLogEntry[] = [
-  {
-    id: 'log-1',
-    serverId: 'server-mothership',
-    actorName: 'Divyanshu',
-    action: 'Created Stage Channel',
-    target: '#Town Hall Stage',
-    timestamp: new Date(Date.now() - 3600000 * 5).toISOString(),
-  },
-  {
-    id: 'log-2',
-    serverId: 'server-mothership',
-    actorName: 'Alex Rivera',
-    action: 'Updated Server Permissions',
-    target: 'Moderator Role',
-    timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
-  },
-  {
-    id: 'log-3',
-    serverId: 'server-mothership',
-    actorName: 'Sam Chen',
-    action: 'Pinned Message',
-    target: 'Notice how you can now ⭐ Bookmark...',
-    timestamp: new Date(Date.now() - 3600000 * 1).toISOString(),
-  },
-];
+// Clean Empty Seed Datasets (All mock data and mock users removed)
+export const SEED_USERS: User[] = [];
+export const SEED_SERVERS: Server[] = [];
+export const SEED_CATEGORIES: ChannelCategory[] = [];
+export const SEED_CHANNELS: Channel[] = [];
+export const SEED_MEMBERS: ServerMember[] = [];
+export const SEED_MESSAGES: Message[] = [];
+export const SEED_FORUM_POSTS: ForumPost[] = [];
+export const SEED_AUDIT_LOGS: AuditLogEntry[] = [];
 
 class MockStore {
   private broadcastChannel: BroadcastChannel | null = null;
@@ -396,27 +122,57 @@ class MockStore {
   }
 
   // Current User & Custom Status
-  public getCurrentUser(): User {
+  public getCurrentUser(): User | null {
     const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
     if (saved) {
       try {
         return JSON.parse(saved);
       } catch {}
     }
-    const defaultUser = SEED_USERS[0];
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(defaultUser));
-    return defaultUser;
+    return null;
   }
 
-  public setCurrentUser(user: User) {
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+  public setCurrentUser(user: User | null) {
+    if (user) {
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+      this.addUser(user);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+    }
     this.emit('USER_UPDATED', user);
   }
 
   public updateCustomStatus(status: CustomStatus | undefined) {
     const user = this.getCurrentUser();
-    user.customStatus = status;
-    this.setCurrentUser(user);
+    if (user) {
+      user.customStatus = status;
+      this.setCurrentUser(user);
+    }
+  }
+
+  // User Directory
+  public getAllUsers(): User[] {
+    const saved = localStorage.getItem(STORAGE_KEYS.REGISTERED_USERS);
+    let list: User[] = [];
+    if (saved) {
+      try {
+        list = JSON.parse(saved);
+      } catch {}
+    }
+    const current = this.getCurrentUser();
+    if (current && !list.some((u) => u.id === current.id)) {
+      list.push(current);
+    }
+    return list;
+  }
+
+  public addUser(user: User) {
+    const list = this.getAllUsers();
+    if (!list.some((u) => u.id === user.id)) {
+      list.push(user);
+      localStorage.setItem(STORAGE_KEYS.REGISTERED_USERS, JSON.stringify(list));
+      this.emit('USER_REGISTERED', user);
+    }
   }
 
   // Servers
@@ -427,19 +183,19 @@ class MockStore {
         return JSON.parse(saved);
       } catch {}
     }
-    localStorage.setItem(STORAGE_KEYS.SERVERS, JSON.stringify(SEED_SERVERS));
-    return SEED_SERVERS;
+    return [];
   }
 
   public createServer(name: string, iconUrl?: string): Server {
     const servers = this.getServers();
     const currentUser = this.getCurrentUser();
+    const ownerId = currentUser ? currentUser.id : `user-${Date.now()}`;
     const newServer: Server = {
       id: `server-${Date.now()}`,
       name,
       iconUrl: iconUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${name}`,
       description: `${name} community`,
-      ownerId: currentUser.id,
+      ownerId,
       createdAt: new Date().toISOString(),
     };
     servers.push(newServer);
@@ -478,7 +234,7 @@ class MockStore {
     const members = this.getMembers();
     members.push({
       serverId: newServer.id,
-      userId: currentUser.id,
+      userId: ownerId,
       role: 'owner',
       joinedAt: new Date().toISOString(),
     });
@@ -496,11 +252,10 @@ class MockStore {
         return JSON.parse(saved);
       } catch {}
     }
-    localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(SEED_CATEGORIES));
-    return SEED_CATEGORIES;
+    return [];
   }
 
-  // Channels V3
+  // Channels
   public getChannels(): Channel[] {
     const saved = localStorage.getItem(STORAGE_KEYS.CHANNELS);
     if (saved) {
@@ -508,8 +263,7 @@ class MockStore {
         return JSON.parse(saved);
       } catch {}
     }
-    localStorage.setItem(STORAGE_KEYS.CHANNELS, JSON.stringify(SEED_CHANNELS));
-    return SEED_CHANNELS;
+    return [];
   }
 
   public createChannel(
@@ -545,8 +299,7 @@ class MockStore {
         return JSON.parse(saved);
       } catch {}
     }
-    localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(SEED_MEMBERS));
-    return SEED_MEMBERS;
+    return [];
   }
 
   public getServerMembers(serverId: string): ServerMember[] {
@@ -560,32 +313,19 @@ class MockStore {
       }));
   }
 
-  public getAllUsers(): User[] {
-    const currentUser = this.getCurrentUser();
-    const userMap = new Map<string, User>();
-    SEED_USERS.forEach((u) => userMap.set(u.id, u));
-    userMap.set(currentUser.id, currentUser);
-    return Array.from(userMap.values());
-  }
-
-  // Messages V3
+  // Messages
   public getMessages(channelId: string): Message[] {
     const saved = localStorage.getItem(STORAGE_KEYS.MESSAGES);
     let allMessages: Message[] = [];
     if (saved) {
       try {
         allMessages = JSON.parse(saved);
-      } catch {
-        allMessages = SEED_MESSAGES;
-      }
-    } else {
-      allMessages = SEED_MESSAGES;
-      localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(allMessages));
+      } catch {}
     }
 
     const users = this.getAllUsers();
     const bookmarks = this.getBookmarks();
-    const currentUserId = this.getCurrentUser().id;
+    const currentUserId = this.getCurrentUser()?.id || '';
 
     return allMessages
       .filter((m) => m.channelId === channelId)
@@ -594,50 +334,49 @@ class MockStore {
         isBookmarked: bookmarks.some((b) => b.messageId === m.id && b.userId === currentUserId),
         author: users.find((u) => u.id === m.authorId) || {
           id: m.authorId,
-          username: 'unknown',
+          username: 'user',
           displayName: 'User',
           status: 'online',
           createdAt: new Date().toISOString(),
         },
-      }))
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      }));
   }
 
   public sendMessage(
     channelId: string,
     content: string,
-    replyToId?: string | null,
+    authorId: string,
+    replyTo?: Message | null,
     attachments?: Attachment[]
   ): Message {
-    const currentUser = this.getCurrentUser();
     const saved = localStorage.getItem(STORAGE_KEYS.MESSAGES);
-    let allMessages: Message[] = saved ? JSON.parse(saved) : SEED_MESSAGES;
-
-    let replyToObj = undefined;
-    if (replyToId) {
-      const parent = allMessages.find((m) => m.id === replyToId);
-      if (parent) {
-        const users = this.getAllUsers();
-        const parentAuthor = users.find((u) => u.id === parent.authorId);
-        replyToObj = {
-          id: parent.id,
-          authorName: parentAuthor?.displayName || parentAuthor?.username || 'User',
-          content: parent.content.slice(0, 60),
-        };
-      }
-    }
+    const allMessages: Message[] = saved ? JSON.parse(saved) : [];
+    const users = this.getAllUsers();
+    const author = users.find((u) => u.id === authorId) || this.getCurrentUser() || {
+      id: authorId,
+      username: 'user',
+      displayName: 'User',
+      status: 'online',
+      createdAt: new Date().toISOString(),
+    };
 
     const newMessage: Message = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: `msg-${Date.now()}`,
       channelId,
-      authorId: currentUser.id,
+      authorId,
       content,
-      replyToId: replyToId || null,
-      replyTo: replyToObj || null,
+      createdAt: new Date().toISOString(),
+      replyToId: replyTo?.id || null,
+      replyTo: replyTo
+        ? {
+            id: replyTo.id,
+            authorName: replyTo.author?.displayName || replyTo.author?.username || 'User',
+            content: replyTo.content,
+          }
+        : null,
       reactions: [],
       attachments: attachments || [],
-      createdAt: new Date().toISOString(),
-      author: currentUser,
+      author,
     };
 
     allMessages.push(newMessage);
@@ -646,74 +385,70 @@ class MockStore {
     return newMessage;
   }
 
-  public editMessage(messageId: string, newContent: string): Message | null {
+  public editMessage(messageId: string, content: string): Message | null {
     const saved = localStorage.getItem(STORAGE_KEYS.MESSAGES);
-    let allMessages: Message[] = saved ? JSON.parse(saved) : SEED_MESSAGES;
+    if (!saved) return null;
+    const allMessages: Message[] = JSON.parse(saved);
+    const index = allMessages.findIndex((m) => m.id === messageId);
+    if (index === -1) return null;
 
-    const idx = allMessages.findIndex((m) => m.id === messageId);
-    if (idx === -1) return null;
-
-    allMessages[idx] = {
-      ...allMessages[idx],
-      content: newContent,
+    allMessages[index] = {
+      ...allMessages[index],
+      content,
       isEdited: true,
       updatedAt: new Date().toISOString(),
     };
 
     localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(allMessages));
-    this.emit('MESSAGE_EDITED', allMessages[idx]);
-    return allMessages[idx];
+    this.emit('MESSAGE_EDITED', allMessages[index]);
+    return allMessages[index];
   }
 
   public deleteMessage(messageId: string): boolean {
     const saved = localStorage.getItem(STORAGE_KEYS.MESSAGES);
-    let allMessages: Message[] = saved ? JSON.parse(saved) : SEED_MESSAGES;
-
+    if (!saved) return false;
+    const allMessages: Message[] = JSON.parse(saved);
     const filtered = allMessages.filter((m) => m.id !== messageId);
-    if (filtered.length === allMessages.length) return false;
-
     localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(filtered));
-    this.emit('MESSAGE_DELETED', { messageId });
+    this.emit('MESSAGE_DELETED', messageId);
     return true;
   }
 
-  public toggleReaction(messageId: string, emoji: string): Message | null {
-    const currentUser = this.getCurrentUser();
+  public toggleReaction(messageId: string, emoji: string, userId: string): Message | null {
     const saved = localStorage.getItem(STORAGE_KEYS.MESSAGES);
-    let allMessages: Message[] = saved ? JSON.parse(saved) : SEED_MESSAGES;
+    if (!saved) return null;
+    const allMessages: Message[] = JSON.parse(saved);
+    const msg = allMessages.find((m) => m.id === messageId);
+    if (!msg) return null;
 
-    const idx = allMessages.findIndex((m) => m.id === messageId);
-    if (idx === -1) return null;
+    if (!msg.reactions) msg.reactions = [];
+    const reaction = msg.reactions.find((r) => r.emoji === emoji);
 
-    const msg = allMessages[idx];
-    const reactions = msg.reactions ? [...msg.reactions] : [];
-    const rIdx = reactions.findIndex((r) => r.emoji === emoji);
-
-    if (rIdx >= 0) {
-      const existing = reactions[rIdx];
-      const hasReacted = existing.userIds.includes(currentUser.id);
-
-      if (hasReacted) {
-        const updatedUserIds = existing.userIds.filter((id) => id !== currentUser.id);
-        if (updatedUserIds.length === 0) {
-          reactions.splice(rIdx, 1);
-        } else {
-          reactions[rIdx] = { ...existing, count: updatedUserIds.length, userIds: updatedUserIds };
+    if (reaction) {
+      if (reaction.userIds.includes(userId)) {
+        reaction.userIds = reaction.userIds.filter((id) => id !== userId);
+        reaction.count -= 1;
+        if (reaction.count <= 0) {
+          msg.reactions = msg.reactions.filter((r) => r.emoji !== emoji);
         }
       } else {
-        reactions[rIdx] = { ...existing, count: existing.count + 1, userIds: [...existing.userIds, currentUser.id] };
+        reaction.userIds.push(userId);
+        reaction.count += 1;
       }
     } else {
-      reactions.push({ emoji, count: 1, userIds: [currentUser.id] });
+      msg.reactions.push({
+        emoji,
+        count: 1,
+        userIds: [userId],
+      });
     }
 
-    allMessages[idx] = { ...msg, reactions };
     localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(allMessages));
-    this.emit('REACTION_TOGGLED', { messageId, reactions });
-    return allMessages[idx];
+    this.emit('REACTION_TOGGLED', { messageId, emoji, userId });
+    return msg;
   }
 
-  // Bookmarks (⭐ Saved Messages)
+  // Bookmarks
   public getBookmarks(): Bookmark[] {
     const saved = localStorage.getItem(STORAGE_KEYS.BOOKMARKS);
     if (saved) {
@@ -725,72 +460,68 @@ class MockStore {
   }
 
   public toggleBookmark(message: Message, channelName: string): boolean {
-    const currentUser = this.getCurrentUser();
+    const currentUserId = this.getCurrentUser()?.id || 'guest';
     const bookmarks = this.getBookmarks();
-    const existingIdx = bookmarks.findIndex((b) => b.messageId === message.id && b.userId === currentUser.id);
+    const existingIndex = bookmarks.findIndex(
+      (b) => b.messageId === message.id && b.userId === currentUserId
+    );
 
-    if (existingIdx >= 0) {
-      bookmarks.splice(existingIdx, 1);
+    if (existingIndex >= 0) {
+      bookmarks.splice(existingIndex, 1);
       localStorage.setItem(STORAGE_KEYS.BOOKMARKS, JSON.stringify(bookmarks));
-      this.emit('BOOKMARKS_UPDATED', bookmarks);
+      this.emit('BOOKMARK_REMOVED', message.id);
       return false;
     } else {
-      const newBm: Bookmark = {
+      const newBookmark: Bookmark = {
         id: `bm-${Date.now()}`,
-        userId: currentUser.id,
+        userId: currentUserId,
         messageId: message.id,
         message,
         channelName,
         createdAt: new Date().toISOString(),
       };
-      bookmarks.push(newBm);
+      bookmarks.unshift(newBookmark);
       localStorage.setItem(STORAGE_KEYS.BOOKMARKS, JSON.stringify(bookmarks));
-      this.emit('BOOKMARKS_UPDATED', bookmarks);
+      this.emit('BOOKMARK_ADDED', newBookmark);
       return true;
     }
   }
 
-  // Forum Posts V3
+  // Forum Posts
   public getForumPosts(channelId: string): ForumPost[] {
     const saved = localStorage.getItem(STORAGE_KEYS.FORUM_POSTS);
     let allPosts: ForumPost[] = [];
     if (saved) {
       try {
         allPosts = JSON.parse(saved);
-      } catch {
-        allPosts = SEED_FORUM_POSTS;
-      }
-    } else {
-      allPosts = SEED_FORUM_POSTS;
-      localStorage.setItem(STORAGE_KEYS.FORUM_POSTS, JSON.stringify(allPosts));
+      } catch {}
     }
-
-    const users = this.getAllUsers();
-    return allPosts
-      .filter((p) => p.channelId === channelId)
-      .map((p) => ({
-        ...p,
-        author: users.find((u) => u.id === p.authorId),
-      }))
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return allPosts.filter((p) => p.channelId === channelId);
   }
 
-  public createForumPost(channelId: string, title: string, content: string, tags: string[]): ForumPost {
-    const currentUser = this.getCurrentUser();
+  public createForumPost(
+    channelId: string,
+    authorId: string,
+    title: string,
+    content: string,
+    tags: string[]
+  ): ForumPost {
     const saved = localStorage.getItem(STORAGE_KEYS.FORUM_POSTS);
-    let allPosts: ForumPost[] = saved ? JSON.parse(saved) : SEED_FORUM_POSTS;
+    const allPosts: ForumPost[] = saved ? JSON.parse(saved) : [];
+    const users = this.getAllUsers();
+    const author = users.find((u) => u.id === authorId) || this.getCurrentUser() || undefined;
 
     const newPost: ForumPost = {
       id: `post-${Date.now()}`,
       channelId,
-      authorId: currentUser.id,
+      authorId,
       title,
       content,
-      tags: tags.length > 0 ? tags : ['discussion'],
+      tags,
       repliesCount: 0,
       isSolved: false,
       createdAt: new Date().toISOString(),
-      author: currentUser,
+      author,
     };
 
     allPosts.unshift(newPost);
@@ -799,56 +530,92 @@ class MockStore {
     return newPost;
   }
 
-  // Audit Logs V3
+  // Audit Logs
   public getAuditLogs(serverId: string): AuditLogEntry[] {
     const saved = localStorage.getItem(STORAGE_KEYS.AUDIT_LOGS);
-    let allLogs: AuditLogEntry[] = saved ? JSON.parse(saved) : SEED_AUDIT_LOGS;
+    let allLogs: AuditLogEntry[] = [];
+    if (saved) {
+      try {
+        allLogs = JSON.parse(saved);
+      } catch {}
+    }
     return allLogs.filter((l) => l.serverId === serverId);
   }
 
-  public addAuditLog(serverId: string, action: string, target: string): AuditLogEntry {
-    const currentUser = this.getCurrentUser();
+  public addAuditLog(serverId: string, actorName: string, action: string, target: string): AuditLogEntry {
     const saved = localStorage.getItem(STORAGE_KEYS.AUDIT_LOGS);
-    let allLogs: AuditLogEntry[] = saved ? JSON.parse(saved) : SEED_AUDIT_LOGS;
+    const allLogs: AuditLogEntry[] = saved ? JSON.parse(saved) : [];
 
-    const newLog: AuditLogEntry = {
+    const newEntry: AuditLogEntry = {
       id: `log-${Date.now()}`,
       serverId,
-      actorName: currentUser.displayName || currentUser.username,
+      actorName,
       action,
       target,
       timestamp: new Date().toISOString(),
     };
 
-    allLogs.unshift(newLog);
+    allLogs.unshift(newEntry);
     localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(allLogs));
-    return newLog;
+    this.emit('AUDIT_LOG_ADDED', newEntry);
+    return newEntry;
   }
 
   // Invites
-  public createInvite(serverId: string): Invite {
-    const currentUser = this.getCurrentUser();
+  public getInvites(serverId: string): Invite[] {
     const saved = localStorage.getItem(STORAGE_KEYS.INVITES);
-    let allInvites: Invite[] = saved ? JSON.parse(saved) : [];
+    let allInvites: Invite[] = [];
+    if (saved) {
+      try {
+        allInvites = JSON.parse(saved);
+      } catch {}
+    }
+    return allInvites.filter((inv) => inv.serverId === serverId);
+  }
+
+  public createInvite(serverId: string, creatorId: string): Invite {
+    const saved = localStorage.getItem(STORAGE_KEYS.INVITES);
+    const allInvites: Invite[] = saved ? JSON.parse(saved) : [];
 
     const newInvite: Invite = {
       id: `inv-${Date.now()}`,
       serverId,
+      creatorId,
       code: Math.random().toString(36).substring(2, 8).toUpperCase(),
-      creatorId: currentUser.id,
       usesCount: 0,
       createdAt: new Date().toISOString(),
     };
 
     allInvites.push(newInvite);
     localStorage.setItem(STORAGE_KEYS.INVITES, JSON.stringify(allInvites));
+    this.emit('INVITE_CREATED', newInvite);
     return newInvite;
   }
 
-  // ==========================================
-  // SERVER-AUTHORITATIVE STAGE STATE MACHINE (V4)
-  // ==========================================
+  // Telemetry
+  public getTelemetry(): TelemetryEvent[] {
+    const saved = localStorage.getItem(STORAGE_KEYS.TELEMETRY);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {}
+    }
+    return [];
+  }
 
+  public addTelemetry(event: Omit<TelemetryEvent, 'id' | 'timestamp'>) {
+    const all = this.getTelemetry();
+    const entry: TelemetryEvent = {
+      ...event,
+      id: `tel-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+    };
+    all.unshift(entry);
+    localStorage.setItem(STORAGE_KEYS.TELEMETRY, JSON.stringify(all.slice(0, 50)));
+    this.emit('TELEMETRY_LOGGED', entry);
+  }
+
+  // Stage Channels State
   public getStageState(channelId: string): StageChannelState {
     const saved = localStorage.getItem(STORAGE_KEYS.STAGE_STATES);
     let allStates: Record<string, StageChannelState> = {};
@@ -861,7 +628,7 @@ class MockStore {
     if (!allStates[channelId]) {
       const channel = this.getChannels().find((c) => c.id === channelId);
       const server = channel ? this.getServers().find((s) => s.id === channel.serverId) : null;
-      const hostId = server ? server.ownerId : 'user-divyanshu';
+      const hostId = server ? server.ownerId : (this.getCurrentUser()?.id || 'host');
 
       allStates[channelId] = {
         channelId,

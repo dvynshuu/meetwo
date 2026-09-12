@@ -311,3 +311,71 @@ export interface TelemetryEvent {
   message: string;
   timestamp: string;
 }
+
+// ====================================================================
+// Community UX Upgrade Types (DMs, Inbox, Friends, Navigation, Polls)
+// ====================================================================
+
+export interface DMMessage {
+  id: string;
+  conversationId: string;
+  authorId: string;
+  content: string;
+  createdAt: string;
+  author?: User;
+}
+
+export interface DMConversation {
+  id: string;
+  participants: User[];
+  lastMessage?: DMMessage;
+  unreadCount: number;
+  createdAt: string;
+}
+
+export interface InboxItem {
+  id: string;
+  type: 'mention' | 'reply' | 'unread';
+  channelId: string;
+  serverId: string;
+  messageId: string;
+  content: string;
+  authorName: string;
+  authorAvatar?: string;
+  channelName: string;
+  serverName: string;
+  timestamp: string;
+  isRead: boolean;
+}
+
+export interface Friend {
+  id: string;
+  user: User;
+  status: 'accepted' | 'pending_sent' | 'pending_received' | 'blocked';
+  createdAt: string;
+}
+
+export interface NavigationEntry {
+  id: string;
+  type: 'channel' | 'dm' | 'server';
+  name: string;
+  serverId?: string;
+  channelId?: string;
+  conversationId?: string;
+}
+
+export interface PollOption {
+  id: string;
+  text: string;
+  voterIds: string[];
+}
+
+export interface Poll {
+  id: string;
+  channelId: string;
+  messageId: string;
+  question: string;
+  options: PollOption[];
+  createdAt: string;
+  createdById: string;
+}

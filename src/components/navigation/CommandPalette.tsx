@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Hash, Volume2, Video, Server as ServerIcon, Settings, Plus, Mic, Video as VideoIcon, X } from 'lucide-react';
-import { useServer } from '../../app/providers/ServerContext';
+import { Search, Settings, Plus, Mic, Video as VideoIcon, X, CheckCheck, UserPlus, Shield, Activity, Users } from 'lucide-react';
 import { useMedia } from '../../app/providers/MediaContext';
-import { CommandItem } from '../../types';
+import { useServer } from '../../app/providers/ServerContext';
+import { useInbox } from '../../app/providers/InboxContext';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -10,6 +10,18 @@ interface CommandPaletteProps {
   onOpenSettings: () => void;
   onOpenCreateServer: () => void;
   onOpenCreateChannel: () => void;
+  onOpenInvite?: () => void;
+  onOpenAuditLogs?: () => void;
+  onToggleMemberList?: () => void;
+}
+
+interface ActionCommand {
+  id: string;
+  title: string;
+  category: 'Voice & Video' | 'Workspace' | 'System';
+  icon: React.ReactNode;
+  shortcut?: string;
+  action: () => void;
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({
@@ -18,9 +30,13 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onOpenSettings,
   onOpenCreateServer,
   onOpenCreateChannel,
+  onOpenInvite,
+  onOpenAuditLogs,
+  onToggleMemberList,
 }) => {
-  const { servers, channels, selectServer, selectChannel } = useServer();
-  const { toggleAudio, toggleVideo, joinVoiceRoom } = useMedia();
+  const { toggleAudio, toggleVideo, isAudioMuted, isVideoMuted } = useMedia();
+  const { activeServer } = useServer();
+  const { markAllRead } = useInbox();
 
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -30,49 +46,16 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     if (isOpen) {
       setQuery('');
       setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
+      setTimeout(() => inputRef.current?.focus(), 40);
     }
   }, [isOpen]);
 
-  // Build searchable items
-  const items: CommandItem[] = [];
-
-  // Channels
-  channels.forEach((c) => {
-    items.push({
-      id: `chan-${c.id}`,
-      title: c.name,
-      category: 'Channels',
-      icon: c.type === 'text' ? 'hash' : 'voice',
-      action: () => {
-        selectChannel(c.id);
-        if (c.type === 'voice') joinVoiceRoom(c.id);
-        onClose();
-      },
-    });
-  });
-
-  // Servers
-  servers.forEach((s) => {
-    items.push({
-      id: `serv-${s.id}`,
-      title: s.name,
-      category: 'Servers',
-      icon: 'server',
-      action: () => {
-        selectServer(s.id);
-        onClose();
-      },
-    });
-  });
-
-  // Actions
-  items.push(
+  const actions: ActionCommand[] = [
     {
       id: 'act-toggle-mic',
-      title: 'Toggle Microphone Mute',
-      category: 'Actions',
-      icon: 'mic',
+      title: isAudioMuted ? 'Unmute Microphone' : 'Mute Microphone',
+      category: 'Voice & Video',
+      icon: <Mic size={16} />,
       shortcut: 'Ctrl+D',
       action: () => {
         toggleAudio();
@@ -81,9 +64,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     },
     {
       id: 'act-toggle-cam',
-      title: 'Toggle Camera',
-      category: 'Actions',
-      icon: 'camera',
+      title: isVideoMuted ? 'Turn Camera On' : 'Turn Camera Off',
+      category: 'Voice & Video',
+      icon: <VideoIcon size={16} />,
       shortcut: 'Ctrl+E',
       action: () => {
         toggleVideo();
@@ -93,8 +76,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     {
       id: 'act-create-channel',
       title: 'Create Channel in Current Workspace',
-      category: 'Actions',
-      icon: 'plus',
+      category: 'Workspace',
+      icon: <Plus size={16} />,
       action: () => {
         onClose();
         onOpenCreateChannel();
@@ -103,41 +86,83 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     {
       id: 'act-create-server',
       title: 'Create New Workspace',
-      category: 'Actions',
-      icon: 'plus',
+      category: 'Workspace',
+      icon: <Plus size={16} />,
       action: () => {
         onClose();
         onOpenCreateServer();
       },
     },
     {
+      id: 'act-invite',
+      title: 'Invite Members to Workspace',
+      category: 'Workspace',
+      icon: <UserPlus size={16} />,
+      action: () => {
+        onClose();
+        if (onOpenInvite) onOpenInvite();
+      },
+    },
+    {
+      id: 'act-mark-all-read',
+      title: 'Mark All Channels and Mentions as Read',
+      category: 'Workspace',
+      icon: <CheckCheck size={16} />,
+      action: () => {
+        markAllRead();
+        onClose();
+      },
+    },
+    {
+      id: 'act-audit-logs',
+      title: 'Open Workspace Audit Logs',
+      category: 'Workspace',
+      icon: <Shield size={16} />,
+      action: () => {
+        onClose();
+        if (onOpenAuditLogs) onOpenAuditLogs();
+      },
+    },
+    {
+      id: 'act-toggle-members',
+      title: 'Toggle Member List Visibility',
+      category: 'Workspace',
+      icon: <Users size={16} />,
+      action: () => {
+        onClose();
+        if (onToggleMemberList) onToggleMemberList();
+      },
+    },
+    {
       id: 'act-settings',
-      title: 'Open Settings',
-      category: 'Settings',
-      icon: 'settings',
+      title: 'Open Settings (Voice, Audio, Devices)',
+      category: 'System',
+      icon: <Settings size={16} />,
+      shortcut: 'Ctrl+,',
       action: () => {
         onClose();
         onOpenSettings();
       },
-    }
-  );
+    },
+  ];
 
-  const filteredItems = items.filter((item) =>
-    item.title.toLowerCase().includes(query.toLowerCase()) ||
-    item.category.toLowerCase().includes(query.toLowerCase())
+  const filteredActions = actions.filter(
+    (a) =>
+      a.title.toLowerCase().includes(query.toLowerCase()) ||
+      a.category.toLowerCase().includes(query.toLowerCase())
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev + 1) % Math.max(1, filteredItems.length));
+      setSelectedIndex((prev) => (prev + 1) % Math.max(1, filteredActions.length));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev - 1 + filteredItems.length) % Math.max(1, filteredItems.length));
+      setSelectedIndex((prev) => (prev - 1 + filteredActions.length) % Math.max(1, filteredActions.length));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (filteredItems[selectedIndex]) {
-        filteredItems[selectedIndex].action();
+      if (filteredActions[selectedIndex]) {
+        filteredActions[selectedIndex].action();
       }
     } else if (e.key === 'Escape') {
       onClose();
@@ -153,62 +178,52 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
-        {/* Search Header */}
         <div className="command-palette-header">
           <Search size={18} style={{ color: 'var(--text-muted)' }} />
           <input
             ref={inputRef}
             type="text"
             className="command-palette-input"
-            placeholder="Search channels, servers, or type a command..."
+            placeholder="Type an action or command..."
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
               setSelectedIndex(0);
             }}
           />
-          <span className="command-palette-esc">ESC</span>
+          <button className="icon-btn" onClick={onClose} aria-label="Close Command Palette">
+            <X size={16} />
+          </button>
         </div>
 
-        {/* Results List */}
         <div className="command-palette-list">
-          {filteredItems.length === 0 ? (
-            <div className="command-empty-state">
-              No results found for "{query}"
-            </div>
-          ) : (
-            filteredItems.map((item, idx) => {
+          {filteredActions.length > 0 ? (
+            filteredActions.map((cmd, idx) => {
               const isSelected = idx === selectedIndex;
               return (
                 <div
-                  key={item.id}
-                  className={`command-palette-item ${isSelected ? 'selected' : ''}`}
-                  onClick={item.action}
+                  key={cmd.id}
+                  className={`command-item ${isSelected ? 'selected' : ''}`}
+                  onClick={cmd.action}
                   onMouseEnter={() => setSelectedIndex(idx)}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {item.icon === 'hash' && <Hash size={16} style={{ color: 'var(--text-muted)' }} />}
-                    {item.icon === 'voice' && <Volume2 size={16} style={{ color: 'var(--status-online)' }} />}
-                    {item.icon === 'server' && <ServerIcon size={16} style={{ color: 'var(--accent)' }} />}
-                    {item.icon === 'mic' && <Mic size={16} style={{ color: 'var(--text-muted)' }} />}
-                    {item.icon === 'camera' && <VideoIcon size={16} style={{ color: 'var(--text-muted)' }} />}
-                    {item.icon === 'plus' && <Plus size={16} style={{ color: 'var(--accent)' }} />}
-                    {item.icon === 'settings' && <Settings size={16} style={{ color: 'var(--text-muted)' }} />}
-
-                    <span style={{ fontSize: 14, fontWeight: 500 }}>{item.title}</span>
+                  <span className="command-icon">{cmd.icon}</span>
+                  <div className="command-info truncate">
+                    <span className="command-title truncate">{cmd.title}</span>
+                    <span className="command-category">{cmd.category}</span>
                   </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {item.shortcut && (
-                      <span className="command-item-shortcut">{item.shortcut}</span>
-                    )}
-                    <span className="command-item-category">{item.category}</span>
-                  </div>
+                  {cmd.shortcut && <kbd className="command-shortcut">{cmd.shortcut}</kbd>}
                 </div>
               );
             })
+          ) : (
+            <div className="command-empty-state">No matching actions found.</div>
           )}
         </div>
+
+        <footer className="command-palette-footer">
+          <span>Tip: Press <strong>Ctrl+K</strong> for Quick Switcher (Channels & DMs)</span>
+        </footer>
       </div>
     </div>
   );

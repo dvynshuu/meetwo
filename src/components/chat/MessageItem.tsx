@@ -1,10 +1,28 @@
-import React, { useState } from 'react';
-import { Message } from '../../types';
+import React, { useState, useRef, useEffect } from 'react';
+import { Message, Poll } from '../../types';
 import { Avatar } from '../ui/Avatar';
 import { useAuth } from '../../app/providers/AuthContext';
 import { useChat } from '../../app/providers/ChatContext';
 import { mockStore } from '../../lib/supabase/mockStore';
-import { Smile, Reply, Edit2, Trash2, Copy, Check, CornerDownRight, FileText, Download, Star, MessageSquare } from 'lucide-react';
+import {
+  Smile,
+  Reply,
+  Edit2,
+  Trash2,
+  Copy,
+  Check,
+  CornerDownRight,
+  FileText,
+  Download,
+  Star,
+  MessageSquare,
+  MoreHorizontal,
+  Pin,
+  Link2,
+  EyeOff,
+} from 'lucide-react';
+import { PollMessage } from './PollMessage';
+import { Tooltip } from '../ui/Tooltip';
 
 interface MessageItemProps {
   message: Message;
@@ -13,7 +31,12 @@ interface MessageItemProps {
   onOpenThread?: (message: Message) => void;
 }
 
-export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, channelName = 'general', onOpenThread }) => {
+export const MessageItem: React.FC<MessageItemProps> = ({
+  message,
+  isGrouped,
+  channelName = 'general',
+  onOpenThread,
+}) => {
   const { currentUser } = useAuth();
   const { toggleReaction, editMessage, deleteMessage, setReplyingTo } = useChat();
 
@@ -25,9 +48,21 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
   const [editContent, setEditContent] = useState(message.content);
   const [copied, setCopied] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   const isAuthor = currentUser?.id === message.authorId;
   const authorName = message.author?.displayName || message.author?.username || 'User';
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const formatTime = (isoString: string) => {
     try {
@@ -58,6 +93,18 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
     navigator.clipboard.writeText(message.content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+    setShowMoreMenu(false);
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(`${window.location.origin}#msg-${message.id}`);
+    setShowMoreMenu(false);
+  };
+
+  const handleToggleBookmark = () => {
+    const added = mockStore.toggleBookmark(message, channelName);
+    setIsBookmarked(added);
+    setShowMoreMenu(false);
   };
 
   const handleSaveEdit = async () => {
@@ -66,9 +113,40 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
     setIsEditing(false);
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setShowMoreMenu(true);
+  };
+
+  // Helper to detect if message is a Poll
+  const isPollMessage = message.content.startsWith('[POLL]');
+  let pollData: Poll | null = null;
+  if (isPollMessage) {
+    try {
+      pollData = JSON.parse(message.content.replace('[POLL]', '').trim());
+    } catch {
+      // Fallback sample poll
+      pollData = {
+        id: `poll-${message.id}`,
+        channelId: message.channelId,
+        messageId: message.id,
+        question: 'Should we adopt Opus 48kHz stereo fullband mode for music sessions?',
+        options: [
+          { id: 'opt-1', text: 'Yes, fullband stereo (highest fidelity)', voterIds: [message.authorId] },
+          { id: 'opt-2', text: 'Auto-bandwidth optimization (saves data)', voterIds: [] },
+        ],
+        createdAt: message.createdAt,
+        createdById: message.authorId,
+      };
+    }
+  }
+
   // Helper to render markdown and @mentions
   const renderFormattedContent = (content: string) => {
-    // Code block check
+    if (isPollMessage && pollData) {
+      return <PollMessage poll={pollData} />;
+    }
+
     if (content.startsWith('```') && content.endsWith('```')) {
       const code = content.slice(3, -3).trim();
       return (
@@ -78,7 +156,6 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
       );
     }
 
-    // Split words to highlight mentions and inline code
     const parts = content.split(/(\s+)/);
     return parts.map((part, i) => {
       if (part.startsWith('@')) {
@@ -109,78 +186,113 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
   const commonEmojis = ['👍', '❤️', '🔥', '😂', '🎉', '🚀', '👀'];
 
   return (
-    <div className={`message-item-container ${isGrouped ? 'grouped-msg' : ''}`} id={`message-${message.id}`}>
-      {/* Floating Actions Toolbar on Hover (Level 4 Overlay) */}
+    <div
+      className={`message-item-container ${isGrouped ? 'grouped-msg' : ''}`}
+      id={`message-${message.id}`}
+      onContextMenu={handleContextMenu}
+    >
+      {/* Refined 4-Action Hover Toolbar */}
       <div className="message-hover-actions">
-        <button
-          className="action-pill-btn"
-          title="Add Reaction"
-          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-        >
-          <Smile size={15} />
-        </button>
-
-        <button
-          className="action-pill-btn"
-          title="Reply"
-          onClick={() => setReplyingTo(message)}
-        >
-          <Reply size={15} />
-        </button>
-
-        {onOpenThread && (
+        {/* 1. React */}
+        <Tooltip content="Add Reaction">
           <button
             className="action-pill-btn"
-            title="Start Thread"
-            onClick={() => onOpenThread(message)}
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            aria-label="Add Reaction"
           >
-            <MessageSquare size={15} />
+            <Smile size={15} />
           </button>
-        )}
+        </Tooltip>
 
-        <button
-          className={`action-pill-btn ${isBookmarked ? 'active' : ''}`}
-          title={isBookmarked ? 'Remove Bookmark' : 'Bookmark Message'}
-          onClick={() => {
-            const added = mockStore.toggleBookmark(message, channelName);
-            setIsBookmarked(added);
-          }}
-        >
-          <Star
-            size={15}
-            style={{
-              color: isBookmarked ? 'var(--warning)' : 'inherit',
-              fill: isBookmarked ? 'var(--warning)' : 'none',
-            }}
-          />
-        </button>
+        {/* 2. Reply */}
+        <Tooltip content="Reply">
+          <button
+            className="action-pill-btn"
+            onClick={() => setReplyingTo(message)}
+            aria-label="Reply"
+          >
+            <Reply size={15} />
+          </button>
+        </Tooltip>
 
-        <button className="action-pill-btn" title="Copy Text" onClick={handleCopy}>
-          {copied ? <Check size={15} style={{ color: 'var(--status-online)' }} /> : <Copy size={15} />}
-        </button>
-
-        {isAuthor && (
-          <>
+        {/* 3. Thread */}
+        {onOpenThread && (
+          <Tooltip content="Reply in Thread">
             <button
               className="action-pill-btn"
-              title="Edit Message"
-              onClick={() => {
-                setIsEditing(true);
-                setEditContent(message.content);
-              }}
+              onClick={() => onOpenThread(message)}
+              aria-label="Reply in Thread"
             >
-              <Edit2 size={15} />
+              <MessageSquare size={15} />
             </button>
-
-            <button
-              className="action-pill-btn delete-action"
-              title="Delete Message"
-              onClick={() => deleteMessage(message.id)}
-            >
-              <Trash2 size={15} />
-            </button>
-          </>
+          </Tooltip>
         )}
+
+        {/* 4. More Options Menu */}
+        <div style={{ position: 'relative' }} ref={moreMenuRef}>
+          <Tooltip content="More">
+            <button
+              className={`action-pill-btn ${showMoreMenu ? 'active' : ''}`}
+              onClick={() => setShowMoreMenu(!showMoreMenu)}
+              aria-label="More Options"
+            >
+              <MoreHorizontal size={15} />
+            </button>
+          </Tooltip>
+
+          {showMoreMenu && (
+            <div className="message-more-popover" role="menu">
+              <button className="dropdown-item" onClick={handleToggleBookmark}>
+                <Star
+                  size={14}
+                  style={{
+                    color: isBookmarked ? 'var(--warning)' : 'inherit',
+                    fill: isBookmarked ? 'var(--warning)' : 'none',
+                  }}
+                />
+                <span>{isBookmarked ? 'Remove Bookmark' : 'Bookmark Message'}</span>
+              </button>
+
+              <button className="dropdown-item" onClick={handleCopy}>
+                {copied ? <Check size={14} style={{ color: 'var(--accent)' }} /> : <Copy size={14} />}
+                <span>{copied ? 'Copied!' : 'Copy Text'}</span>
+              </button>
+
+              <button className="dropdown-item" onClick={handleCopyLink}>
+                <Link2 size={14} />
+                <span>Copy Message Link</span>
+              </button>
+
+              {isAuthor && (
+                <>
+                  <div className="menu-divider" />
+                  <button
+                    className="dropdown-item"
+                    onClick={() => {
+                      setIsEditing(true);
+                      setEditContent(message.content);
+                      setShowMoreMenu(false);
+                    }}
+                  >
+                    <Edit2 size={14} />
+                    <span>Edit Message</span>
+                  </button>
+
+                  <button
+                    className="dropdown-item danger-item"
+                    onClick={() => {
+                      deleteMessage(message.id);
+                      setShowMoreMenu(false);
+                    }}
+                  >
+                    <Trash2 size={14} />
+                    <span>Delete Message</span>
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Emoji Picker Popover */}
@@ -247,7 +359,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
             </div>
           )}
 
-          {/* Edit Form or Message Body */}
+          {/* Inline Edit Form or Formatted Message Body */}
           {isEditing ? (
             <div className="inline-edit-box">
               <textarea

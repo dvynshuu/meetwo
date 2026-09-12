@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useAuth } from '../../app/providers/AuthContext';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { SEED_USERS } from '../../lib/supabase/mockStore';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -10,7 +9,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
-  const { login, signup, switchDemoUser, isDemoMode, error: authError } = useAuth();
+  const { login, signup, error: authError } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -28,8 +27,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       setFormError('Username is required');
       return;
     }
+
     if (!email.trim()) {
-      setFormError('Email is required');
+      setFormError('Email or username is required');
       return;
     }
 
@@ -37,10 +37,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     try {
       let success = false;
       if (isSignUp) {
-        success = await signup(username.trim(), email.trim(), password || undefined);
+        success = await signup(username.trim(), email.trim(), password);
       } else {
-        success = await login(email.trim(), password || undefined);
+        success = await login(email.trim(), password);
       }
+
       if (success) {
         onClose();
       }
@@ -49,11 +50,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleDemoSelect = (userId: string) => {
-    switchDemoUser(userId);
-    onClose();
   };
 
   return (
@@ -74,16 +70,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 flexShrink: 0,
               }}
             >
-              <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-                <circle cx="11" cy="16" r="8" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" />
-                <circle cx="21" cy="16" r="8" stroke="var(--text-primary)" strokeWidth="3" strokeLinecap="round" opacity="0.9" />
-                <circle cx="16" cy="16" r="3" fill="var(--accent)" />
-              </svg>
+              <img src="/favicon.svg" alt="meetwo" style={{ width: 24, height: 24 }} />
             </div>
             <div>
-              <h3>{isSignUp ? 'Create an account' : 'Welcome to meetwo'}</h3>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-                {isSignUp ? 'Join workspaces and start communicating.' : 'Sign in to access your spaces.'}
+              <h2 className="modal-title" style={{ fontSize: 18, margin: 0 }}>
+                {isSignUp ? 'Create your Meetwo account' : 'Welcome back to Meetwo'}
+              </h2>
+              <p className="modal-description" style={{ marginTop: 4 }}>
+                {isSignUp
+                  ? 'Connect with teams, participate in voice rooms, and collaborate.'
+                  : 'Log in to continue to your workspaces and direct messages.'}
               </p>
             </div>
           </div>
@@ -93,12 +89,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           {(formError || authError) && (
             <div
               style={{
-                background: 'var(--danger-surface)',
-                color: 'var(--danger)',
-                padding: '10px 14px',
+                padding: '8px 12px',
                 borderRadius: 'var(--radius-sm)',
-                fontSize: 13,
-                fontWeight: 500,
+                background: 'var(--danger-surface)',
+                border: '1px solid rgba(251, 113, 133, 0.3)',
+                color: 'var(--danger)',
+                fontSize: 12,
+                marginBottom: 16,
               }}
             >
               {formError || authError}
@@ -109,21 +106,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             {isSignUp && (
               <Input
                 label="Username"
-                placeholder="divyanshu"
+                type="text"
+                placeholder="e.g. alexander"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                required
                 autoFocus
               />
             )}
 
             <Input
-              label="Email or Username"
-              placeholder="user@example.com"
-              type="text"
+              label={isSignUp ? 'Email Address' : 'Email or Username'}
+              type={isSignUp ? 'email' : 'text'}
+              placeholder={isSignUp ? 'you@example.com' : 'you@example.com or username'}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
               autoFocus={!isSignUp}
             />
 
@@ -142,7 +138,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           </form>
 
           {/* Switch Mode */}
-          <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+          <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', marginTop: 14 }}>
             {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
             <button
               type="button"
@@ -152,41 +148,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               {isSignUp ? 'Log In' : 'Sign Up'}
             </button>
           </div>
-
-          {/* Quick Persona Logins for Demo Mode */}
-          {isDemoMode && (
-            <div style={{ marginTop: 12, borderTop: '1px solid var(--border-subtle)', paddingTop: 14 }}>
-              <span className="input-label" style={{ display: 'block', marginBottom: 8 }}>
-                Or instant login as test user:
-              </span>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {SEED_USERS.map((user) => (
-                  <button
-                    key={user.id}
-                    type="button"
-                    className="btn btn-secondary"
-                    style={{ fontSize: 12, padding: '6px 10px', justifyContent: 'flex-start', gap: 6 }}
-                    onClick={() => handleDemoSelect(user.id)}
-                  >
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        backgroundColor:
-                          user.status === 'online'
-                            ? 'var(--status-online)'
-                            : user.status === 'idle'
-                            ? 'var(--status-idle)'
-                            : 'var(--status-dnd)',
-                      }}
-                    />
-                    <span className="truncate">{user.displayName}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

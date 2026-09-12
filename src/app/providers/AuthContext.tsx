@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserStatus } from '../../types';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
-import { mockStore, SEED_USERS } from '../../lib/supabase/mockStore';
+import { mockStore } from '../../lib/supabase/mockStore';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -109,8 +109,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         return true;
       } else {
-        // Fallback / Demo Mode login
-        const existing = SEED_USERS.find(
+        // Fallback local mode login
+        const existingUsers = mockStore.getAllUsers();
+        const existing = existingUsers.find(
           (u) => u.username.toLowerCase() === email.toLowerCase() || u.displayName.toLowerCase() === email.toLowerCase()
         ) || {
           id: `user-${Date.now()}`,
@@ -232,7 +233,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const switchDemoUser = (userId: string) => {
-    const target = SEED_USERS.find((u) => u.id === userId);
+    const target = mockStore.getAllUsers().find((u) => u.id === userId);
     if (target) {
       mockStore.setCurrentUser(target);
       setCurrentUser(target);

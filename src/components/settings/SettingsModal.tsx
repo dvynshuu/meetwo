@@ -6,7 +6,6 @@ import { useAuth } from '../../app/providers/AuthContext';
 import { useMedia } from '../../app/providers/MediaContext';
 import { MediaSession } from '../../lib/webrtc/mediaSession';
 import { playSpeakerTestChime } from '../../lib/webrtc/audioProcessing';
-import { SEED_USERS } from '../../lib/supabase/mockStore';
 import { Avatar } from '../ui/Avatar';
 import { User, Volume2, Video, Sliders, Bell, Sparkles, CheckCircle2 } from 'lucide-react';
 import { VideoQuality, QualityMode } from '../../types';
@@ -269,28 +268,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   Save Profile
                 </Button>
               </div>
-
-              {/* Fast User Switcher for Local Demo */}
-              {isDemoMode && (
-                <div style={{ marginTop: 18, borderTop: '1px solid var(--border-subtle)', paddingTop: 14 }}>
-                  <label className="input-label" style={{ marginBottom: 8, display: 'block' }}>
-                    Quick Test Persona Switcher:
-                  </label>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {SEED_USERS.map((user) => (
-                      <button
-                        key={user.id}
-                        type="button"
-                        onClick={() => switchDemoUser(user.id)}
-                        className={`btn ${currentUser?.id === user.id ? 'btn-primary' : 'btn-secondary'}`}
-                        style={{ padding: '4px 10px', fontSize: 12 }}
-                      >
-                        {user.displayName}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </form>
           )}
 
