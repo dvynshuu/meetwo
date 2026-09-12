@@ -144,11 +144,70 @@ CREATE POLICY "Public profiles are viewable by everyone"
 CREATE POLICY "Users can update their own profile"
   ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
+-- --------------------------------------------------------------------
+-- Helper Functions (SECURITY DEFINER to prevent RLS recursion)
+-- --------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.is_server_member(p_server_id UUID, p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.server_members
+    WHERE server_id = p_server_id AND user_id = p_user_id
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_server_owner(p_server_id UUID, p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.servers
+    WHERE id = p_server_id AND owner_id = p_user_id
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_server_admin_or_owner(p_server_id UUID, p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.server_members
+    WHERE server_id = p_server_id AND user_id = p_user_id AND role IN ('owner', 'admin')
+  ) OR EXISTS (
+    SELECT 1 FROM public.servers
+    WHERE id = p_server_id AND owner_id = p_user_id
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_channel_member(p_channel_id UUID, p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.channels c
+    WHERE c.id = p_channel_id
+      AND (public.is_server_member(c.server_id, p_user_id) OR public.is_server_owner(c.server_id, p_user_id))
+  );
+$$;
+
 -- Servers Policies
+DROP POLICY IF EXISTS "Servers viewable by members or owners" ON public.servers;
 CREATE POLICY "Servers viewable by members or owners"
   ON public.servers FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.server_members WHERE server_id = id AND user_id = auth.uid())
-    OR owner_id = auth.uid()
+    owner_id = auth.uid() OR public.is_server_member(id, auth.uid())
   );
 
 CREATE POLICY "Authenticated users can create servers"
@@ -161,80 +220,72 @@ CREATE POLICY "Server owners can delete servers"
   ON public.servers FOR DELETE USING (auth.uid() = owner_id);
 
 -- Server Members Policies
+DROP POLICY IF EXISTS "Server members can view memberships in their servers" ON public.server_members;
 CREATE POLICY "Server members can view memberships in their servers"
   ON public.server_members FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.server_members sm WHERE sm.server_id = server_members.server_id AND sm.user_id = auth.uid())
-    OR user_id = auth.uid()
+    user_id = auth.uid()
+    OR public.is_server_member(server_id, auth.uid())
+    OR public.is_server_owner(server_id, auth.uid())
   );
 
 CREATE POLICY "Users can join servers"
   ON public.server_members FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can leave or owners can remove members" ON public.server_members;
 CREATE POLICY "Users can leave or owners can remove members"
   ON public.server_members FOR DELETE USING (
     auth.uid() = user_id
-    OR EXISTS (SELECT 1 FROM public.servers s WHERE s.id = server_members.server_id AND s.owner_id = auth.uid())
+    OR public.is_server_owner(server_id, auth.uid())
   );
 
 -- Channels Policies
+DROP POLICY IF EXISTS "Members can view channels of their servers" ON public.channels;
 CREATE POLICY "Members can view channels of their servers"
   ON public.channels FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.server_members sm WHERE sm.server_id = channels.server_id AND sm.user_id = auth.uid())
-    OR EXISTS (SELECT 1 FROM public.servers s WHERE s.id = channels.server_id AND s.owner_id = auth.uid())
+    public.is_server_member(server_id, auth.uid())
+    OR public.is_server_owner(server_id, auth.uid())
   );
 
+DROP POLICY IF EXISTS "Server owners and admins can manage channels" ON public.channels;
 CREATE POLICY "Server owners and admins can manage channels"
   ON public.channels FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.server_members sm
-      WHERE sm.server_id = channels.server_id
-        AND sm.user_id = auth.uid()
-        AND sm.role IN ('owner', 'admin')
-    )
-    OR EXISTS (SELECT 1 FROM public.servers s WHERE s.id = channels.server_id AND s.owner_id = auth.uid())
+    public.is_server_admin_or_owner(server_id, auth.uid())
   );
 
 -- Messages Policies
+DROP POLICY IF EXISTS "Channel server members can view messages" ON public.messages;
 CREATE POLICY "Channel server members can view messages"
   ON public.messages FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.channels c
-      JOIN public.server_members sm ON sm.server_id = c.server_id
-      WHERE c.id = messages.channel_id AND sm.user_id = auth.uid()
-    )
+    public.is_channel_member(channel_id, auth.uid())
   );
 
+DROP POLICY IF EXISTS "Channel server members can post messages" ON public.messages;
 CREATE POLICY "Channel server members can post messages"
   ON public.messages FOR INSERT WITH CHECK (
     auth.uid() = author_id AND
-    EXISTS (
-      SELECT 1 FROM public.channels c
-      JOIN public.server_members sm ON sm.server_id = c.server_id
-      WHERE c.id = messages.channel_id AND sm.user_id = auth.uid()
-    )
+    public.is_channel_member(channel_id, auth.uid())
   );
 
 CREATE POLICY "Authors can update their own messages"
   ON public.messages FOR UPDATE USING (auth.uid() = author_id);
 
+DROP POLICY IF EXISTS "Authors or server owners can delete messages" ON public.messages;
 CREATE POLICY "Authors or server owners can delete messages"
   ON public.messages FOR DELETE USING (
     auth.uid() = author_id
     OR EXISTS (
       SELECT 1 FROM public.channels c
-      JOIN public.servers s ON s.id = c.server_id
-      WHERE c.id = messages.channel_id AND s.owner_id = auth.uid()
+      WHERE c.id = messages.channel_id AND public.is_server_owner(c.server_id, auth.uid())
     )
   );
 
 -- Reactions Policies
+DROP POLICY IF EXISTS "Members can view reactions" ON public.message_reactions;
 CREATE POLICY "Members can view reactions"
   ON public.message_reactions FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.messages m
-      JOIN public.channels c ON c.id = m.channel_id
-      JOIN public.server_members sm ON sm.server_id = c.server_id
-      WHERE m.id = message_reactions.message_id AND sm.user_id = auth.uid()
+      WHERE m.id = message_reactions.message_id AND public.is_channel_member(m.channel_id, auth.uid())
     )
   );
 
@@ -245,13 +296,12 @@ CREATE POLICY "Users can remove own reactions"
   ON public.message_reactions FOR DELETE USING (auth.uid() = user_id);
 
 -- Attachments Policies
+DROP POLICY IF EXISTS "Members can view attachments" ON public.attachments;
 CREATE POLICY "Members can view attachments"
   ON public.attachments FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.messages m
-      JOIN public.channels c ON c.id = m.channel_id
-      JOIN public.server_members sm ON sm.server_id = c.server_id
-      WHERE m.id = attachments.message_id AND sm.user_id = auth.uid()
+      WHERE m.id = attachments.message_id AND public.is_channel_member(m.channel_id, auth.uid())
     )
   );
 
@@ -267,10 +317,11 @@ CREATE POLICY "Members can upload attachments"
 CREATE POLICY "Invites viewable by anyone"
   ON public.invites FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Server members can create invites" ON public.invites;
 CREATE POLICY "Server members can create invites"
   ON public.invites FOR INSERT WITH CHECK (
     auth.uid() = creator_id AND
-    EXISTS (SELECT 1 FROM public.server_members sm WHERE sm.server_id = invites.server_id AND sm.user_id = auth.uid())
+    (public.is_server_member(server_id, auth.uid()) OR public.is_server_owner(server_id, auth.uid()))
   );
 
 -- Enable Supabase Realtime publication
