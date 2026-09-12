@@ -1,5 +1,5 @@
 import React from 'react';
-import { Compass, Hash, Volume2, Radio, MessageSquare, Clock, ArrowRight, Sparkles, Command } from 'lucide-react';
+import { Compass, Hash, Volume2, Radio, MessageSquare, Clock, ArrowRight, Sparkles, Command, Plus, LayoutGrid } from 'lucide-react';
 import { useAuth } from '../../app/providers/AuthContext';
 import { useNavigation } from '../../app/providers/NavigationContext';
 import { useServer } from '../../app/providers/ServerContext';
@@ -10,16 +10,22 @@ interface HomeDashboardProps {
   onNavigateToDestination: (entry: NavigationEntry) => void;
   onOpenQuickSwitcher: () => void;
   onGoToFriends: () => void;
+  onNavigateToChannel?: (serverId: string, channelId: string) => void;
+  onSelectServer?: (serverId: string) => void;
+  onOpenCreateServer?: () => void;
 }
 
 export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   onNavigateToDestination,
   onOpenQuickSwitcher,
   onGoToFriends,
+  onNavigateToChannel,
+  onSelectServer,
+  onOpenCreateServer,
 }) => {
   const { currentUser } = useAuth();
   const { recentDestinations } = useNavigation();
-  const { channels, servers, selectServer, selectChannel } = useServer();
+  const { channels, servers, selectServer, selectChannel, activeServer } = useServer();
   const { activeRoomId, openPreJoin } = useMedia();
 
   const displayName = currentUser?.displayName || currentUser?.username || 'Friend';
@@ -46,6 +52,80 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
           <ArrowRight size={14} className="hero-arrow" />
         </div>
       </div>
+
+      {/* Workspaces Section */}
+      {servers.length > 0 && (
+        <section className="dashboard-section">
+          <div className="section-header">
+            <LayoutGrid size={16} style={{ color: 'var(--text-muted)' }} />
+            <h2 className="section-title">Your Workspaces</h2>
+          </div>
+          <div className="workspaces-grid">
+            {servers.map((s) => {
+              const initials = s.name
+                .split(' ')
+                .map((n) => n[0])
+                .slice(0, 2)
+                .join('')
+                .toUpperCase();
+
+              return (
+                <div
+                  key={s.id}
+                  className="workspace-card"
+                  onClick={() => onSelectServer?.(s.id)}
+                  role="button"
+                >
+                  <div className="workspace-icon-wrap">
+                    {s.iconUrl ? (
+                      <img src={s.iconUrl} alt={s.name} />
+                    ) : (
+                      <span>{initials}</span>
+                    )}
+                  </div>
+                  <div className="workspace-info truncate">
+                    <span className="workspace-name truncate">{s.name}</span>
+                    <span className="workspace-desc truncate">
+                      {s.description || 'Workspace & channels'}
+                    </span>
+                  </div>
+                  <button
+                    className="workspace-open-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectServer?.(s.id);
+                    }}
+                  >
+                    <span>Open</span>
+                    <ArrowRight size={13} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Empty State: No Workspaces Yet */}
+      {servers.length === 0 && (
+        <section className="dashboard-section">
+          <div className="empty-workspace-card">
+            <div className="empty-workspace-icon">
+              <Sparkles size={24} />
+            </div>
+            <h3 className="empty-workspace-title">Create your first Workspace</h3>
+            <p className="empty-workspace-desc">
+              Workspaces are where your team chats, organizes topics into channels, and drops into instant voice and video rooms.
+            </p>
+            {onOpenCreateServer && (
+              <button className="empty-workspace-btn" onClick={onOpenCreateServer}>
+                <Plus size={16} />
+                <span>Create Workspace</span>
+              </button>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Recent Destinations */}
       {recentDestinations.length > 0 && (
@@ -109,8 +189,12 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                   <button
                     className={`voice-room-action-btn ${isCurrent ? 'active' : ''}`}
                     onClick={() => {
-                      selectServer(room.serverId);
-                      selectChannel(room.id);
+                      if (onNavigateToChannel) {
+                        onNavigateToChannel(room.serverId, room.id);
+                      } else {
+                        selectServer(room.serverId);
+                        selectChannel(room.id);
+                      }
                       if (!isCurrent && room.type === 'voice') {
                         openPreJoin(room.id);
                       }

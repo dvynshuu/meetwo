@@ -3,13 +3,15 @@ import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { useServer } from '../../app/providers/ServerContext';
+import { Server } from '../../types';
 
 interface CreateServerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onCreated?: (server: Server) => void;
 }
 
-export const CreateServerModal: React.FC<CreateServerModalProps> = ({ isOpen, onClose }) => {
+export const CreateServerModal: React.FC<CreateServerModalProps> = ({ isOpen, onClose, onCreated }) => {
   const { createServer } = useServer();
   const [name, setName] = useState('');
   const [iconUrl, setIconUrl] = useState('');
@@ -26,9 +28,10 @@ export const CreateServerModal: React.FC<CreateServerModalProps> = ({ isOpen, on
     setIsLoading(true);
     setError('');
     try {
-      await createServer(name.trim(), iconUrl.trim() || undefined);
+      const newServer = await createServer(name.trim(), iconUrl.trim() || undefined);
       setName('');
       setIconUrl('');
+      onCreated?.(newServer);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to create server');

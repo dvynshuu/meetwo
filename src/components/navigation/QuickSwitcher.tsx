@@ -11,6 +11,7 @@ interface QuickSwitcherProps {
   onClose: () => void;
   onNavigateToDM: (conversationId: string) => void;
   onNavigateToServerChannel: (serverId: string, channelId: string) => void;
+  onNavigateToServer?: (serverId: string) => void;
 }
 
 interface SwitcherItem {
@@ -29,6 +30,7 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
   onClose,
   onNavigateToDM,
   onNavigateToServerChannel,
+  onNavigateToServer,
 }) => {
   const { servers, channels, selectServer, selectChannel } = useServer();
   const { recentDestinations, pushNavigation } = useNavigation();
@@ -166,7 +168,11 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
           name: s.name,
           serverId: s.id,
         });
-        selectServer(s.id);
+        if (onNavigateToServer) {
+          onNavigateToServer(s.id);
+        } else {
+          selectServer(s.id);
+        }
         onClose();
       },
     });

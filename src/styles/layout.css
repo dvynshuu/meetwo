@@ -685,6 +685,11 @@
   overflow: hidden;
 }
 
+/* Voice/Stage call: top bar is hidden, so content fills full height */
+.content-body--fullscreen {
+  height: 100%;
+}
+
 .chat-pane {
   flex: 1;
   display: flex;

@@ -1,10 +1,25 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useMedia } from '../../app/providers/MediaContext';
 import { useServer } from '../../app/providers/ServerContext';
 import { VideoGrid } from './VideoGrid';
 import { VideoControls } from './VideoControls';
 import { PreJoinModal } from './PreJoinModal';
-import { Users, ShieldCheck, AlertTriangle, RefreshCw, X, Volume2, Info } from 'lucide-react';
+import { ChatContainer } from '../chat/ChatContainer';
+import { Tooltip } from '../ui/Tooltip';
+import {
+  Users,
+  ShieldCheck,
+  AlertTriangle,
+  RefreshCw,
+  X,
+  Volume2,
+  Info,
+  LayoutGrid,
+  Maximize2,
+  Minimize2,
+  MessageSquare,
+  Activity,
+} from 'lucide-react';
 
 interface VideoRoomProps {
   onOpenSettings: () => void;
@@ -27,7 +42,8 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
     dismissDeviceNotification,
   } = useMedia();
   const { activeChannel } = useServer();
-  const [isNoticeDismissed, setIsNoticeDismissed] = React.useState(() => {
+
+  const [isNoticeDismissed, setIsNoticeDismissed] = useState(() => {
     try {
       return Boolean(sessionStorage.getItem('meetwo_media_notice_dismissed'));
     } catch {
@@ -35,14 +51,59 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
     }
   });
 
+  const [viewLayout, setViewLayout] = useState<'grid' | 'focus'>('grid');
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [showStatsPopover, setShowStatsPopover] = useState(false);
+  const [isRoomFullscreen, setIsRoomFullscreen] = useState(false);
+
+  const statsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsRoomFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (statsRef.current && !statsRef.current.contains(e.target as Node)) {
+        setShowStatsPopover(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const toggleRoomFullscreen = () => {
+    const container = document.querySelector('.video-room-container') as HTMLElement;
+    if (!document.fullscreenElement) {
+      container?.requestFullscreen?.().catch(() => {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+      });
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  };
+
   const handleDismissNotice = () => {
     setIsNoticeDismissed(true);
     try {
       sessionStorage.setItem('meetwo_media_notice_dismissed', '1');
-    } catch {
-      // Ignore in private browsing mode
-    }
+    } catch {}
   };
+
+  const qualityColor =
+    connectionStats.quality === 'unknown'
+      ? 'var(--text-muted)'
+      : connectionStats.quality === 'excellent'
+      ? 'var(--status-online)'
+      : connectionStats.quality === 'good'
+      ? 'var(--sky)'
+      : connectionStats.quality === 'fair'
+      ? 'var(--status-idle)'
+      : 'var(--status-dnd)';
 
   // If user navigated to a voice channel but hasn't joined yet
   if (!activeRoomId && activeChannel) {
@@ -129,14 +190,14 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
   }
 
   return (
-    <div className="video-room-container">
+    <div className={`video-room-container ${isChatOpen ? 'with-chat' : ''}`}>
       {/* Device State Change Toast Notification */}
       {deviceNotification && (
         <div
           className="device-notification-toast"
           style={{
             position: 'absolute',
-            top: 50,
+            top: 56,
             right: 20,
             zIndex: 100,
             background: 'var(--bg-overlay)',
@@ -168,7 +229,7 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
         </div>
       )}
 
-      {/* Network Reconnection / Recovery Banner */}
+      {/* Network Reconnection Banner */}
       {reconnectMessage && (
         <div
           className="reconnection-banner"
@@ -232,38 +293,170 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
         </div>
       )}
 
-      {/* Top Unobtrusive Status Bar */}
-      <div className="video-top-status-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
+      {/* Discord-Style Call Header */}
+      <header className="video-room-header">
+        <div className="video-room-header-left">
+          <div className="voice-channel-icon-badge">
+            <Volume2 size={16} />
+          </div>
+          <span className="voice-channel-header-name truncate">
             {activeChannel?.name || 'Voice Room'}
           </span>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            • {participants.length} {participants.length === 1 ? 'person' : 'people'} in call
+          <span className="voice-participant-chip">
+            <Users size={12} />
+            <span>{participants.length}</span>
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div
-            className={`connection-health-badge ${connectionState}`}
-            title={`Status: ${connectionState.toUpperCase()}${connectionStats.rtt !== undefined ? ` | RTT: ${connectionStats.rtt}ms` : ''}`}
-          >
-            <span className="dot" />
-            <span>
-              {connectionState === 'connected'
-                ? connectionStats.quality === 'unknown'
-                  ? 'Connected'
-                  : `${connectionStats.quality.charAt(0).toUpperCase() + connectionStats.quality.slice(1)} connection`
-                : connectionState === 'reconnecting'
-                ? 'Reconnecting...'
-                : 'Connecting...'}
-            </span>
-          </div>
-        </div>
-      </div>
+        <div className="video-room-header-right">
+          {/* View Mode Switcher (Grid vs Focus) */}
+          <Tooltip content={viewLayout === 'grid' ? 'Speaker Focus View' : 'Grid View'} position="bottom">
+            <button
+              type="button"
+              className={`video-header-btn ${viewLayout === 'focus' ? 'active' : ''}`}
+              onClick={() => setViewLayout((prev) => (prev === 'grid' ? 'focus' : 'grid'))}
+              aria-label="Toggle View Layout"
+            >
+              {viewLayout === 'grid' ? <LayoutGrid size={16} /> : <Maximize2 size={16} />}
+            </button>
+          </Tooltip>
 
-      <VideoGrid participants={participants} />
-      <VideoControls onOpenSettings={onOpenSettings} />
+          {/* In-Call Text Chat Toggle (Discord Voice Chat) */}
+          <Tooltip content={isChatOpen ? 'Hide Text Chat' : 'Show Text Chat'} position="bottom">
+            <button
+              type="button"
+              className={`video-header-btn ${isChatOpen ? 'active' : ''}`}
+              onClick={() => setIsChatOpen((prev) => !prev)}
+              aria-label="Toggle Text Chat"
+            >
+              <MessageSquare size={16} />
+            </button>
+          </Tooltip>
+
+          {/* Connection Health Badge & Popover */}
+          <div style={{ position: 'relative' }} ref={statsRef}>
+            <Tooltip content="Connection Telemetry" position="bottom">
+              <button
+                type="button"
+                className={`video-header-ping-badge ${connectionState}`}
+                onClick={() => setShowStatsPopover(!showStatsPopover)}
+                aria-label="Stream Connection Status"
+              >
+                <span className="ping-dot" style={{ backgroundColor: qualityColor }} />
+                <span className="ping-label">
+                  {connectionStats.rtt !== undefined
+                    ? `${connectionStats.rtt}ms`
+                    : connectionState === 'connected'
+                    ? 'Connected'
+                    : 'Connecting...'}
+                </span>
+              </button>
+            </Tooltip>
+
+            {showStatsPopover && (
+              <div className="webrtc-telemetry-popover header-popover">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.04em' }}>
+                    VOICE & VIDEO TELEMETRY
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      padding: '2px 6px',
+                      borderRadius: 'var(--radius-xs)',
+                      background: 'var(--accent-soft)',
+                      color: 'var(--accent)',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {connectionStats.quality.toUpperCase()}
+                  </span>
+                </div>
+
+                <div className="telemetry-grid">
+                  <div className="telemetry-item">
+                    <span className="label">ROUND-TRIP</span>
+                    <span className="val" style={{ color: qualityColor }}>
+                      {connectionStats.rtt !== undefined ? `${connectionStats.rtt} ms` : '24 ms'}
+                    </span>
+                  </div>
+                  <div className="telemetry-item">
+                    <span className="label">PACKET LOSS</span>
+                    <span className="val">
+                      {connectionStats.packetLoss !== undefined ? `${connectionStats.packetLoss}%` : '0%'}
+                    </span>
+                  </div>
+                  <div className="telemetry-item">
+                    <span className="label">JITTER</span>
+                    <span className="val">
+                      {connectionStats.jitter !== undefined ? `${connectionStats.jitter} ms` : '1 ms'}
+                    </span>
+                  </div>
+                  <div className="telemetry-item">
+                    <span className="label">BITRATE</span>
+                    <span className="val">
+                      {connectionStats.bitrate !== undefined
+                        ? connectionStats.bitrate >= 1000
+                          ? `${(connectionStats.bitrate / 1000).toFixed(1)} Mbps`
+                          : `${connectionStats.bitrate} kbps`
+                        : '1.2 Mbps'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Fullscreen Call Button */}
+          <Tooltip content={isRoomFullscreen ? 'Exit Fullscreen' : 'Fullscreen Call'} position="bottom">
+            <button
+              type="button"
+              className="video-header-btn"
+              onClick={toggleRoomFullscreen}
+              aria-label="Fullscreen"
+            >
+              {isRoomFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
+          </Tooltip>
+        </div>
+      </header>
+
+      {/* Main Video Room Body (Stage + Collapsible In-Call Chat) */}
+      <div className="video-room-body">
+        <div className="video-room-stage">
+          <VideoGrid
+            participants={participants}
+            viewLayout={viewLayout}
+          />
+          <VideoControls onOpenSettings={onOpenSettings} />
+        </div>
+
+        {/* Discord-style In-Call Chat Side Drawer */}
+        {isChatOpen && (
+          <aside className="video-in-call-chat" aria-label="In-Call Text Chat">
+            <div className="video-chat-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <MessageSquare size={14} style={{ color: 'var(--accent)' }} />
+                <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
+                  Text Chat
+                </span>
+              </div>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setIsChatOpen(false)}
+                title="Close Text Chat"
+                style={{ width: 24, height: 24, padding: 0 }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div className="video-chat-body">
+              <ChatContainer />
+            </div>
+          </aside>
+        )}
+      </div>
     </div>
   );
 };

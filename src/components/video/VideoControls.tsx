@@ -10,12 +10,11 @@ import {
   ChevronUp,
   Activity,
   Check,
-  Maximize2,
-  Minimize2,
 } from 'lucide-react';
 import { useMedia } from '../../app/providers/MediaContext';
 import { MediaSession } from '../../lib/webrtc/mediaSession';
 import { DiagnosticsModal } from './DiagnosticsModal';
+import { Tooltip } from '../ui/Tooltip';
 
 interface VideoControlsProps {
   onOpenSettings: () => void;
@@ -26,8 +25,6 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
     isAudioMuted,
     isVideoMuted,
     isScreenSharing,
-    connectionState,
-    connectionStats,
     deviceSettings,
     isDiagnosticsOpen,
     closeDiagnostics,
@@ -44,32 +41,9 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
   const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
   const [showAudioMenu, setShowAudioMenu] = useState(false);
   const [showVideoMenu, setShowVideoMenu] = useState(false);
-  const [showStatsPopover, setShowStatsPopover] = useState(false);
-  const [isRoomFullscreen, setIsRoomFullscreen] = useState(false);
 
   const audioMenuRef = useRef<HTMLDivElement>(null);
   const videoMenuRef = useRef<HTMLDivElement>(null);
-  const statsRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onFullscreenChange = () => {
-      setIsRoomFullscreen(Boolean(document.fullscreenElement));
-    };
-    document.addEventListener('fullscreenchange', onFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
-  }, []);
-
-  const toggleRoomFullscreen = () => {
-    if (!document.fullscreenElement) {
-      const target = (document.querySelector('.video-room-container') ||
-        document.documentElement) as HTMLElement;
-      target.requestFullscreen?.().catch(() => {
-        document.documentElement.requestFullscreen?.().catch(() => {});
-      });
-    } else {
-      document.exitFullscreen().catch(() => {});
-    }
-  };
 
   useEffect(() => {
     MediaSession.getAvailableDevices().then((devs) => {
@@ -84,272 +58,164 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
       if (videoMenuRef.current && !videoMenuRef.current.contains(e.target as Node)) {
         setShowVideoMenu(false);
       }
-      if (statsRef.current && !statsRef.current.contains(e.target as Node)) {
-        setShowStatsPopover(false);
-      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const qualityColor =
-    connectionStats.quality === 'unknown'
-      ? 'var(--text-muted)'
-      : connectionStats.quality === 'excellent'
-      ? 'var(--status-online)'
-      : connectionStats.quality === 'good'
-      ? 'var(--sky)'
-      : connectionStats.quality === 'fair'
-      ? 'var(--status-idle)'
-      : 'var(--status-dnd)';
-
   return (
-    <div className="video-controls-bar" id="video-controls">
-      {/* 1. Microphone Split Button with Quick Device Picker */}
-      <div style={{ position: 'relative' }} ref={audioMenuRef}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
+    <div className="video-controls-dock" id="video-controls" role="toolbar" aria-label="Call controls">
+      {/* 1. Camera Toggle with integrated split picker */}
+      <div className="dock-split-wrapper" ref={videoMenuRef}>
+        <Tooltip content={isVideoMuted ? 'Turn on Camera (Ctrl+E)' : 'Turn off Camera (Ctrl+E)'} position="top">
           <button
-            className={`video-control-btn ${isAudioMuted ? 'active-off' : ''}`}
-            onClick={toggleAudio}
-            title={isAudioMuted ? 'Unmute Microphone' : 'Mute Microphone'}
-            aria-label={isAudioMuted ? 'Unmute' : 'Mute'}
-          >
-            {isAudioMuted ? <MicOff size={18} /> : <Mic size={18} />}
-          </button>
-          <button
-            type="button"
-            className="video-control-chevron-btn"
-            onClick={() => {
-              setShowAudioMenu(!showAudioMenu);
-              setShowVideoMenu(false);
-              setShowStatsPopover(false);
-            }}
-            title="Select Microphone"
-          >
-            <ChevronUp size={12} />
-          </button>
-        </div>
-
-        {showAudioMenu && (
-          <div className="control-quick-menu">
-            <div className="control-quick-menu-header">SELECT MICROPHONE</div>
-            {audioInputs.map((d) => (
-              <button
-                key={d.deviceId}
-                className={`control-quick-menu-item ${
-                  deviceSettings.audioInputId === d.deviceId ? 'selected' : ''
-                }`}
-                onClick={() => {
-                  switchMicrophone(d.deviceId);
-                  setShowAudioMenu(false);
-                }}
-              >
-                <span>{d.label || `Microphone (${d.deviceId.slice(0, 6)})`}</span>
-                {deviceSettings.audioInputId === d.deviceId && <Check size={13} />}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* 2. Camera Split Button with Quick Device Picker */}
-      <div style={{ position: 'relative' }} ref={videoMenuRef}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <button
-            className={`video-control-btn ${isVideoMuted ? 'active-off' : ''}`}
+            className={`dock-btn ${isVideoMuted ? 'dock-btn-off' : 'dock-btn-active'}`}
             onClick={toggleVideo}
-            title={isVideoMuted ? 'Start Camera' : 'Stop Camera'}
-            aria-label={isVideoMuted ? 'Start Camera' : 'Stop Camera'}
+            aria-label={isVideoMuted ? 'Turn on Camera' : 'Turn off Camera'}
           >
-            {isVideoMuted ? <VideoOff size={18} /> : <VideoIcon size={18} />}
+            {isVideoMuted ? <VideoOff size={19} /> : <VideoIcon size={19} />}
           </button>
+        </Tooltip>
+        <Tooltip content="Camera Settings" position="top">
           <button
             type="button"
-            className="video-control-chevron-btn"
+            className="dock-arrow-btn"
             onClick={() => {
               setShowVideoMenu(!showVideoMenu);
               setShowAudioMenu(false);
-              setShowStatsPopover(false);
             }}
-            title="Select Camera"
+            aria-label="Select camera"
           >
             <ChevronUp size={12} />
           </button>
-        </div>
+        </Tooltip>
 
         {showVideoMenu && (
           <div className="control-quick-menu">
             <div className="control-quick-menu-header">SELECT CAMERA</div>
-            {videoInputs.map((d) => (
-              <button
-                key={d.deviceId}
-                className={`control-quick-menu-item ${
-                  deviceSettings.videoInputId === d.deviceId ? 'selected' : ''
-                }`}
-                onClick={() => {
-                  switchCamera(d.deviceId);
-                  setShowVideoMenu(false);
-                }}
-              >
-                <span>{d.label || `Camera (${d.deviceId.slice(0, 6)})`}</span>
-                {deviceSettings.videoInputId === d.deviceId && <Check size={13} />}
-              </button>
-            ))}
+            {videoInputs.length === 0 ? (
+              <div className="control-quick-menu-empty">No cameras detected</div>
+            ) : (
+              videoInputs.map((d) => (
+                <button
+                  key={d.deviceId}
+                  className={`control-quick-menu-item ${
+                    deviceSettings.videoInputId === d.deviceId ? 'selected' : ''
+                  }`}
+                  onClick={() => {
+                    switchCamera(d.deviceId);
+                    setShowVideoMenu(false);
+                  }}
+                >
+                  <span className="truncate">{d.label || `Camera (${d.deviceId.slice(0, 6)})`}</span>
+                  {deviceSettings.videoInputId === d.deviceId && <Check size={13} />}
+                </button>
+              ))
+            )}
           </div>
         )}
       </div>
 
-      {/* 3. Screen Sharing */}
-      <button
-        className={`video-control-btn ${isScreenSharing ? 'active-screen' : ''}`}
-        onClick={toggleScreenShare}
-        title={isScreenSharing ? 'Stop Screen Share' : 'Share Screen'}
-        aria-label={isScreenSharing ? 'Stop Screen Share' : 'Share Screen'}
-      >
-        <Monitor size={18} />
-      </button>
+      {/* 2. Screen Sharing */}
+      <Tooltip content={isScreenSharing ? 'Stop Screen Share' : 'Share Screen'} position="top">
+        <button
+          className={`dock-btn ${isScreenSharing ? 'dock-btn-screenshare' : ''}`}
+          onClick={toggleScreenShare}
+          aria-label={isScreenSharing ? 'Stop Screen Share' : 'Share Screen'}
+        >
+          <Monitor size={19} />
+        </button>
+      </Tooltip>
 
-      {/* 4. Connection Health Pill with Real Telemetry Popover */}
-      <div style={{ position: 'relative' }} ref={statsRef}>
+      {/* 3. Microphone Toggle with Discord red-muted pill style */}
+      <div className="dock-split-wrapper" ref={audioMenuRef}>
+        <Tooltip content={isAudioMuted ? 'Unmute Mic (Ctrl+D)' : 'Mute Mic (Ctrl+D)'} position="top">
+          <button
+            className={`dock-btn ${isAudioMuted ? 'dock-btn-muted-danger' : 'dock-btn-active'}`}
+            onClick={toggleAudio}
+            aria-label={isAudioMuted ? 'Unmute Mic' : 'Mute Mic'}
+          >
+            {isAudioMuted ? <MicOff size={19} /> : <Mic size={19} />}
+          </button>
+        </Tooltip>
+        <Tooltip content="Microphone Settings" position="top">
+          <button
+            type="button"
+            className="dock-arrow-btn"
+            onClick={() => {
+              setShowAudioMenu(!showAudioMenu);
+              setShowVideoMenu(false);
+            }}
+            aria-label="Select microphone"
+          >
+            <ChevronUp size={12} />
+          </button>
+        </Tooltip>
+
+        {showAudioMenu && (
+          <div className="control-quick-menu">
+            <div className="control-quick-menu-header">SELECT MICROPHONE</div>
+            {audioInputs.length === 0 ? (
+              <div className="control-quick-menu-empty">No microphones detected</div>
+            ) : (
+              audioInputs.map((d) => (
+                <button
+                  key={d.deviceId}
+                  className={`control-quick-menu-item ${
+                    deviceSettings.audioInputId === d.deviceId ? 'selected' : ''
+                  }`}
+                  onClick={() => {
+                    switchMicrophone(d.deviceId);
+                    setShowAudioMenu(false);
+                  }}
+                >
+                  <span className="truncate">{d.label || `Microphone (${d.deviceId.slice(0, 6)})`}</span>
+                  {deviceSettings.audioInputId === d.deviceId && <Check size={13} />}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 4. Telemetry & Diagnostics */}
+      <Tooltip content="Stream Telemetry (Diagnostics)" position="top">
         <button
           type="button"
-          className="connection-status-pill"
-          onClick={() => setShowStatsPopover(!showStatsPopover)}
-          title="Click to view realtime stream metrics"
+          className={`dock-btn ${isDiagnosticsOpen ? 'dock-btn-active' : ''}`}
+          onClick={toggleDiagnostics}
+          aria-label="Stream Diagnostics"
         >
-          <span
-            className="status-dot"
-            style={{ backgroundColor: qualityColor }}
-          />
-          <span>
-            {connectionState === 'reconnecting'
-              ? 'Reconnecting'
-              : connectionState === 'degraded'
-              ? 'Degraded'
-              : connectionStats.quality === 'unknown'
-              ? 'Connected'
-              : connectionStats.rtt !== undefined
-              ? `${connectionStats.rtt}ms`
-              : connectionStats.quality.charAt(0).toUpperCase() + connectionStats.quality.slice(1)}
-          </span>
+          <Activity size={19} />
         </button>
+      </Tooltip>
 
-        {showStatsPopover && (
-          <div className="webrtc-telemetry-popover">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                CALL TELEMETRY
-              </span>
-              <span
-                style={{
-                  fontSize: 10,
-                  padding: '2px 6px',
-                  borderRadius: 'var(--radius-xs)',
-                  background: 'var(--accent-soft)',
-                  color: 'var(--accent)',
-                  fontWeight: 600,
-                }}
-              >
-                {connectionStats.quality.toUpperCase()}
-              </span>
-            </div>
+      {/* 5. Device Settings */}
+      <Tooltip content="Voice & Video Settings" position="top">
+        <button
+          className="dock-btn"
+          onClick={onOpenSettings}
+          aria-label="Settings"
+        >
+          <Settings size={19} />
+        </button>
+      </Tooltip>
 
-            <div className="telemetry-grid">
-              <div className="telemetry-item">
-                <span className="label">ROUND-TRIP</span>
-                <span className="val" style={{ color: connectionStats.rtt !== undefined ? qualityColor : 'var(--text-muted)' }}>
-                  {connectionStats.rtt !== undefined ? `${connectionStats.rtt} ms` : 'Measuring...'}
-                </span>
-              </div>
-              <div className="telemetry-item">
-                <span className="label">PACKET LOSS</span>
-                <span className="val">
-                  {connectionStats.packetLoss !== undefined ? `${connectionStats.packetLoss}%` : '0%'}
-                </span>
-              </div>
-              <div className="telemetry-item">
-                <span className="label">JITTER</span>
-                <span className="val">
-                  {connectionStats.jitter !== undefined ? `${connectionStats.jitter} ms` : '1 ms'}
-                </span>
-              </div>
-              <div className="telemetry-item">
-                <span className="label">BITRATE</span>
-                <span className="val">
-                  {connectionStats.bitrate !== undefined
-                    ? connectionStats.bitrate >= 1000
-                      ? `${(connectionStats.bitrate / 1000).toFixed(1)} Mbps`
-                      : `${connectionStats.bitrate} kbps`
-                    : 'Measuring...'}
-                </span>
-              </div>
-              <div className="telemetry-item">
-                <span className="label">RESOLUTION</span>
-                <span className="val">{connectionStats.resolution || (isVideoMuted ? 'Camera Off' : '1080p FHD')}</span>
-              </div>
-              <div className="telemetry-item">
-                <span className="label">FRAMERATE</span>
-                <span className="val">{connectionStats.fps !== undefined ? `${connectionStats.fps} fps` : (isVideoMuted ? '--' : '30 fps')}</span>
-              </div>
-              <div className="telemetry-item">
-                <span className="label">AUDIO CODEC</span>
-                <span className="val" style={{ color: 'var(--accent)' }}>
-                  {connectionStats.audioCodec ? `${connectionStats.audioCodec}` : (isAudioMuted ? 'Muted' : 'Opus 48kHz')}
-                </span>
-              </div>
-              <div className="telemetry-item">
-                <span className="label">VIDEO CODEC</span>
-                <span className="val" style={{ color: 'var(--text-secondary)' }}>
-                  {connectionStats.videoCodec ? `${connectionStats.videoCodec}` : (isVideoMuted ? '--' : 'VP8')}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Subtle Separator */}
+      <div className="dock-separator" />
 
-      {/* 5. Stream Diagnostics Toggle */}
-      <button
-        type="button"
-        className={`video-control-btn ${isDiagnosticsOpen ? 'active' : ''}`}
-        onClick={toggleDiagnostics}
-        title="WebRTC Stream Diagnostics (Ctrl+Shift+D)"
-        aria-label="Stream Diagnostics"
-      >
-        <Activity size={18} />
-      </button>
-
-      {/* 6. Device Settings */}
-      <button
-        className="video-control-btn"
-        onClick={onOpenSettings}
-        title="Voice & Video Settings"
-        aria-label="Settings"
-      >
-        <Settings size={18} />
-      </button>
-
-      {/* 7. Fullscreen Call Toggle */}
-      <button
-        type="button"
-        className="video-control-btn"
-        onClick={toggleRoomFullscreen}
-        title={isRoomFullscreen ? 'Exit Fullscreen' : 'Fullscreen Call'}
-        aria-label="Fullscreen Call"
-      >
-        {isRoomFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-      </button>
-
-      {/* 8. Disconnect (Restrained Destructive Semantics) */}
-      <button
-        className="video-control-btn leave-btn"
-        onClick={() => leaveVoiceRoom()}
-        title="Disconnect"
-        aria-label="Disconnect"
-      >
-        <PhoneOff size={18} />
-      </button>
+      {/* 6. Disconnect Button (Discord Red Pill) */}
+      <Tooltip content="Disconnect" position="top">
+        <button
+          className="dock-disconnect-btn"
+          onClick={() => leaveVoiceRoom()}
+          aria-label="Disconnect from call"
+        >
+          <PhoneOff size={18} />
+          <span className="dock-disconnect-text">Disconnect</span>
+        </button>
+      </Tooltip>
 
       {/* Diagnostics Modal */}
       <DiagnosticsModal isOpen={isDiagnosticsOpen} onClose={closeDiagnostics} />

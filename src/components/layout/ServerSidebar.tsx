@@ -10,6 +10,7 @@ import { Server } from '../../types';
 interface ServerSidebarProps {
   viewMode: 'home' | 'server';
   onSelectHome: () => void;
+  onSelectServer?: (serverId: string) => void;
   onOpenCreateServer: () => void;
   onOpenInvite?: () => void;
   onOpenCreateChannel?: () => void;
@@ -19,6 +20,7 @@ interface ServerSidebarProps {
 export const ServerSidebar: React.FC<ServerSidebarProps> = ({
   viewMode,
   onSelectHome,
+  onSelectServer,
   onOpenCreateServer,
   onOpenInvite = () => {},
   onOpenCreateChannel = () => {},
@@ -98,7 +100,10 @@ export const ServerSidebar: React.FC<ServerSidebarProps> = ({
           <Tooltip key={server.id} content={server.name} position="right">
             <button
               className={`server-item ${isActive ? 'active' : ''} ${hasUnreads ? 'has-unread' : ''}`}
-              onClick={() => selectServer(server.id)}
+              onClick={() => {
+                selectServer(server.id);
+                onSelectServer?.(server.id);
+              }}
               onContextMenu={(e) => handleServerContextMenu(e, server)}
               aria-label={server.name}
             >

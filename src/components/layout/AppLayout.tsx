@@ -173,6 +173,11 @@ export const AppLayout: React.FC = () => {
           setViewMode('home');
           setMobileNavOpen(false);
         }}
+        onSelectServer={(serverId) => {
+          selectServer(serverId);
+          setViewMode('server');
+          setMobileNavOpen(false);
+        }}
         onOpenCreateServer={() => setCreateServerOpen(true)}
         onOpenInvite={() => setInviteModalOpen(true)}
         onOpenCreateChannel={() => handleOpenCreateChannel()}
@@ -205,26 +210,29 @@ export const AppLayout: React.FC = () => {
 
       {/* 3. Main Center Pane */}
       <main className="main-content">
-        <TopAppBar
-          viewMode={viewMode}
-          homeTab={homeTab}
-          onToggleMobileNav={() => setMobileNavOpen(!mobileNavOpen)}
-          showMemberList={showMemberList}
-          onToggleMemberList={() => setShowMemberList(!showMemberList)}
-          onOpenQuickSwitcher={() => setQuickSwitcherOpen(true)}
-          onOpenCommandPalette={() => setCommandPaletteOpen(true)}
-          onOpenSearch={() => setGlobalSearchOpen(true)}
-          onOpenInvite={() => setInviteModalOpen(true)}
-          onOpenSavedMessages={() => setSavedMessagesOpen(true)}
-          onOpenAuditLogs={() => setAuditLogOpen(true)}
-          onSelectHomeTab={(tab) => {
-            setViewMode('home');
-            setHomeTab(tab);
-          }}
-          onNavigateHistory={handleNavigateHistory}
-        />
+        {/* Hide the top bar entirely during voice/stage calls — Discord-style full viewport */}
+        {!isVoiceView && !isStageView && (
+          <TopAppBar
+            viewMode={viewMode}
+            homeTab={homeTab}
+            onToggleMobileNav={() => setMobileNavOpen(!mobileNavOpen)}
+            showMemberList={showMemberList}
+            onToggleMemberList={() => setShowMemberList(!showMemberList)}
+            onOpenQuickSwitcher={() => setQuickSwitcherOpen(true)}
+            onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+            onOpenSearch={() => setGlobalSearchOpen(true)}
+            onOpenInvite={() => setInviteModalOpen(true)}
+            onOpenSavedMessages={() => setSavedMessagesOpen(true)}
+            onOpenAuditLogs={() => setAuditLogOpen(true)}
+            onSelectHomeTab={(tab) => {
+              setViewMode('home');
+              setHomeTab(tab);
+            }}
+            onNavigateHistory={handleNavigateHistory}
+          />
+        )}
 
-        <div className="content-body">
+        <div className={`content-body${isVoiceView || isStageView ? ' content-body--fullscreen' : ''}`}>
           {viewMode === 'home' ? (
             <HomeView
               activeTab={homeTab}
@@ -234,6 +242,11 @@ export const AppLayout: React.FC = () => {
                 selectChannel(channelId);
                 setViewMode('server');
               }}
+              onSelectServer={(serverId) => {
+                selectServer(serverId);
+                setViewMode('server');
+              }}
+              onOpenCreateServer={() => setCreateServerOpen(true)}
               onNavigateToDestination={handleNavigateHistory}
               onOpenQuickSwitcher={() => setQuickSwitcherOpen(true)}
               onOpenSavedMessages={() => setSavedMessagesOpen(true)}
@@ -273,6 +286,10 @@ export const AppLayout: React.FC = () => {
           selectChannel(channelId);
           setViewMode('server');
         }}
+        onNavigateToServer={(serverId) => {
+          selectServer(serverId);
+          setViewMode('server');
+        }}
       />
 
       {/* Command Palette (Ctrl+Shift+K Actions) */}
@@ -309,6 +326,10 @@ export const AppLayout: React.FC = () => {
       <CreateServerModal
         isOpen={createServerOpen}
         onClose={() => setCreateServerOpen(false)}
+        onCreated={(newServer) => {
+          selectServer(newServer.id);
+          setViewMode('server');
+        }}
       />
 
       <CreateChannelModal

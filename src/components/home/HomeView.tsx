@@ -14,6 +14,8 @@ interface HomeViewProps {
   onNavigateToDestination: (entry: NavigationEntry) => void;
   onOpenQuickSwitcher: () => void;
   onOpenSavedMessages: () => void;
+  onSelectServer?: (serverId: string) => void;
+  onOpenCreateServer?: () => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -23,6 +25,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onNavigateToDestination,
   onOpenQuickSwitcher,
   onOpenSavedMessages,
+  onSelectServer,
+  onOpenCreateServer,
 }) => {
   const { activeConversationId, selectConversation } = useDM();
 
@@ -48,6 +52,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
         onNavigateToDestination={onNavigateToDestination}
         onOpenQuickSwitcher={onOpenQuickSwitcher}
         onGoToFriends={() => onSelectTab('friends')}
+        onNavigateToChannel={onNavigateToChannel}
+        onSelectServer={onSelectServer}
+        onOpenCreateServer={onOpenCreateServer}
       />
     );
   }
@@ -61,6 +68,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
       onNavigateToDestination={onNavigateToDestination}
       onOpenQuickSwitcher={onOpenQuickSwitcher}
       onGoToFriends={() => onSelectTab('friends')}
+      onNavigateToChannel={onNavigateToChannel}
+      onSelectServer={onSelectServer}
+      onOpenCreateServer={onOpenCreateServer}
     />
   );
 };

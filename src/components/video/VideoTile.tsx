@@ -455,32 +455,24 @@ export const VideoTile: React.FC<VideoTileProps> = ({
         </>
       )}
 
-      {/* Tile Overlay: User Tag, Health Status & Audio/Video Badges */}
+      {/* Tile Overlay: Discord-Style User Tag (Bottom-Left Glass Pill) */}
       <div className="video-tile-overlay">
         <div className="video-tile-user-tag" title={statsTooltip}>
           <span
             className="connection-quality-dot"
             style={{ backgroundColor: qualityColor }}
           />
+          {participant.isAudioMuted && (
+            <span className="user-tag-muted-icon" title="Microphone Muted">
+              <MicOff size={12} />
+            </span>
+          )}
           {(participant.isScreenSharing || isScreenTile) && (
             <Monitor size={13} style={{ color: 'var(--accent)' }} />
           )}
-          <span>
+          <span className="user-tag-name truncate">
             {isScreenTile ? screenTitle : (participant.displayName || participant.username)} {isLocal && !isScreenTile && '(You)'}
           </span>
-        </div>
-
-        <div className="video-tile-badges">
-          {participant.isAudioMuted && (
-            <div className="badge-icon muted" title="Microphone Muted">
-              <MicOff size={13} />
-            </div>
-          )}
-          {participant.isVideoMuted && !isScreenTile && (
-            <div className="badge-icon muted" title="Camera Off">
-              <VideoOff size={13} />
-            </div>
-          )}
         </div>
       </div>
     </div>
