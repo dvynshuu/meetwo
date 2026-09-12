@@ -1,4 +1,5 @@
 import { ConnectionQuality, ConnectionStats, MediaLifecycleState } from '../../types';
+import { logger } from './observability';
 import {
   Room,
   RoomEvent,
@@ -62,9 +63,10 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
   private remoteStreams: Map<string, MediaStream> = new Map();
   private remoteScreenStreams: Map<string, MediaStream> = new Map();
   private statsInterval: number | null = null;
-  private currentQuality: ConnectionQuality = 'excellent';
+  private currentQuality: ConnectionQuality = 'unknown';
   private currentStats: ConnectionStats = {
-    quality: 'excellent',
+    quality: 'unknown',
+    transportType: 'livekit',
   };
   private lastStats: {
     timestamp: number;
@@ -217,18 +219,23 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
       // 9. Reconnection state handling
       this.room.on(RoomEvent.Disconnected, () => {
         this.stopStatsPolling();
+        logger.log('transport_failed', { reason: 'disconnected', transport: 'livekit' });
         this.callbacks.onConnectionStateChanged?.('idle');
       });
 
       this.room.on(RoomEvent.Reconnecting, () => {
+        logger.log('reconnect_started', { transport: 'livekit' });
         this.callbacks.onConnectionStateChanged?.('reconnecting');
       });
 
       this.room.on(RoomEvent.Reconnected, () => {
+        logger.log('reconnect_success', { transport: 'livekit' });
         this.callbacks.onConnectionStateChanged?.('connected');
       });
 
       await this.room.connect(this.serverUrl, this.token);
+      logger.log('call_joined', { roomId, transport: 'livekit' });
+      logger.log('transport_connected', { transport: 'livekit' });
       this.callbacks.onConnectionStateChanged?.('connected');
 
       // Publish initial local tracks
@@ -242,6 +249,7 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
       this.startStatsPolling();
     } catch (err) {
       console.error('[LiveKitSFUAdapter] Connection error:', err);
+      logger.log('transport_failed', { error: String(err), transport: 'livekit' });
       this.callbacks.onConnectionStateChanged?.('failed');
       throw err;
     }
@@ -255,6 +263,7 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
     }
     this.remoteStreams.clear();
     this.remoteScreenStreams.clear();
+    logger.log('call_left', { transport: 'livekit' });
     this.callbacks.onConnectionStateChanged?.('idle');
   }
 
@@ -391,14 +400,9 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
       // 1. Inspect local hardware track settings
       let localRes: string | undefined;
       let localFps: number | undefined;
-      let defaultAudioCodec: string | undefined;
-      let defaultVideoCodec: string | undefined;
 
       if (localParticipant) {
         const localVideoPub = Array.from(localParticipant.videoTrackPublications.values()).find(
-          (p) => p.track && p.track.mediaStreamTrack
-        );
-        const localAudioPub = Array.from(localParticipant.audioTrackPublications.values()).find(
           (p) => p.track && p.track.mediaStreamTrack
         );
 
@@ -410,11 +414,6 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
           if (settings.frameRate) {
             localFps = Math.round(settings.frameRate);
           }
-          defaultVideoCodec = 'VP8 / H.264';
-        }
-
-        if (localAudioPub) {
-          defaultAudioCodec = 'Opus 48kHz';
         }
       }
 
@@ -477,8 +476,9 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
       let measuredFrameDropRate: number | undefined;
       let measuredRes: string | undefined = localRes;
       let measuredFps: number | undefined = localFps;
-      let audioCodec: string | undefined = defaultAudioCodec;
-      let videoCodec: string | undefined = defaultVideoCodec;
+      let audioCodec: string | undefined = undefined;
+      let videoCodec: string | undefined = undefined;
+      let candidateType: string | undefined = undefined;
 
       for (const statsReport of reports) {
         // Resolve Codec ID Map to actual negotiated codec MIME types
@@ -507,6 +507,9 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
           if (report.type === 'candidate-pair' && (report.nominated || report.state === 'succeeded' || report.selected)) {
             if (report.currentRoundTripTime !== undefined) {
               measuredRtt = Math.round(report.currentRoundTripTime * 1000);
+            }
+            if (report.candidatePairType || report.remoteCandidateType) {
+              candidateType = report.candidatePairType || report.remoteCandidateType;
             }
           }
 
@@ -599,14 +602,14 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
         packetsLost,
       };
 
-      // Holistic connection quality calculation based only on actual measurements
-      let quality: ConnectionQuality = this.currentQuality;
+      // Holistic connection quality calculation based strictly on actual measurements
+      let quality: ConnectionQuality = 'unknown';
       if (measuredRtt !== undefined || packetLossPercent !== undefined) {
         const rttVal = measuredRtt ?? 0;
         const lossVal = packetLossPercent ?? 0;
         if (rttVal > 350 || lossVal > 12) {
           quality = 'poor';
-        } else if (rttVal > 200 || lossVal > 5) {
+        } else if (rttVal > 220 || lossVal > 5) {
           quality = 'fair';
         } else if (rttVal > 100 || lossVal > 2) {
           quality = 'good';
@@ -624,8 +627,14 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
         fps: measuredFps,
         frameDropRate: measuredFrameDropRate,
         resolution: measuredRes,
-        audioCodec: audioCodec || defaultAudioCodec,
-        videoCodec: videoCodec || defaultVideoCodec,
+        audioCodec,
+        videoCodec,
+        candidateType,
+        transportType: 'livekit',
+        packetsReceived: hasPacketData ? packetsReceived : undefined,
+        packetsLost: hasPacketData ? packetsLost : undefined,
+        bytesReceived: hasBytesData ? bytesReceived : undefined,
+        bytesSent: hasBytesData ? bytesSent : undefined,
         quality,
       };
 

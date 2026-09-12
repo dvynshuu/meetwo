@@ -11,9 +11,12 @@ import {
   Activity,
   Check,
   Sparkles,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { useMedia } from '../../app/providers/MediaContext';
 import { MediaSession } from '../../lib/webrtc/mediaSession';
+import { DiagnosticsModal } from './DiagnosticsModal';
 
 interface VideoControlsProps {
   onOpenSettings: () => void;
@@ -27,6 +30,9 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
     connectionState,
     connectionStats,
     deviceSettings,
+    isDiagnosticsOpen,
+    closeDiagnostics,
+    toggleDiagnostics,
     toggleAudio,
     toggleVideo,
     toggleScreenShare,
@@ -40,10 +46,31 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
   const [showAudioMenu, setShowAudioMenu] = useState(false);
   const [showVideoMenu, setShowVideoMenu] = useState(false);
   const [showStatsPopover, setShowStatsPopover] = useState(false);
+  const [isRoomFullscreen, setIsRoomFullscreen] = useState(false);
 
   const audioMenuRef = useRef<HTMLDivElement>(null);
   const videoMenuRef = useRef<HTMLDivElement>(null);
   const statsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsRoomFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  const toggleRoomFullscreen = () => {
+    if (!document.fullscreenElement) {
+      const target = (document.querySelector('.video-room-container') ||
+        document.documentElement) as HTMLElement;
+      target.requestFullscreen?.().catch(() => {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+      });
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
 
   useEffect(() => {
     MediaSession.getAvailableDevices().then((devs) => {
@@ -68,7 +95,9 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
   }, []);
 
   const qualityColor =
-    connectionStats.quality === 'excellent'
+    connectionStats.quality === 'unknown'
+      ? 'var(--text-muted)'
+      : connectionStats.quality === 'excellent'
       ? 'var(--status-online)'
       : connectionStats.quality === 'good'
       ? '#38bdf8'
@@ -197,10 +226,12 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
           <span>
             {connectionState === 'reconnecting'
               ? 'Reconnecting...'
+              : connectionState === 'degraded'
+              ? 'Degraded'
+              : connectionStats.quality === 'unknown'
+              ? 'Measuring connection…'
               : connectionStats.rtt !== undefined
               ? `${connectionStats.rtt} ms`
-              : connectionStats.quality === 'excellent'
-              ? 'Excellent'
               : connectionStats.quality.charAt(0).toUpperCase() + connectionStats.quality.slice(1)}
           </span>
         </button>
@@ -229,19 +260,19 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
               <div className="telemetry-item">
                 <span className="label">ROUND-TRIP (RTT)</span>
                 <span className="val" style={{ color: connectionStats.rtt !== undefined ? qualityColor : 'var(--text-muted)' }}>
-                  {connectionStats.rtt !== undefined ? `${connectionStats.rtt} ms` : '--'}
+                  {connectionStats.rtt !== undefined ? `${connectionStats.rtt} ms` : 'Measuring...'}
                 </span>
               </div>
               <div className="telemetry-item">
                 <span className="label">PACKET LOSS</span>
                 <span className="val">
-                  {connectionStats.packetLoss !== undefined ? `${connectionStats.packetLoss}%` : '--'}
+                  {connectionStats.packetLoss !== undefined ? `${connectionStats.packetLoss}%` : 'Measuring...'}
                 </span>
               </div>
               <div className="telemetry-item">
                 <span className="label">JITTER</span>
                 <span className="val">
-                  {connectionStats.jitter !== undefined ? `${connectionStats.jitter} ms` : '--'}
+                  {connectionStats.jitter !== undefined ? `${connectionStats.jitter} ms` : 'Measuring...'}
                 </span>
               </div>
               <div className="telemetry-item">
@@ -251,7 +282,7 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
                     ? connectionStats.bitrate >= 1000
                       ? `${(connectionStats.bitrate / 1000).toFixed(1)} Mbps`
                       : `${connectionStats.bitrate} kbps`
-                    : '0 kbps'}
+                    : 'Measuring...'}
                 </span>
               </div>
               <div className="telemetry-item">
@@ -265,13 +296,13 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
               <div className="telemetry-item">
                 <span className="label">AUDIO CODEC</span>
                 <span className="val" style={{ color: 'var(--accent-light)' }}>
-                  {connectionStats.audioCodec || (isAudioMuted ? 'Muted' : 'Opus 48kHz')}
+                  {connectionStats.audioCodec ? `${connectionStats.audioCodec} [Measured]` : (isAudioMuted ? 'Muted' : 'Unavailable')}
                 </span>
               </div>
               <div className="telemetry-item">
                 <span className="label">VIDEO CODEC</span>
                 <span className="val" style={{ color: 'var(--text-secondary)' }}>
-                  {connectionStats.videoCodec || (isVideoMuted ? '--' : 'VP8 / H.264')}
+                  {connectionStats.videoCodec ? `${connectionStats.videoCodec} [Measured]` : (isVideoMuted ? '--' : 'Unavailable')}
                 </span>
               </div>
             </div>
@@ -279,7 +310,18 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
         )}
       </div>
 
-      {/* 5. Device Settings */}
+      {/* 5. Stream Diagnostics Toggle */}
+      <button
+        type="button"
+        className={`video-control-btn ${isDiagnosticsOpen ? 'active' : ''}`}
+        onClick={toggleDiagnostics}
+        title="WebRTC Stream Diagnostics & Telemetry (Ctrl+Shift+D)"
+        aria-label="Stream Diagnostics"
+      >
+        <Activity size={19} />
+      </button>
+
+      {/* 6. Device Settings */}
       <button
         className="video-control-btn"
         onClick={onOpenSettings}
@@ -289,7 +331,18 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
         <Settings size={19} />
       </button>
 
-      {/* 6. Disconnect */}
+      {/* 7. Fullscreen Call Toggle */}
+      <button
+        type="button"
+        className="video-control-btn"
+        onClick={toggleRoomFullscreen}
+        title={isRoomFullscreen ? 'Exit Fullscreen' : 'Fullscreen Call'}
+        aria-label="Fullscreen Call"
+      >
+        {isRoomFullscreen ? <Minimize2 size={19} /> : <Maximize2 size={19} />}
+      </button>
+
+      {/* 8. Disconnect */}
       <button
         className="video-control-btn leave-btn"
         onClick={() => leaveVoiceRoom()}
@@ -298,6 +351,9 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
       >
         <PhoneOff size={19} />
       </button>
+
+      {/* Diagnostics Modal */}
+      <DiagnosticsModal isOpen={isDiagnosticsOpen} onClose={closeDiagnostics} />
     </div>
   );
 };

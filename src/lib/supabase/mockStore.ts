@@ -14,6 +14,8 @@ import {
   TelemetryEvent,
   CustomStatus,
   ChannelType,
+  StageChannelState,
+  StageRole,
 } from '../../types';
 
 const STORAGE_KEYS = {
@@ -28,6 +30,7 @@ const STORAGE_KEYS = {
   AUDIT_LOGS: 'meetwo_audit_logs',
   INVITES: 'meetwo_invites',
   TELEMETRY: 'meetwo_telemetry',
+  STAGE_STATES: 'meetwo_stage_states',
 };
 
 // Seed Users
@@ -379,6 +382,10 @@ class MockStore {
     return () => {
       this.listeners.get(type)?.delete(callback);
     };
+  }
+
+  public on(type: string, callback: (data: any) => void): () => void {
+    return this.subscribe(type, callback);
   }
 
   private notifyLocal(type: string, payload: any) {
@@ -836,6 +843,122 @@ class MockStore {
     allInvites.push(newInvite);
     localStorage.setItem(STORAGE_KEYS.INVITES, JSON.stringify(allInvites));
     return newInvite;
+  }
+
+  // ==========================================
+  // SERVER-AUTHORITATIVE STAGE STATE MACHINE (V4)
+  // ==========================================
+
+  public getStageState(channelId: string): StageChannelState {
+    const saved = localStorage.getItem(STORAGE_KEYS.STAGE_STATES);
+    let allStates: Record<string, StageChannelState> = {};
+    if (saved) {
+      try {
+        allStates = JSON.parse(saved);
+      } catch {}
+    }
+
+    if (!allStates[channelId]) {
+      const channel = this.getChannels().find((c) => c.id === channelId);
+      const server = channel ? this.getServers().find((s) => s.id === channel.serverId) : null;
+      const hostId = server ? server.ownerId : 'user-divyanshu';
+
+      allStates[channelId] = {
+        channelId,
+        hostId,
+        speakers: [hostId],
+        handRaisedQueue: [],
+        stageSettings: { isOpen: false },
+      };
+      localStorage.setItem(STORAGE_KEYS.STAGE_STATES, JSON.stringify(allStates));
+    }
+
+    return allStates[channelId];
+  }
+
+  public canModerateStage(channelId: string, userId: string): boolean {
+    const stage = this.getStageState(channelId);
+    if (stage.hostId === userId) return true;
+
+    const channel = this.getChannels().find((c) => c.id === channelId);
+    if (!channel) return false;
+
+    const members = this.getServerMembers(channel.serverId);
+    const member = members.find((m) => m.userId === userId);
+    return Boolean(member && (member.role === 'owner' || member.role === 'admin' || member.role === 'moderator'));
+  }
+
+  public requestToSpeak(channelId: string, userId: string): { success: boolean; error?: string } {
+    const stage = this.getStageState(channelId);
+    if (stage.speakers.includes(userId)) {
+      return { success: true };
+    }
+    if (!stage.handRaisedQueue.includes(userId)) {
+      stage.handRaisedQueue.push(userId);
+      this.saveStageState(channelId, stage);
+      this.emit('STAGE_STATE_CHANGED', stage);
+    }
+    return { success: true };
+  }
+
+  public lowerHand(channelId: string, actorUserId: string, targetUserId: string): { success: boolean; error?: string } {
+    if (actorUserId !== targetUserId && !this.canModerateStage(channelId, actorUserId)) {
+      return { success: false, error: "Unauthorized: Only host or moderators can lower another user's hand" };
+    }
+
+    const stage = this.getStageState(channelId);
+    stage.handRaisedQueue = stage.handRaisedQueue.filter((id) => id !== targetUserId);
+    this.saveStageState(channelId, stage);
+    this.emit('STAGE_STATE_CHANGED', stage);
+    return { success: true };
+  }
+
+  public approveSpeaker(channelId: string, actorUserId: string, targetUserId: string): { success: boolean; error?: string } {
+    if (!this.canModerateStage(channelId, actorUserId)) {
+      return { success: false, error: 'Unauthorized: Only stage host or moderators can approve speakers' };
+    }
+
+    const stage = this.getStageState(channelId);
+    stage.handRaisedQueue = stage.handRaisedQueue.filter((id) => id !== targetUserId);
+    if (!stage.speakers.includes(targetUserId)) {
+      stage.speakers.push(targetUserId);
+    }
+    this.saveStageState(channelId, stage);
+    this.emit('STAGE_STATE_CHANGED', stage);
+    this.emit('STAGE_ACTION_APPROVED', { channelId, targetUserId, action: 'invite' });
+    return { success: true };
+  }
+
+  public denySpeaker(channelId: string, actorUserId: string, targetUserId: string): { success: boolean; error?: string } {
+    if (!this.canModerateStage(channelId, actorUserId)) {
+      return { success: false, error: 'Unauthorized: Only stage host or moderators can deny speaker requests' };
+    }
+
+    const stage = this.getStageState(channelId);
+    stage.handRaisedQueue = stage.handRaisedQueue.filter((id) => id !== targetUserId);
+    this.saveStageState(channelId, stage);
+    this.emit('STAGE_STATE_CHANGED', stage);
+    return { success: true };
+  }
+
+  public demoteSpeaker(channelId: string, actorUserId: string, targetUserId: string): { success: boolean; error?: string } {
+    if (actorUserId !== targetUserId && !this.canModerateStage(channelId, actorUserId)) {
+      return { success: false, error: 'Unauthorized: Only stage host or moderators can demote speakers' };
+    }
+
+    const stage = this.getStageState(channelId);
+    stage.speakers = stage.speakers.filter((id) => id !== targetUserId);
+    this.saveStageState(channelId, stage);
+    this.emit('STAGE_STATE_CHANGED', stage);
+    this.emit('STAGE_ACTION_APPROVED', { channelId, targetUserId, action: 'demote' });
+    return { success: true };
+  }
+
+  private saveStageState(channelId: string, state: StageChannelState): void {
+    const saved = localStorage.getItem(STORAGE_KEYS.STAGE_STATES);
+    const allStates = saved ? JSON.parse(saved) : {};
+    allStates[channelId] = state;
+    localStorage.setItem(STORAGE_KEYS.STAGE_STATES, JSON.stringify(allStates));
   }
 }
 

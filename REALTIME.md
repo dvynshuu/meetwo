@@ -1,6 +1,6 @@
-# Meetwo V3.1 — Realtime Signaling & State Synchronization
+# Meetwo V4 — Realtime Signaling & State Synchronization
 
-This document specifies the realtime communication architecture, signaling flows, and stage moderation protocols implemented in Meetwo V3.1.
+This document specifies the realtime communication architecture, signaling flows, stage authorization state machines, and connection recovery protocols implemented in Meetwo V4.
 
 ---
 
@@ -19,14 +19,73 @@ Realtime responsibilities are strictly separated between application state and l
   ├── Servers & Channels                  ├── Camera (1080p Simulcast)
   ├── Chat Messages & Reactions           ├── Screen Share (4K/1080p)
   ├── Presence Status                     ├── Screen Audio
-  └── Governance Logs                     └── Telemetry (RTT, Loss)
+  └── Stage Governance States             └── Measured Telemetry (RTT, Loss)
 ```
 
 Live audio and video tracks are **never** routed through Supabase database tables.
 
 ---
 
-## 2. P2P Signaling & Perfect Negotiation Protocol
+## 2. Server-Authoritative Stage State Machine
+
+Meetwo V4 implements a strict server-authoritative stage authorization model:
+
+```text
+   LISTENER
+      │
+      │ User calls requestToSpeak()
+      ▼
+REQUEST_SPEAK (Queue: handRaisedQueue.push(userId))
+      │
+      ├── Host/Mod approves: approveSpeaker(actorId, targetUserId)
+      │   (Actor permissions strictly verified on store/server)
+      ▼
+   SPEAKER (speakers.push(userId), removed from handRaisedQueue)
+      │
+      ├── Host/Mod demotes: demoteSpeaker(actorId, targetUserId)
+      │   or Speaker steps down
+      ▼
+   LISTENER (speakers.filter(id => id !== targetUserId))
+```
+
+### Authorization Rules
+- **Listeners cannot self-promote**: Calling client-side functions without store/server approval fails.
+- **Actor verification**: The actor performing `approveSpeaker`, `denySpeaker`, or `demoteSpeaker` must either be the stage channel host or possess `owner`, `admin`, or `moderator` roles in the server.
+- **Queue management**: Raising a hand appends the user to `handRaisedQueue`. Approving or denying removes the user from the queue.
+
+---
+
+## 3. Dedicated Reconnection State Machine (`ReconnectionManager`)
+
+Connection resilience is governed by a dedicated state machine with 5 discrete lifecycle states:
+
+```text
+      CONNECTED ◄───────────────────────────────┐
+          │                                     │
+          ├── Packet loss > 5% or RTT > 220ms   │
+          │   (consecutive evaluations)         │ Consecutive healthy checks
+          ▼                                     │
+       DEGRADED ────────────────────────────────┤
+          │                                     │
+          ├── ICE disconnected / failed         │
+          ▼                                     │
+     RECONNECTING ─── ICE restart trigger ────► RECOVERING
+          │                                         │
+          ├── Max retries exceeded (delay cap 8s)   ├── Verification failed
+          ▼                                         ▼
+        FAILED ◄────────────────────────────────────┘
+```
+
+### Backoff & Jitter
+- **Initial Delay**: 1000ms
+- **Multiplier**: 1.5x exponential
+- **Max Delay Cap**: 8000ms
+- **Jitter**: ±20% randomized jitter prevents synchronized thundering herds on network reconnect.
+- **Consecutive Metrics**: State transitions require consecutive evaluation cycles (e.g. 3 consecutive cycles for degraded; 2 for recovery) to prevent flip-flopping.
+
+---
+
+## 4. P2P Signaling & Perfect Negotiation Protocol
 
 In fallback and local development modes, peers establish direct WebRTC connections using the **W3C Perfect Negotiation Pattern**:
 
@@ -63,65 +122,9 @@ interface PeerSignalMessage {
 
 ---
 
-## 3. Stage Broadcast Moderation Protocol
+## 5. Structured Observability & Event Logging
 
-Stage rooms allow hosts and speakers to broadcast audio/video to listeners while maintaining minimal network overhead for listeners.
-
-### Targeted Moderation Signals:
-Every moderation action explicitly targets the intended participant ID:
-
-```text
-Moderator (Sam)                        Attendee (Alex)
-      │                                       │
-      │  Alex raises hand                     │
-      │◄──────────────────────────────────────│
-      │                                       │
-      │  Sam clicks "Invite to Stage"         │
-      │  sendTargetedStageAction(alex,invite) │
-      ├──────────────────────────────────────►│
-      │                                       │
-      │                                       │  Alex receives 'invite':
-      │                                       │  stageRole -> 'speaker'
-      │                                       │  isStageSpeaker -> true
-      │                                       │  isHandRaised -> false
-      │                                       │
-```
-
-| Action | Signal Type | Payload | Effect |
-| :--- | :--- | :--- | :--- |
-| **Invite to Stage** | `stage-invite` | `{ targetUserId }` | Promotes target attendee to Stage Speaker; clears hand raised status. Moderator state is unchanged. |
-| **Move to Audience** | `stage-demote` | `{ targetUserId }` | Demotes target speaker to Listener. Disables broadcast tracks. |
-| **Dismiss Hand** | `stage-hand-dismiss` | `{ targetUserId }` | Lowers the target attendee's hand in the speaker queue. |
-
----
-
-## 4. Connection Lifecycle State Machine
-
-```text
-   IDLE
-     │  joinVoiceRoom(roomId)
-     ▼
-INITIALIZING
-     │  Acquire hardware tracks (mic/cam)
-     ▼
- CONNECTING
-     │  SFU connected / P2P ICE connected
-     ▼
- CONNECTED ◄────────────────────────┐
-     │                              │
-     ├── High packet loss / RTT     │
-     ▼                              │ Network recovered
-  DEGRADED                          │
-     │                              │
-     ├── Network drop / ICE failed  │
-     ▼                              │
-RECONNECTING ───────────────────────┘
-     │
-     ├── Retries exceeded
-     ▼
-   FAILED
-```
-
-- **Degraded**: Audio is prioritized; video sender bitrate is stepped down with hysteresis hold time.
-- **Reconnecting**: Controlled retry backoff triggers ICE restart without tearing down application state.
-- **Cleanup**: On leaving, unmounting, or navigating away, local tracks are stopped, subscriptions closed, and event listeners unbound.
+Meetwo V4 records all connection and media events through `ObservabilityLogger`:
+- **Events Logged**: `call_started`, `call_joined`, `call_left`, `transport_connected`, `transport_failed`, `reconnect_started`, `reconnect_success`, `device_changed`, `device_disconnected`, `screen_share_started`, `screen_share_stopped`, `quality_changed`, `stage_role_changed`.
+- **In-Memory Ring Buffer**: Retains the last 150 events for real-time inspection in the Diagnostics Modal (`Ctrl+Shift+D`).
+- **Export**: Generates full JSON diagnostic export files for post-call analysis.

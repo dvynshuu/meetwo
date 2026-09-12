@@ -12,17 +12,24 @@ import {
   ConnectionQuality,
   ConnectionStats,
   MediaLifecycleState,
+  StageRole,
 } from '../../types';
 import { MediaSession } from '../../lib/webrtc/mediaSession';
 import { PeerConnectionManager } from '../../lib/webrtc/peerConnection';
 import { LiveKitSFUAdapter, ITransportAdapter } from '../../lib/webrtc/transportAdapter';
 import { getLiveKitToken } from '../../lib/webrtc/livekitToken';
+import { ReconnectionManager } from '../../lib/webrtc/reconnectionManager';
+import { logger } from '../../lib/webrtc/observability';
+import { mockStore } from '../../lib/supabase/mockStore';
 import { useAuth } from './AuthContext';
 
 interface MediaContextType {
   activeRoomId: string | null;
   connectionState: MediaLifecycleState;
   connectionStats: ConnectionStats;
+  reconnectMessage: string | null;
+  deviceNotification: { kind: 'audio' | 'video'; action: 'disconnected' | 'reconnected'; label?: string } | null;
+  dismissDeviceNotification: () => void;
   localStream: MediaStream | null;
   screenStream: MediaStream | null;
   isAudioMuted: boolean;
@@ -36,6 +43,10 @@ interface MediaContextType {
   deviceSettings: MediaDeviceSettings;
   pendingRoomId: string | null;
   isPreJoinOpen: boolean;
+  isDiagnosticsOpen: boolean;
+  openDiagnostics: () => void;
+  closeDiagnostics: () => void;
+  toggleDiagnostics: () => void;
   openPreJoin: (roomId: string) => void;
   closePreJoin: () => void;
   joinVoiceRoom: (roomId: string) => Promise<void>;
@@ -63,10 +74,18 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [pendingRoomId, setPendingRoomId] = useState<string | null>(null);
   const [isPreJoinOpen, setIsPreJoinOpen] = useState(false);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
 
   const [connectionState, setConnectionState] = useState<MediaLifecycleState>('idle');
+  const [reconnectMessage, setReconnectMessage] = useState<string | null>(null);
+  const [deviceNotification, setDeviceNotification] = useState<{
+    kind: 'audio' | 'video';
+    action: 'disconnected' | 'reconnected';
+    label?: string;
+  } | null>(null);
+
   const [connectionStats, setConnectionStats] = useState<ConnectionStats>({
-    quality: 'excellent',
+    quality: 'unknown',
   });
 
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -87,17 +106,37 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const mediaSessionRef = useRef<MediaSession>(new MediaSession());
   const transportRef = useRef<ITransportAdapter | null>(null);
+  const reconnectionManagerRef = useRef<ReconnectionManager | null>(null);
+
+  const lastAudioLevelUpdateRef = useRef<number>(0);
+  const lastSpeakingRef = useRef<boolean>(false);
 
   const [deviceSettings, setDeviceSettings] = useState<MediaDeviceSettings>(
     mediaSessionRef.current.settings
   );
 
+  const dismissDeviceNotification = useCallback(() => {
+    setDeviceNotification(null);
+  }, []);
+
+  const openDiagnostics = useCallback(() => setIsDiagnosticsOpen(true), []);
+  const closeDiagnostics = useCallback(() => setIsDiagnosticsOpen(false), []);
+  const toggleDiagnostics = useCallback(() => setIsDiagnosticsOpen((prev) => !prev), []);
+
   // Bind AudioDSP listeners and hardware track change listeners
   useEffect(() => {
     mediaSessionRef.current.setEvents({
       onAudioLevel: (level, speaking) => {
-        setAudioLevel(level);
-        setIsSpeaking(speaking);
+        const now = performance.now();
+        const speakingChanged = speaking !== lastSpeakingRef.current;
+        const timeElapsed = now - lastAudioLevelUpdateRef.current >= 120;
+
+        if (speakingChanged || timeElapsed) {
+          lastAudioLevelUpdateRef.current = now;
+          lastSpeakingRef.current = speaking;
+          setAudioLevel(level);
+          setIsSpeaking(speaking);
+        }
 
         if (transportRef.current) {
           transportRef.current.sendSpeakingState(speaking, level).catch(() => {});
@@ -112,6 +151,9 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       },
       onDeviceUnplugged: async (kind) => {
         console.warn(`[MediaEngine] ${kind} hardware was disconnected/unplugged`);
+        setDeviceNotification({ kind, action: 'disconnected' });
+        setTimeout(() => setDeviceNotification(null), 5000);
+
         if (kind === 'video') {
           setIsVideoMuted(true);
           if (transportRef.current) {
@@ -124,12 +166,78 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         }
       },
+      onDeviceReconnected: async (kind, label) => {
+        console.info(`[MediaEngine] ${kind} hardware reconnected: ${label}`);
+        setDeviceNotification({ kind, action: 'reconnected', label });
+        setTimeout(() => setDeviceNotification(null), 5000);
+
+        if (kind === 'audio') {
+          try {
+            await mediaSessionRef.current.startMicrophone();
+            setIsAudioMuted(false);
+          } catch {}
+        } else if (kind === 'video') {
+          try {
+            await mediaSessionRef.current.startCamera();
+            setIsVideoMuted(false);
+          } catch {}
+        }
+      },
     });
 
     return () => {
       mediaSessionRef.current.stopLocalMedia();
+      reconnectionManagerRef.current?.destroy();
     };
   }, [isAudioMuted, isVideoMuted]);
+
+  // Synchronize server-authoritative stage state machine
+  useEffect(() => {
+    const unsubStage = mockStore.on('STAGE_STATE_CHANGED', (stage: any) => {
+      if (activeRoomId && stage.channelId === activeRoomId) {
+        if (currentUser) {
+          const isHost = stage.hostId === currentUser.id;
+          const isSpeaker = stage.speakers.includes(currentUser.id);
+          const role = isHost ? 'host' : isSpeaker ? 'speaker' : 'listener';
+          setMyStageRole(role);
+          setMyHandRaised(stage.handRaisedQueue.includes(currentUser.id));
+        }
+
+        setRemoteParticipants((prev) => {
+          const next = new Map(prev);
+          next.forEach((participant, peerId) => {
+            const pUserId = participant.userId || peerId;
+            const isHost = stage.hostId === pUserId;
+            const isSpeaker = stage.speakers.includes(pUserId);
+            const pRole = isHost ? 'host' : isSpeaker ? 'speaker' : 'listener';
+            next.set(peerId, {
+              ...participant,
+              stageRole: pRole,
+              isStageSpeaker: isHost || isSpeaker,
+              isHandRaised: stage.handRaisedQueue.includes(pUserId),
+            });
+          });
+          return next;
+        });
+      }
+    });
+
+    const unsubApproved = mockStore.on('STAGE_ACTION_APPROVED', (data: { channelId: string; targetUserId: string; action: 'invite' | 'demote' }) => {
+      if (activeRoomId && data.channelId === activeRoomId && currentUser && data.targetUserId === currentUser.id) {
+        if (data.action === 'invite') {
+          setMyStageRole('speaker');
+          setMyHandRaised(false);
+        } else if (data.action === 'demote') {
+          setMyStageRole('listener');
+        }
+      }
+    });
+
+    return () => {
+      unsubStage();
+      unsubApproved();
+    };
+  }, [activeRoomId, currentUser]);
 
   const openPreJoin = useCallback((roomId: string) => {
     setPendingRoomId(roomId);
@@ -139,6 +247,18 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const closePreJoin = useCallback(() => {
     setIsPreJoinOpen(false);
     setPendingRoomId(null);
+  }, []);
+
+  // Global keyboard shortcut for WebRTC diagnostics (Ctrl+Shift+D or Cmd+Shift+D)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        setIsDiagnosticsOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const joinVoiceRoom = useCallback(
@@ -187,6 +307,29 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         }
 
+        // Check stage state if active room is a stage channel
+        const stageState = mockStore.getStageState(roomId);
+        const isHost = stageState.hostId === currentUser.id;
+        const isSpeaker = stageState.speakers.includes(currentUser.id);
+        const initialRole: StageRole = isHost ? 'host' : isSpeaker ? 'speaker' : 'listener';
+        setMyStageRole(initialRole);
+        setMyHandRaised(stageState.handRaisedQueue.includes(currentUser.id));
+
+        // Initialize dedicated Reconnection Manager
+        reconnectionManagerRef.current = new ReconnectionManager({
+          onStateChange: (state, userMessage) => {
+            setConnectionState(state);
+            setReconnectMessage(userMessage || null);
+          },
+          onPerformIceRestart: async () => {
+            if (transportRef.current && (transportRef.current as any).recoverConnections) {
+              (transportRef.current as any).recoverConnections('reconnection_engine');
+              return true;
+            }
+            return false;
+          },
+        });
+
         const callbacks = {
           onRemoteStream: (peerId: string, remoteStream: MediaStream) => {
             setRemoteParticipants((prev) => {
@@ -208,7 +351,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 isStageSpeaker: existing?.isStageSpeaker ?? false,
                 isHandRaised: existing?.isHandRaised || false,
                 audioLevel: existing?.audioLevel || 0,
-                connectionQuality: existing?.connectionQuality || 'excellent',
+                connectionQuality: existing?.connectionQuality || 'unknown',
               });
               return next;
             });
@@ -256,6 +399,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           ) => {
             if (stats) {
               setConnectionStats(stats);
+              reconnectionManagerRef.current?.evaluateMetrics(stats.rtt, stats.packetLoss);
             }
             setRemoteParticipants((prev) => {
               const next = new Map(prev);
@@ -268,6 +412,10 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           },
           onConnectionStateChanged: (state: MediaLifecycleState) => {
             setConnectionState(state);
+            if (state === 'connected') {
+              reconnectionManagerRef.current?.setConnected();
+              setReconnectMessage(null);
+            }
           },
           onTargetedStageAction: (action: 'invite' | 'demote' | 'lower-hand', targetUserId: string) => {
             if (targetUserId === currentUser.id) {
@@ -340,6 +488,8 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       transportRef.current = null;
     }
 
+    reconnectionManagerRef.current?.reset();
+    setReconnectMessage(null);
     mediaSessionRef.current.stopLocalMedia();
     setLocalStream(null);
     setScreenStream(null);
@@ -432,30 +582,45 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [isScreenSharing]);
 
-  // Stage Hand-Raising
+  // Server-Authoritative Stage Hand-Raising (Phases 11 & 12)
   const raiseHand = useCallback(async () => {
+    if (!activeRoomId || !currentUser) return;
+    mockStore.requestToSpeak(activeRoomId, currentUser.id);
     setMyHandRaised(true);
     if (transportRef.current) {
       await transportRef.current.sendStageRole(myStageRole, true);
     }
-  }, [myStageRole]);
+  }, [activeRoomId, currentUser, myStageRole]);
 
   const lowerHand = useCallback(async () => {
+    if (!activeRoomId || !currentUser) return;
+    mockStore.lowerHand(activeRoomId, currentUser.id, currentUser.id);
     setMyHandRaised(false);
     if (transportRef.current) {
       await transportRef.current.sendStageRole(myStageRole, false);
     }
-  }, [myStageRole]);
+  }, [activeRoomId, currentUser, myStageRole]);
 
   const setStageRole = useCallback(async (role: 'host' | 'speaker' | 'listener') => {
+    if (!activeRoomId || !currentUser) return;
+    if (role === 'listener') {
+      mockStore.demoteSpeaker(activeRoomId, currentUser.id, currentUser.id);
+    }
     setMyStageRole(role);
     if (transportRef.current) {
       await transportRef.current.sendStageRole(role, myHandRaised);
     }
-  }, [myHandRaised]);
+  }, [activeRoomId, currentUser, myHandRaised]);
 
-  // Targeted Stage Moderation Actions (Fixed: alex -> speaker, not moderator!)
+  // Targeted Stage Moderation Actions validated through server mockStore
   const inviteToStage = useCallback(async (targetUserId: string) => {
+    if (!activeRoomId || !currentUser) return;
+    const res = mockStore.approveSpeaker(activeRoomId, currentUser.id, targetUserId);
+    if (!res.success) {
+      console.warn('[MediaContext] Unauthorized stage invitation:', res.error);
+      return;
+    }
+
     if (transportRef.current) {
       await transportRef.current.sendTargetedStageAction(targetUserId, 'invite');
     }
@@ -472,9 +637,16 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       return next;
     });
-  }, []);
+  }, [activeRoomId, currentUser]);
 
   const demoteToListener = useCallback(async (targetUserId: string) => {
+    if (!activeRoomId || !currentUser) return;
+    const res = mockStore.demoteSpeaker(activeRoomId, currentUser.id, targetUserId);
+    if (!res.success) {
+      console.warn('[MediaContext] Unauthorized stage demotion:', res.error);
+      return;
+    }
+
     if (transportRef.current) {
       await transportRef.current.sendTargetedStageAction(targetUserId, 'demote');
     }
@@ -490,9 +662,16 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       return next;
     });
-  }, []);
+  }, [activeRoomId, currentUser]);
 
   const lowerParticipantHand = useCallback(async (targetUserId: string) => {
+    if (!activeRoomId || !currentUser) return;
+    const res = mockStore.lowerHand(activeRoomId, currentUser.id, targetUserId);
+    if (!res.success) {
+      console.warn('[MediaContext] Unauthorized lowerHand:', res.error);
+      return;
+    }
+
     if (transportRef.current) {
       await transportRef.current.sendTargetedStageAction(targetUserId, 'lower-hand');
     }
@@ -507,7 +686,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       return next;
     });
-  }, []);
+  }, [activeRoomId, currentUser]);
 
   // Device settings update
   const updateSettings = useCallback((newSettings: Partial<MediaDeviceSettings>) => {
@@ -560,6 +739,9 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         activeRoomId,
         connectionState,
         connectionStats,
+        reconnectMessage,
+        deviceNotification,
+        dismissDeviceNotification,
         localStream,
         screenStream,
         isAudioMuted,
@@ -573,6 +755,10 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deviceSettings,
         pendingRoomId,
         isPreJoinOpen,
+        isDiagnosticsOpen,
+        openDiagnostics,
+        closeDiagnostics,
+        toggleDiagnostics,
         openPreJoin,
         closePreJoin,
         joinVoiceRoom,

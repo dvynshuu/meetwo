@@ -96,10 +96,11 @@ export class AudioDSPManager {
   private smoothedLevel: number = 0;
   private isProcessing: boolean = false;
 
-  // VAD Hysteresis & Hangover
-  private readonly speakThreshold: number = 14;
-  private readonly silenceThreshold: number = 9;
+  // VAD Hysteresis & Hangover with Adaptive Noise Floor
+  private readonly baseSpeakThreshold: number = 14;
+  private readonly baseSilenceThreshold: number = 8;
   private readonly hangoverTimeMs: number = 450;
+  private noiseFloor: number = 4;
   private lastAboveThresholdTime: number = 0;
   private isCurrentlySpeaking: boolean = false;
   private lastEmitTime: number = 0;
@@ -182,12 +183,20 @@ export class AudioDSPManager {
       const roundedLevel = Math.round(this.smoothedLevel);
       const now = performance.now();
 
+      // Adapt ambient noise floor during silence
+      if (!this.isCurrentlySpeaking) {
+        this.noiseFloor = this.noiseFloor * 0.96 + roundedLevel * 0.04;
+      }
+
+      const speakThreshold = Math.max(this.baseSpeakThreshold, Math.round(this.noiseFloor + 8));
+      const silenceThreshold = Math.max(this.baseSilenceThreshold, Math.round(this.noiseFloor + 3));
+
       // VAD with speech hangover hysteresis
-      if (roundedLevel >= this.speakThreshold) {
+      if (roundedLevel >= speakThreshold) {
         this.lastAboveThresholdTime = now;
         this.isCurrentlySpeaking = true;
       } else if (this.isCurrentlySpeaking) {
-        if (now - this.lastAboveThresholdTime > this.hangoverTimeMs && roundedLevel <= this.silenceThreshold) {
+        if (now - this.lastAboveThresholdTime > this.hangoverTimeMs && roundedLevel <= silenceThreshold) {
           this.isCurrentlySpeaking = false;
         }
       }

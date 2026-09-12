@@ -30,7 +30,9 @@ export const VideoGrid: React.FC<VideoGridProps> = ({ participants }) => {
             participant={{
               ...screenSharer,
               stream: presentationStream,
-              displayName: `${screenSharer.displayName || screenSharer.username}'s Screen`,
+              displayName: isLocalScreen
+                ? 'Your Screen'
+                : `${screenSharer.displayName || screenSharer.username}'s Screen`,
             }}
             isLocal={isLocalScreen}
             isFeatured={true}

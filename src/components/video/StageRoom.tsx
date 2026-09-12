@@ -17,6 +17,9 @@ import {
   ShieldCheck,
   CheckCircle2,
   XCircle,
+  RefreshCw,
+  X,
+  Volume2,
 } from 'lucide-react';
 
 interface StageRoomProps {
@@ -31,6 +34,10 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
     activeRoomId,
     joinVoiceRoom,
     leaveVoiceRoom,
+    connectionState,
+    reconnectMessage,
+    deviceNotification,
+    dismissDeviceNotification,
     isAudioMuted,
     isVideoMuted,
     isScreenSharing,
@@ -120,6 +127,66 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
 
   return (
     <div className="stage-room-container">
+      {/* Device State Change Toast Notification */}
+      {deviceNotification && (
+        <div
+          className="device-notification-toast"
+          style={{
+            position: 'absolute',
+            top: 54,
+            right: 20,
+            zIndex: 100,
+            background: 'rgba(15, 23, 42, 0.95)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            borderRadius: 'var(--radius-md)',
+            padding: '10px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            fontSize: 13,
+          }}
+        >
+          <Volume2 size={16} style={{ color: 'var(--accent-light)' }} />
+          <span>
+            {deviceNotification.kind === 'audio' ? 'Microphone' : 'Camera'}{' '}
+            {deviceNotification.action === 'disconnected'
+              ? 'unplugged. Switched to fallback device.'
+              : 'reconnected and active.'}
+          </span>
+          <button
+            type="button"
+            className="icon-btn"
+            style={{ width: 22, height: 22, padding: 0 }}
+            onClick={dismissDeviceNotification}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Network Reconnection / Recovery Banner */}
+      {reconnectMessage && (
+        <div
+          className="reconnection-banner"
+          style={{
+            background: connectionState === 'failed' ? 'rgba(239, 68, 68, 0.9)' : 'rgba(234, 179, 8, 0.9)',
+            color: '#fff',
+            padding: '8px 16px',
+            fontSize: 13,
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+          }}
+        >
+          <RefreshCw size={14} className={connectionState !== 'failed' ? 'spinning' : ''} />
+          <span>{reconnectMessage}</span>
+        </div>
+      )}
+
       {/* Top Broadcast Bar */}
       <header className="stage-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -146,7 +213,7 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
           </div>
           <div className="stage-simulcast-pill" title="Audio-first adaptive delivery active">
             <Radio size={12} style={{ color: 'var(--status-online)' }} />
-            <span>Opus 48kHz HD</span>
+            <span>Audio Priority</span>
           </div>
         </div>
       </header>

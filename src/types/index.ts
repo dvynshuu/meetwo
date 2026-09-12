@@ -163,11 +163,21 @@ export type QualityMode = 'auto' | 'high' | 'balanced' | 'low_bandwidth';
 export type MediaLifecycleState =
   | 'idle'
   | 'initializing'
+  | 'measuring'
   | 'connecting'
   | 'connected'
   | 'degraded'
   | 'reconnecting'
+  | 'recovering'
   | 'failed';
+
+export type ConnectionQuality =
+  | 'unknown'
+  | 'excellent'
+  | 'good'
+  | 'fair'
+  | 'poor'
+  | 'reconnecting';
 
 export interface ConnectionStats {
   rtt?: number; // ms (undefined when unavailable)
@@ -177,8 +187,15 @@ export interface ConnectionStats {
   fps?: number; // frames per second (undefined when unavailable)
   frameDropRate?: number; // %
   resolution?: string;
-  audioCodec?: string;
-  videoCodec?: string;
+  audioCodec?: string; // Strictly measured or undefined
+  videoCodec?: string; // Strictly measured or undefined
+  candidateType?: string;
+  transportType?: 'livekit' | 'p2p';
+  packetsReceived?: number;
+  packetsLost?: number;
+  packetsSent?: number;
+  bytesReceived?: number;
+  bytesSent?: number;
   quality: ConnectionQuality;
 }
 
@@ -195,7 +212,35 @@ export interface MediaDeviceSettings {
   outputVolume: number; // 0 to 100
 }
 
-export type ConnectionQuality = 'excellent' | 'good' | 'fair' | 'poor' | 'reconnecting';
+export type MediaError =
+  | 'microphone-denied'
+  | 'camera-denied'
+  | 'device-disconnected'
+  | 'device-not-found'
+  | 'network-failure'
+  | 'transport-failure'
+  | 'permission-failure'
+  | 'screen-share-failure';
+
+export interface MediaAppError {
+  code: MediaError;
+  userMessage: string;
+  recoveryAction: string;
+  technicalDetails?: string;
+  timestamp: string;
+}
+
+export type StageRole = 'host' | 'speaker' | 'listener';
+
+export interface StageChannelState {
+  channelId: string;
+  hostId: string;
+  speakers: string[];
+  handRaisedQueue: string[];
+  stageSettings?: {
+    isOpen: boolean;
+  };
+}
 
 export interface Participant {
   id: string; // Peer or Session ID

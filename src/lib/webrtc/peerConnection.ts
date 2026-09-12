@@ -7,6 +7,7 @@ import {
 import { ISignalingTransport, createSignalingTransport } from './signaling';
 import { ITransportAdapter, TransportCallbacks } from './transportAdapter';
 import { mungeOpusSDP } from './audioProcessing';
+import { logger } from './observability';
 
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [
@@ -47,11 +48,12 @@ export class PeerConnectionManager implements ITransportAdapter {
   private remoteStreams: Map<string, MediaStream> = new Map();
   private remoteScreenStreams: Map<string, MediaStream> = new Map();
   private peerScreenSharingState: Map<string, boolean> = new Map();
-  private lastBitrateAdaptTime: number = 0;
+  private peerBitrateAdaptTimes: Map<string, number> = new Map();
 
   // Aggregate local connection stats
   private localStats: ConnectionStats = {
-    quality: 'excellent',
+    quality: 'unknown',
+    transportType: 'p2p',
   };
 
   private globalStatsInterval: number | null = null;
@@ -89,6 +91,7 @@ export class PeerConnectionManager implements ITransportAdapter {
     this.localStream = localStream;
     this.setLifecycleState('connecting');
 
+    logger.log('call_joined', { roomId, transport: 'p2p' });
     this.startGlobalStatsPolling();
 
     this.unsubSignal = this.signaling.onSignal(async (signal: PeerSignalMessage) => {
@@ -492,16 +495,20 @@ export class PeerConnectionManager implements ITransportAdapter {
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
       if (state === 'connected') {
-        this.updateQuality(peerId, 'excellent');
+        logger.log('transport_connected', { peerId, transport: 'p2p' });
+        this.updateQuality(peerId, 'unknown');
         this.evaluateOverallLifecycle();
+        this.collectGlobalStats().catch(() => {});
       } else if (state === 'connecting') {
-        this.updateQuality(peerId, 'reconnecting');
+        this.updateQuality(peerId, 'unknown');
       } else if (state === 'disconnected') {
+        logger.log('quality_changed', { peerId, state: 'degraded' });
         this.updateQuality(peerId, 'poor');
         this.setLifecycleState('degraded');
         // Graceful ICE restart
         this.restartPeerIce(session, peerId);
       } else if (state === 'failed') {
+        logger.log('transport_failed', { peerId, state: 'failed' });
         this.updateQuality(peerId, 'poor');
         this.setLifecycleState('reconnecting');
         this.restartPeerIce(session, peerId);
@@ -572,11 +579,12 @@ export class PeerConnectionManager implements ITransportAdapter {
           bitrate: 0,
           fps: localFps,
           resolution: localRes,
-          audioCodec: defaultAudioCodec,
-          videoCodec: defaultVideoCodec,
-          quality: 'excellent',
+          audioCodec: undefined,
+          videoCodec: undefined,
+          transportType: 'p2p',
+          quality: 'unknown',
         };
-        this.callbacks.onConnectionQualityChanged?.(this.localPeerId, 'excellent', this.localStats);
+        this.callbacks.onConnectionQualityChanged?.(this.localPeerId, 'unknown', this.localStats);
         return;
       }
 
@@ -593,8 +601,9 @@ export class PeerConnectionManager implements ITransportAdapter {
       let hasBytesData = false;
       let measuredRes: string | undefined = localRes;
       let measuredFps: number | undefined = localFps;
-      let audioCodec: string | undefined = defaultAudioCodec;
-      let videoCodec: string | undefined = defaultVideoCodec;
+      let audioCodec: string | undefined = undefined;
+      let videoCodec: string | undefined = undefined;
+      let candidateType: string | undefined = undefined;
       let measuredFrameDropRate: number | undefined;
 
       for (const [peerId, session] of this.peerSessions.entries()) {
@@ -638,6 +647,9 @@ export class PeerConnectionManager implements ITransportAdapter {
                 totalRttSum += rttMs;
                 rttCount++;
                 sessionRtt = rttMs;
+              }
+              if (report.candidateType || report.remoteCandidateType) {
+                candidateType = report.candidateType || report.remoteCandidateType;
               }
             }
 
@@ -685,6 +697,7 @@ export class PeerConnectionManager implements ITransportAdapter {
                 if (report.packetsLost !== undefined) {
                   totalPacketsLost += report.packetsLost;
                   hasPacketData = true;
+                  sessionLoss = report.packetsLost;
                 }
                 if (report.packetsReceived !== undefined) {
                   totalPacketsReceived += report.packetsReceived;
@@ -711,23 +724,36 @@ export class PeerConnectionManager implements ITransportAdapter {
             }
           });
 
-          // Session-level quality calculation
-          let sessionQuality: ConnectionQuality = session.connectionQuality;
+          // Session-level quality calculation strictly based on measurement
+          let sessionQuality: ConnectionQuality = 'unknown';
           if (sessionRtt !== undefined || sessionLoss !== undefined) {
             const rttVal = sessionRtt ?? 0;
             const lossVal = sessionLoss ?? 0;
-            if (rttVal > 350 || lossVal > 12) sessionQuality = 'poor';
+            if (rttVal > 350 || lossVal > 15) sessionQuality = 'poor';
             else if (rttVal > 220 || lossVal > 5) sessionQuality = 'fair';
             else if (rttVal > 120 || lossVal > 2) sessionQuality = 'good';
             else sessionQuality = 'excellent';
           }
           session.connectionQuality = sessionQuality;
 
-          // Bandwidth adaptation for this peer
-          if (sessionQuality === 'poor' || sessionQuality === 'fair') {
-            this.adaptVideoSenderBitrate(session.pc, sessionQuality === 'poor' ? 300000 : 600000);
-          } else {
-            this.adaptVideoSenderBitrate(session.pc, 2500000);
+          // Dispatch per-peer status to UI
+          const sessionStats: ConnectionStats = {
+            rtt: sessionRtt,
+            packetLoss: sessionLoss,
+            quality: sessionQuality,
+            transportType: 'p2p',
+          };
+          this.updateQuality(peerId, sessionQuality, sessionStats);
+
+          // Per-peer bandwidth & resolution adaptation: protects audio first (Phase 3 & 4)
+          if (sessionQuality === 'poor') {
+            this.adaptVideoSenderBitrate(session.pc, 300000, 2.0, peerId);
+          } else if (sessionQuality === 'fair') {
+            this.adaptVideoSenderBitrate(session.pc, 600000, 1.5, peerId);
+          } else if (sessionQuality === 'good') {
+            this.adaptVideoSenderBitrate(session.pc, 1200000, 1.0, peerId);
+          } else if (sessionQuality === 'excellent') {
+            this.adaptVideoSenderBitrate(session.pc, 2500000, 1.0, peerId);
           }
         } catch (err) {
           console.warn(`[WebRTC] Error collecting stats for peer ${peerId}:`, err);
@@ -770,8 +796,8 @@ export class PeerConnectionManager implements ITransportAdapter {
         packetsLost: totalPacketsLost,
       };
 
-      // Aggregate holistic quality
-      let overallQuality: ConnectionQuality = 'excellent';
+      // Aggregate holistic quality strictly based on measurement
+      let overallQuality: ConnectionQuality = 'unknown';
       if (measuredRtt !== undefined || packetLossPercent !== undefined) {
         const rttVal = measuredRtt ?? 0;
         const lossVal = packetLossPercent ?? 0;
@@ -789,8 +815,14 @@ export class PeerConnectionManager implements ITransportAdapter {
         fps: measuredFps,
         frameDropRate: measuredFrameDropRate,
         resolution: measuredRes,
-        audioCodec: audioCodec || defaultAudioCodec,
-        videoCodec: videoCodec || defaultVideoCodec,
+        audioCodec,
+        videoCodec,
+        candidateType,
+        transportType: 'p2p',
+        packetsReceived: hasPacketData ? totalPacketsReceived : undefined,
+        packetsLost: hasPacketData ? totalPacketsLost : undefined,
+        bytesReceived: hasBytesData ? totalBytesReceived : undefined,
+        bytesSent: hasBytesData ? totalBytesSent : undefined,
         quality: overallQuality,
       };
 
@@ -800,11 +832,17 @@ export class PeerConnectionManager implements ITransportAdapter {
     }
   }
 
-  private async adaptVideoSenderBitrate(pc: RTCPeerConnection, maxBitrateBps: number): Promise<void> {
+  private async adaptVideoSenderBitrate(
+    pc: RTCPeerConnection,
+    maxBitrateBps: number,
+    scaleResolutionDownBy: number = 1.0,
+    peerId: string
+  ): Promise<void> {
     const now = Date.now();
-    // 4-second hysteresis hold time prevents rapid quality oscillation
-    if (now - this.lastBitrateAdaptTime < 4000 && maxBitrateBps > 300000) return;
-    this.lastBitrateAdaptTime = now;
+    const lastTime = this.peerBitrateAdaptTimes.get(peerId) || 0;
+    // 3.5s per-peer hysteresis prevents oscillation
+    if (now - lastTime < 3500 && maxBitrateBps > 300000) return;
+    this.peerBitrateAdaptTimes.set(peerId, now);
 
     const videoSender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
     if (!videoSender || !videoSender.getParameters) return;
@@ -814,8 +852,16 @@ export class PeerConnectionManager implements ITransportAdapter {
       if (!params.encodings || params.encodings.length === 0) {
         params.encodings = [{}];
       }
+      let modified = false;
       if (params.encodings[0].maxBitrate !== maxBitrateBps) {
         params.encodings[0].maxBitrate = maxBitrateBps;
+        modified = true;
+      }
+      if (params.encodings[0].scaleResolutionDownBy !== scaleResolutionDownBy) {
+        params.encodings[0].scaleResolutionDownBy = scaleResolutionDownBy;
+        modified = true;
+      }
+      if (modified) {
         await videoSender.setParameters(params);
       }
     } catch {}
@@ -947,6 +993,7 @@ export class PeerConnectionManager implements ITransportAdapter {
     this.peerScreenSharingState.clear();
     this.screenStream = null;
     this.signaling.destroy();
+    logger.log('call_left', { transport: 'p2p' });
     this.setLifecycleState('idle');
   }
 

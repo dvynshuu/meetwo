@@ -1,5 +1,6 @@
 import { MediaDeviceSettings, VideoQuality, QualityMode } from '../../types';
 import { AudioDSPManager } from './audioProcessing';
+import { logger } from './observability';
 
 export type TrackKind = 'audio' | 'video' | 'screen' | 'screen-audio';
 
@@ -8,6 +9,7 @@ export interface MediaSessionEvents {
   onAudioLevel?: (level: number, isSpeaking: boolean) => void;
   onDeviceListChanged?: () => void;
   onDeviceUnplugged?: (kind: 'audio' | 'video') => void;
+  onDeviceReconnected?: (kind: 'audio' | 'video', label: string) => void;
 }
 
 export class MediaSession {
@@ -16,6 +18,8 @@ export class MediaSession {
   private cameraTrack: MediaStreamTrack | null = null;
   private screenShareTrack: MediaStreamTrack | null = null;
   private screenAudioTrack: MediaStreamTrack | null = null;
+  private isScreenShareStarting: boolean = false;
+  private lastUnpluggedKind: 'audio' | 'video' | null = null;
 
   // Composite MediaStreams
   private localStream: MediaStream = new MediaStream();
@@ -52,9 +56,33 @@ export class MediaSession {
 
     // Device change listener
     if (typeof navigator !== 'undefined' && navigator.mediaDevices?.addEventListener) {
-      navigator.mediaDevices.addEventListener('devicechange', () => {
+      navigator.mediaDevices.addEventListener('devicechange', async () => {
         if (this.events.onDeviceListChanged) {
           this.events.onDeviceListChanged();
+        }
+
+        // Check if an unplugged device has been restored
+        if (!this.microphoneTrack && this.lastUnpluggedKind === 'audio') {
+          try {
+            const devs = await navigator.mediaDevices.enumerateDevices();
+            const mics = devs.filter((d) => d.kind === 'audioinput');
+            if (mics.length > 0) {
+              const label = mics[0].label || 'Microphone';
+              this.lastUnpluggedKind = null;
+              this.events.onDeviceReconnected?.('audio', label);
+            }
+          } catch {}
+        }
+        if (!this.cameraTrack && this.lastUnpluggedKind === 'video') {
+          try {
+            const devs = await navigator.mediaDevices.enumerateDevices();
+            const cams = devs.filter((d) => d.kind === 'videoinput');
+            if (cams.length > 0) {
+              const label = cams[0].label || 'Camera';
+              this.lastUnpluggedKind = null;
+              this.events.onDeviceReconnected?.('video', label);
+            }
+          } catch {}
         }
       });
     }
@@ -122,7 +150,9 @@ export class MediaSession {
       // Handle external unplug / mute
       track.onended = () => {
         console.warn('[MediaSession] Microphone track ended (device disconnected/unplugged)');
+        this.lastUnpluggedKind = 'audio';
         this.stopMicrophone();
+        logger.log('device_disconnected', { kind: 'audio' });
         if (this.events.onDeviceUnplugged) {
           this.events.onDeviceUnplugged('audio');
         }
@@ -132,6 +162,7 @@ export class MediaSession {
         this.events.onTrackChanged('audio', track);
       }
 
+      logger.log('device_changed', { kind: 'audio', deviceId: targetDeviceId });
       return track;
     } catch (err) {
       console.warn('[MediaSession] Microphone with constraints failed, falling back:', err);
@@ -151,7 +182,10 @@ export class MediaSession {
       this.dspManager.attachStream(fallbackStream, this.settings.inputVolume / 100);
 
       fallbackTrack.onended = () => {
+        console.warn('[MediaSession] Fallback microphone track ended');
+        this.lastUnpluggedKind = 'audio';
         this.stopMicrophone();
+        logger.log('device_disconnected', { kind: 'audio' });
         if (this.events.onDeviceUnplugged) {
           this.events.onDeviceUnplugged('audio');
         }
@@ -237,7 +271,9 @@ export class MediaSession {
 
       track.onended = () => {
         console.warn('[MediaSession] Camera track ended (device disconnected/unplugged)');
+        this.lastUnpluggedKind = 'video';
         this.stopCamera();
+        logger.log('device_disconnected', { kind: 'video' });
         if (this.events.onDeviceUnplugged) {
           this.events.onDeviceUnplugged('video');
         }
@@ -247,6 +283,7 @@ export class MediaSession {
         this.events.onTrackChanged('video', track);
       }
 
+      logger.log('device_changed', { kind: 'video', deviceId: targetDeviceId });
       return track;
     } catch (err) {
       console.warn(`[MediaSession] Camera at ${targetQuality} failed, falling back:`, err);
@@ -262,7 +299,10 @@ export class MediaSession {
         this.localStream.addTrack(fallbackTrack);
 
         fallbackTrack.onended = () => {
+          console.warn('[MediaSession] Fallback camera track ended');
+          this.lastUnpluggedKind = 'video';
           this.stopCamera();
+          logger.log('device_disconnected', { kind: 'video' });
           if (this.events.onDeviceUnplugged) {
             this.events.onDeviceUnplugged('video');
           }
@@ -311,6 +351,14 @@ export class MediaSession {
     videoTrack: MediaStreamTrack;
     audioTrack?: MediaStreamTrack;
   }> {
+    if (this.isScreenShareStarting) {
+      if (this.screenShareTrack) {
+        return { videoTrack: this.screenShareTrack, audioTrack: this.screenAudioTrack || undefined };
+      }
+      throw new Error('Screen share acquisition already in progress');
+    }
+
+    this.isScreenShareStarting = true;
     this.stopScreenShare();
 
     try {
@@ -349,6 +397,8 @@ export class MediaSession {
         this.events.onTrackChanged('screen', videoTrack);
       }
 
+      logger.log('screen_share_started', { hasAudio: Boolean(this.screenAudioTrack) });
+
       return {
         videoTrack,
         audioTrack: this.screenAudioTrack || undefined,
@@ -356,6 +406,8 @@ export class MediaSession {
     } catch (err) {
       console.warn('[MediaSession] Screen sharing was cancelled or denied:', err);
       throw err;
+    } finally {
+      this.isScreenShareStarting = false;
     }
   }
 
@@ -364,6 +416,7 @@ export class MediaSession {
       this.screenShareTrack.stop();
       this.screenStream.removeTrack(this.screenShareTrack);
       this.screenShareTrack = null;
+      logger.log('screen_share_stopped');
     }
     if (this.screenAudioTrack) {
       this.screenAudioTrack.stop();

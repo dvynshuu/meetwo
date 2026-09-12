@@ -4,7 +4,7 @@ import { useServer } from '../../app/providers/ServerContext';
 import { VideoGrid } from './VideoGrid';
 import { VideoControls } from './VideoControls';
 import { PreJoinModal } from './PreJoinModal';
-import { Users, Sparkles, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Users, Sparkles, ShieldCheck, AlertTriangle, RefreshCw, X, Volume2 } from 'lucide-react';
 
 interface VideoRoomProps {
   onOpenSettings: () => void;
@@ -22,6 +22,9 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
     connectionState,
     connectionStats,
     productionConfigError,
+    reconnectMessage,
+    deviceNotification,
+    dismissDeviceNotification,
   } = useMedia();
   const { activeChannel } = useServer();
 
@@ -64,7 +67,7 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
               {activeChannel.name}
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
-              Private room optimized for 2–6 friends. Crystal-clear Opus 48kHz audio and adaptive 1080p video.
+              Private small-group room optimized for 2–6 friends. Natural voice priority and resilient adaptive media.
             </p>
           </div>
 
@@ -111,6 +114,66 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
 
   return (
     <div className="video-room-container">
+      {/* Device State Change Toast Notification */}
+      {deviceNotification && (
+        <div
+          className="device-notification-toast"
+          style={{
+            position: 'absolute',
+            top: 54,
+            right: 20,
+            zIndex: 100,
+            background: 'rgba(15, 23, 42, 0.95)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            borderRadius: 'var(--radius-md)',
+            padding: '10px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            fontSize: 13,
+          }}
+        >
+          <Volume2 size={16} style={{ color: 'var(--accent-light)' }} />
+          <span>
+            {deviceNotification.kind === 'audio' ? 'Microphone' : 'Camera'}{' '}
+            {deviceNotification.action === 'disconnected'
+              ? 'unplugged. Switched to fallback device.'
+              : 'reconnected and active.'}
+          </span>
+          <button
+            type="button"
+            className="icon-btn"
+            style={{ width: 22, height: 22, padding: 0 }}
+            onClick={dismissDeviceNotification}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Network Reconnection / Recovery Banner */}
+      {reconnectMessage && (
+        <div
+          className="reconnection-banner"
+          style={{
+            background: connectionState === 'failed' ? 'rgba(239, 68, 68, 0.9)' : 'rgba(234, 179, 8, 0.9)',
+            color: '#fff',
+            padding: '8px 16px',
+            fontSize: 13,
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+          }}
+        >
+          <RefreshCw size={14} className={connectionState !== 'failed' ? 'spinning' : ''} />
+          <span>{reconnectMessage}</span>
+        </div>
+      )}
+
       {/* Production Configuration Error Banner */}
       {productionConfigError && (
         <div
@@ -153,7 +216,9 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
             <span className="dot" />
             <span>
               {connectionState === 'connected'
-                ? connectionStats.rtt !== undefined
+                ? connectionStats.quality === 'unknown'
+                  ? 'Measuring connection…'
+                  : connectionStats.rtt !== undefined
                   ? `${connectionStats.quality.charAt(0).toUpperCase() + connectionStats.quality.slice(1)} (${connectionStats.rtt}ms)`
                   : `${connectionStats.quality.charAt(0).toUpperCase() + connectionStats.quality.slice(1)} connection`
                 : connectionState === 'reconnecting'

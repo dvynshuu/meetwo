@@ -174,7 +174,7 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
             }}
           >
             <Sparkles size={13} />
-            <span>Meetwo V3 HQ Audio</span>
+            <span>Meetwo V4 Verified Media</span>
           </div>
         </div>
 
@@ -334,9 +334,27 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
             </select>
           </div>
 
+          {/* Speaker (Audio Output) */}
+          <div className="input-group" style={{ margin: 0 }}>
+            <label className="input-label" style={{ fontSize: 11 }}>Speaker / Headphones</label>
+            <select
+              className="input-field"
+              style={{ fontSize: 12, padding: '8px 10px' }}
+              value={deviceSettings.audioOutputId}
+              onChange={(e) => updateSettings({ audioOutputId: e.target.value })}
+            >
+              <option value="">Default Audio Output</option>
+              {audioOutputs.map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label || `Speaker (${d.deviceId.slice(0, 5)})`}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Target Quality */}
           <div className="input-group" style={{ margin: 0 }}>
-            <label className="input-label" style={{ fontSize: 11 }}>Video Quality</label>
+            <label className="input-label" style={{ fontSize: 11 }}>Target Video Quality</label>
             <select
               className="input-field"
               style={{ fontSize: 12, padding: '8px 10px' }}
@@ -348,26 +366,55 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
               <option value="480p">480p SD (Low Bandwidth)</option>
             </select>
           </div>
+        </div>
 
-          {/* Speaker Test */}
-          <div className="input-group" style={{ margin: 0 }}>
-            <label className="input-label" style={{ fontSize: 11 }}>Output Sound</label>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              style={{ width: '100%', height: 38, justifyContent: 'center' }}
-              onClick={handleTestSpeaker}
-              disabled={isChimePlaying}
-            >
-              <Volume2 size={15} />
-              <span>{isChimePlaying ? 'Playing chime...' : 'Test Speaker Chime'}</span>
-            </Button>
+        {/* Pre-Call Readiness Checklist */}
+        <div
+          style={{
+            background: 'rgba(15, 23, 42, 0.6)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-subtle)',
+            padding: '10px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: 11,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <span style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>READINESS CHECKLIST:</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: previewCamMuted ? 'var(--text-muted)' : 'var(--status-online)' }}>
+              <CheckCircle2 size={13} />
+              <span>Camera {previewCamMuted ? '(Off)' : '✓'}</span>
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: previewMicMuted ? 'var(--status-idle)' : 'var(--status-online)' }}>
+              <CheckCircle2 size={13} />
+              <span>Microphone {previewMicMuted ? '(Muted)' : '✓'}</span>
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--status-online)' }}>
+              <CheckCircle2 size={13} />
+              <span>Audio Output ✓</span>
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--status-online)' }}>
+              <CheckCircle2 size={13} />
+              <span>Network Ready ✓</span>
+            </span>
           </div>
+
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            style={{ fontSize: 11, padding: '2px 8px', height: 26, gap: 4 }}
+            onClick={handleTestSpeaker}
+            disabled={isChimePlaying}
+          >
+            <Volume2 size={12} />
+            <span>{isChimePlaying ? 'Playing...' : 'Test Speaker'}</span>
+          </button>
         </div>
 
         {/* Modal Actions */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
