@@ -52,6 +52,7 @@ interface MediaContextType {
   inviteToStage: (targetUserId: string) => Promise<void>;
   demoteToListener: (targetUserId: string) => Promise<void>;
   lowerParticipantHand: (targetUserId: string) => Promise<void>;
+  productionConfigError: string | null;
 }
 
 const MediaContext = createContext<MediaContextType | undefined>(undefined);
@@ -65,12 +66,6 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [connectionState, setConnectionState] = useState<MediaLifecycleState>('idle');
   const [connectionStats, setConnectionStats] = useState<ConnectionStats>({
-    rtt: 25,
-    packetLoss: 0,
-    jitter: 3,
-    bitrate: 1800,
-    audioCodec: 'Opus 48kHz (Mono FEC)',
-    videoCodec: 'VP8/H.264 HD',
     quality: 'excellent',
   });
 
@@ -83,9 +78,10 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [pinnedParticipantId, setPinnedParticipantId] = useState<string | null>(null);
 
-  // Stage states for current user
-  const [myStageRole, setMyStageRole] = useState<'host' | 'speaker' | 'listener'>('host');
+  // Stage states for current user (strictly default to listener)
+  const [myStageRole, setMyStageRole] = useState<'host' | 'speaker' | 'listener'>('listener');
   const [myHandRaised, setMyHandRaised] = useState(false);
+  const [productionConfigError, setProductionConfigError] = useState<string | null>(null);
 
   const [remoteParticipants, setRemoteParticipants] = useState<Map<string, Participant>>(new Map());
 
@@ -208,8 +204,8 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 isVideoMuted: existing?.isVideoMuted || false,
                 isScreenSharing: existing?.isScreenSharing || false,
                 isSpeaking: existing?.isSpeaking || false,
-                stageRole: existing?.stageRole || 'speaker',
-                isStageSpeaker: existing?.isStageSpeaker ?? true,
+                stageRole: existing?.stageRole || 'listener',
+                isStageSpeaker: existing?.isStageSpeaker ?? false,
                 isHandRaised: existing?.isHandRaised || false,
                 audioLevel: existing?.audioLevel || 0,
                 connectionQuality: existing?.connectionQuality || 'excellent',
@@ -307,12 +303,24 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           },
         };
 
+        const isProduction =
+          (import.meta as any).env?.VITE_APP_ENV === 'production' ||
+          (import.meta as any).env?.PROD;
+
         let transport: ITransportAdapter;
         if (livekitUrl && livekitToken) {
           console.info('[MediaEngine] Initializing LiveKit SFU Transport (Primary Production Transport)');
           transport = new LiveKitSFUAdapter(livekitUrl, livekitToken, callbacks);
+        } else if (isProduction) {
+          const errMsg = !livekitUrl
+            ? 'LiveKit SFU endpoint is not configured for production (missing VITE_LIVEKIT_URL).'
+            : 'Failed to acquire secure LiveKit room access token for production.';
+          console.error(`[MediaEngine] Production configuration error: ${errMsg}`);
+          setProductionConfigError(errMsg);
+          setConnectionState('failed');
+          return;
         } else {
-          console.info('[MediaEngine] Initializing Enhanced Direct Media Engine (Opus Mono FEC/DTX)');
+          console.info('[MediaEngine] Initializing Enhanced Direct Media Engine (Development/Staging Fallback)');
           transport = new PeerConnectionManager(currentUser.id, callbacks);
         }
 
@@ -346,6 +354,8 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setPinnedParticipantId(null);
     setConnectionState('idle');
     setMyHandRaised(false);
+    setMyStageRole('listener');
+    setProductionConfigError(null);
     setRemoteParticipants(new Map());
   }, []);
 
@@ -579,6 +589,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         inviteToStage,
         demoteToListener,
         lowerParticipantHand,
+        productionConfigError,
       }}
     >
       {children}

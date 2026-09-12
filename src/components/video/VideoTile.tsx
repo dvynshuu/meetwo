@@ -92,7 +92,11 @@ export const VideoTile: React.FC<VideoTileProps> = ({
       : 'var(--status-dnd)';
 
   const statsTooltip = participant.stats
-    ? `Quality: ${participant.connectionQuality?.toUpperCase()} | RTT: ${participant.stats.rtt}ms | Loss: ${participant.stats.packetLoss}% | Bitrate: ${participant.stats.bitrate}kbps`
+    ? `Quality: ${participant.connectionQuality?.toUpperCase() || 'GOOD'}${
+        participant.stats.rtt !== undefined ? ` | RTT: ${participant.stats.rtt}ms` : ''
+      }${participant.stats.packetLoss !== undefined ? ` | Loss: ${participant.stats.packetLoss}%` : ''}${
+        participant.stats.bitrate !== undefined ? ` | Bitrate: ${participant.stats.bitrate}kbps` : ''
+      }`
     : `Quality: ${participant.connectionQuality || 'Good'}`;
 
   return (

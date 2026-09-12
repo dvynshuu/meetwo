@@ -19,10 +19,13 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { currentUser, updateProfile, switchDemoUser, isDemoMode } = useAuth();
   const {
+    activeRoomId,
     deviceSettings,
     updateSettings,
     audioLevel,
     connectionStats,
+    isAudioMuted,
+    isVideoMuted,
     switchCamera,
     switchMicrophone,
   } = useMedia();
@@ -535,7 +538,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </div>
               </div>
 
-              {/* Real Active WebRTC Telemetry */}
+              {/* Real Active WebRTC Diagnostics (Truthful Reporting) */}
               <div
                 style={{
                   padding: '12px 14px',
@@ -549,45 +552,76 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                    LIVE WEBRTC TELEMETRY
+                    MEDIA DIAGNOSTICS & TELEMETRY
                   </span>
                   <span
                     style={{
                       fontSize: 11,
                       padding: '2px 8px',
                       borderRadius: 'var(--radius-pill)',
-                      background: 'rgba(16, 185, 129, 0.15)',
-                      color: 'var(--status-online)',
+                      background: activeRoomId ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+                      color: activeRoomId ? 'var(--status-online)' : 'var(--text-muted)',
                       fontWeight: 600,
                     }}
                   >
-                    {connectionStats.quality.toUpperCase()}
+                    {activeRoomId ? connectionStats.quality.toUpperCase() : 'NOT IN CALL'}
                   </span>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
                   <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>LATENCY (RTT)</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--status-online)' }}>
-                      {connectionStats.rtt} ms
+                    <div style={{ fontSize: 13, fontWeight: 700, color: connectionStats.rtt !== undefined ? 'var(--status-online)' : 'var(--text-muted)' }}>
+                      {connectionStats.rtt !== undefined ? `${connectionStats.rtt} ms` : '--'}
                     </div>
                   </div>
                   <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>PACKET LOSS</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--status-online)' }}>
-                      {connectionStats.packetLoss}%
+                    <div style={{ fontSize: 13, fontWeight: 700, color: connectionStats.packetLoss !== undefined ? 'var(--status-online)' : 'var(--text-muted)' }}>
+                      {connectionStats.packetLoss !== undefined ? `${connectionStats.packetLoss}%` : '--'}
                     </div>
                   </div>
                   <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>JITTER</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--status-online)' }}>
-                      {connectionStats.jitter} ms
+                    <div style={{ fontSize: 13, fontWeight: 700, color: connectionStats.jitter !== undefined ? 'var(--status-online)' : 'var(--text-muted)' }}>
+                      {connectionStats.jitter !== undefined ? `${connectionStats.jitter} ms` : '--'}
                     </div>
                   </div>
                   <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>BITRATE</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-light)' }}>
-                      {connectionStats.bitrate} kbps
+                    <div style={{ fontSize: 13, fontWeight: 700, color: connectionStats.bitrate !== undefined ? 'var(--accent-light)' : 'var(--text-muted)' }}>
+                      {connectionStats.bitrate !== undefined
+                        ? connectionStats.bitrate >= 1000
+                          ? `${(connectionStats.bitrate / 1000).toFixed(1)} Mbps`
+                          : `${connectionStats.bitrate} kbps`
+                        : '0 kbps'}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>RESOLUTION</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: connectionStats.resolution ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                      {connectionStats.resolution || (isVideoMuted ? 'Camera Off' : 'Unavailable')}
+                    </div>
+                  </div>
+                  <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>FRAME RATE</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: connectionStats.fps !== undefined ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                      {connectionStats.fps !== undefined ? `${connectionStats.fps} fps` : (isVideoMuted ? '--' : 'Unavailable')}
+                    </div>
+                  </div>
+                  <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>AUDIO CODEC</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: connectionStats.audioCodec ? 'var(--accent-light)' : 'var(--text-muted)' }}>
+                      {connectionStats.audioCodec || (isAudioMuted ? 'Muted' : 'Opus 48kHz')}
+                    </div>
+                  </div>
+                  <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>VIDEO CODEC</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: connectionStats.videoCodec ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+                      {connectionStats.videoCodec || (isVideoMuted ? '--' : 'VP8 / H.264')}
                     </div>
                   </div>
                 </div>

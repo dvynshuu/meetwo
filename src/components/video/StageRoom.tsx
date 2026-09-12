@@ -109,12 +109,12 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
     );
   }
 
-  // Real participant partitioning
+  // Real participant partitioning (strictly listener by default)
   const localParticipant = participants.find((p) => p.userId === currentUser?.id);
-  const isSpeaker = localParticipant?.isStageSpeaker ?? true;
+  const isSpeaker = localParticipant?.isStageSpeaker === true;
   const isHandRaised = localParticipant?.isHandRaised ?? false;
 
-  const speakers = participants.filter((p) => p.isStageSpeaker);
+  const speakers = participants.filter((p) => p.isStageSpeaker === true);
   const listeners = participants.filter((p) => !p.isStageSpeaker);
   const handRequests = listeners.filter((p) => p.isHandRaised);
 

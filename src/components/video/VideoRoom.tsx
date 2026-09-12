@@ -4,7 +4,7 @@ import { useServer } from '../../app/providers/ServerContext';
 import { VideoGrid } from './VideoGrid';
 import { VideoControls } from './VideoControls';
 import { PreJoinModal } from './PreJoinModal';
-import { Users, Sparkles, ShieldCheck } from 'lucide-react';
+import { Users, Sparkles, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 interface VideoRoomProps {
   onOpenSettings: () => void;
@@ -21,6 +21,7 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
     joinVoiceRoom,
     connectionState,
     connectionStats,
+    productionConfigError,
   } = useMedia();
   const { activeChannel } = useServer();
 
@@ -110,6 +111,31 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
 
   return (
     <div className="video-room-container">
+      {/* Production Configuration Error Banner */}
+      {productionConfigError && (
+        <div
+          className="production-config-error-banner"
+          style={{
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid var(--danger)',
+            borderRadius: 'var(--radius-md)',
+            padding: '12px 16px',
+            margin: '12px 12px 0 12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            color: '#fca5a5',
+            fontSize: 13,
+          }}
+        >
+          <AlertTriangle size={18} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <strong style={{ display: 'block', color: '#fff' }}>Production SFU Configuration Required</strong>
+            <span>{productionConfigError}</span>
+          </div>
+        </div>
+      )}
+
       {/* Top Unobtrusive Status Bar */}
       <div className="video-top-status-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -122,12 +148,14 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div
             className={`connection-health-badge ${connectionState}`}
-            title={`Status: ${connectionState.toUpperCase()} | RTT: ${connectionStats.rtt}ms`}
+            title={`Status: ${connectionState.toUpperCase()}${connectionStats.rtt !== undefined ? ` | RTT: ${connectionStats.rtt}ms` : ''}`}
           >
             <span className="dot" />
             <span>
               {connectionState === 'connected'
-                ? `1080p HD (${connectionStats.rtt}ms)`
+                ? connectionStats.rtt !== undefined
+                  ? `${connectionStats.quality.charAt(0).toUpperCase() + connectionStats.quality.slice(1)} (${connectionStats.rtt}ms)`
+                  : `${connectionStats.quality.charAt(0).toUpperCase() + connectionStats.quality.slice(1)} connection`
                 : connectionState === 'reconnecting'
                 ? 'Reconnecting...'
                 : connectionState === 'degraded'

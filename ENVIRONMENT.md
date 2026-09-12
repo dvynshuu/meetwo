@@ -50,13 +50,23 @@ VITE_LIVEKIT_TOKEN=
 
 ---
 
-## 3. Security Guidelines
+## 3. Security Guidelines & Production Enforcement
 
 1. **Client-Side Secret Ban**:
    - **NEVER** prefix private secrets with `VITE_`.
    - **NEVER** include `LIVEKIT_API_SECRET` or Supabase `SERVICE_ROLE_KEY` in frontend environment files.
-   - All LiveKit access tokens must be minted server-side with user identity authorization.
+   - All LiveKit access tokens must be minted server-side with user identity authorization via `VITE_LIVEKIT_TOKEN_ENDPOINT` or Supabase Edge Function (`/functions/v1/livekit-token`).
 
-2. **Supabase Row Level Security (RLS)**:
+2. **Strict Production Media Enforcement**:
+   - In `production` tier (`VITE_APP_ENV=production`), LiveKit SFU is **strictly required**.
+   - If `VITE_LIVEKIT_URL` is unset or token generation fails, Meetwo will **NOT** silently fall back to local P2P mesh. Instead, it displays a clear configuration banner explaining that production media configuration is missing.
+   - Enhanced Direct Engine (P2P mesh) is restricted exclusively to `development` and `staging` sandbox tiers.
+
+3. **Production Authentication & Clean Logout**:
+   - In production, mock store persona switching is completely disabled. Real Supabase auth is mandatory.
+   - Logout in production strictly destroys the active session and resets current user to `null`, presenting the authentication modal. No guest mock users are automatically created.
+
+4. **Supabase Row Level Security (RLS)**:
    - Ensure the database schema in `supabase/schema.sql` is applied with RLS policies enabled.
    - Client queries are authenticated using JWT sessions issued by Supabase Auth.
+

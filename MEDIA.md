@@ -81,14 +81,15 @@ Screen sharing is decoupled from camera video:
 
 ---
 
-## 6. Real Connection Telemetry & Health Scoring
+## 6. Truthful Telemetry & Real Codec Reporting (No Fake Metrics)
 
-Telemetry is derived from measured WebRTC `getStats()` reports (`candidate-pair` and `inbound-rtp`):
-- **Round-Trip Time (RTT)**: Measured candidate-pair RTT in milliseconds.
-- **Packet Loss**: Exact percentage of lost packets relative to total received.
-- **Jitter**: Inter-arrival jitter in milliseconds.
-- **Instantaneous Bitrate**: Calculated via byte delta over elapsed time (`kbps`).
-- **Frame Drop Rate**: Ratio of dropped frames to total received.
+Meetwo V3.1 enforces a strict policy: **never fabricate or substitute healthy-looking defaults for unavailable metrics**.
+
+- **No Synthetic Numbers**: Metrics like RTT, Packet Loss, Jitter, Bitrate, and FPS remain `undefined` until actually measured by WebRTC `getStats()`. In the UI, these explicitly render as **"Unavailable"** or `--`.
+- **Real Codec Extraction**: Rather than hardcoding codec strings, Meetwo resolves actual negotiated codec MIME types from `RTCStatsReport` (matching `inbound-rtp.codecId` and `outbound-rtp.codecId` against `report.type === 'codec'`). If codec info is not exposed by the browser, it reports `Unavailable`.
+- **Round-Trip Time (RTT)**: Extracted strictly from nominated / succeeded candidate pairs.
+- **Instantaneous Bitrate**: Computed exclusively from bytes delta over elapsed time (`kbps` / `Mbps`).
+- **Participant-Level Quality**: LiveKit's `ConnectionQualityChanged` events and per-peer WebRTC sessions track health per participant instead of assuming aggregate room conditions.
 
 ### Quality Classification Model:
 | Quality | Conditions |
@@ -106,3 +107,13 @@ Telemetry is derived from measured WebRTC `getStats()` reports (`candidate-pair`
 - **Seamless Device Switching**: Switching cameras or microphones invokes `replaceTrack` on active senders without dropping the call or renegotiating.
 - **Hardware Disconnect Detection**: `track.onended` listeners detect hardware removal (unplugged USB mic or webcam) and transition the track to muted state gracefully without call interruption.
 - **Audio Output Routing**: Routes remote audio to selected output device via HTMLMediaElement `setSinkId`.
+
+---
+
+## 8. Stage Rooms: Security & Listener Defaults
+
+- **Strict Listener Default**: Participants joining a Stage room default to **listener** (`isStageSpeaker: false`). Unknown roles never default to speaker.
+- **Explicit Role Promotion**: Only explicit moderation state promotes a participant to speaker.
+- **Targeted Moderation Actions**: All stage moderation signals (`invite`, `demote`, `lower-hand`) strictly carry and target the selected participant ID.
+- **No Synthetic Audience**: Stage room state is derived 100% from actual connected peers; synthetic audience counts and fake participants are prohibited.
+

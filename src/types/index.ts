@@ -170,10 +170,11 @@ export type MediaLifecycleState =
   | 'failed';
 
 export interface ConnectionStats {
-  rtt: number; // ms
-  packetLoss: number; // %
-  jitter: number; // ms
-  bitrate: number; // kbps
+  rtt?: number; // ms (undefined when unavailable)
+  packetLoss?: number; // % (undefined when unavailable)
+  jitter?: number; // ms (undefined when unavailable)
+  bitrate?: number; // kbps (undefined when unavailable)
+  fps?: number; // frames per second (undefined when unavailable)
   frameDropRate?: number; // %
   resolution?: string;
   audioCodec?: string;

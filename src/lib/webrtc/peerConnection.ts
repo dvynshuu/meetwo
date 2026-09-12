@@ -24,7 +24,6 @@ interface PeerSession {
   ignoreOffer: boolean;
   isSettingRemoteAnswerPending: boolean;
   connectionQuality: ConnectionQuality;
-  statsInterval?: number;
   lastStats?: {
     timestamp: number;
     bytesReceived: number;
@@ -52,14 +51,18 @@ export class PeerConnectionManager implements ITransportAdapter {
 
   // Aggregate local connection stats
   private localStats: ConnectionStats = {
-    rtt: 28,
-    packetLoss: 0,
-    jitter: 3,
-    bitrate: 1800,
-    audioCodec: 'Opus 48kHz (Mono FEC)',
-    videoCodec: 'VP8/H.264 HD',
     quality: 'excellent',
   };
+
+  private globalStatsInterval: number | null = null;
+  private lastGlobalStats: {
+    timestamp: number;
+    bytesReceived: number;
+    bytesSent: number;
+    packetsReceived: number;
+    packetsSent: number;
+    packetsLost: number;
+  } | null = null;
 
   // Event handlers for auto-recovery
   private handleOnline = () => this.recoverConnections('online');
@@ -85,6 +88,8 @@ export class PeerConnectionManager implements ITransportAdapter {
     this.roomId = roomId;
     this.localStream = localStream;
     this.setLifecycleState('connecting');
+
+    this.startGlobalStatsPolling();
 
     this.unsubSignal = this.signaling.onSignal(async (signal: PeerSignalMessage) => {
       if (signal.fromPeerId === this.localPeerId || signal.roomId !== this.roomId) return;
@@ -123,10 +128,12 @@ export class PeerConnectionManager implements ITransportAdapter {
         }
       }
     }
+    this.collectGlobalStats().catch(() => {});
   }
 
   public async updateLocalStream(newStream: MediaStream | null): Promise<void> {
     this.localStream = newStream;
+    this.collectGlobalStats().catch(() => {});
     if (!newStream) return;
 
     const audioTrack = newStream.getAudioTracks()[0] || null;
@@ -140,6 +147,7 @@ export class PeerConnectionManager implements ITransportAdapter {
     if (!this.localStream) return;
     const tracks = kind === 'audio' ? this.localStream.getAudioTracks() : this.localStream.getVideoTracks();
     tracks.forEach((t) => (t.enabled = enabled));
+    this.collectGlobalStats().catch(() => {});
   }
 
   // ==========================================
@@ -170,6 +178,8 @@ export class PeerConnectionManager implements ITransportAdapter {
       }
     }
 
+    this.collectGlobalStats().catch(() => {});
+
     await this.signaling.sendSignal({
       type: 'track-update',
       fromPeerId: this.localPeerId,
@@ -193,6 +203,8 @@ export class PeerConnectionManager implements ITransportAdapter {
       }
       this.screenStream = null;
     }
+
+    this.collectGlobalStats().catch(() => {});
 
     await this.signaling.sendSignal({
       type: 'track-update',
@@ -498,11 +510,8 @@ export class PeerConnectionManager implements ITransportAdapter {
       }
     };
 
-    // Real Connection Statistics via getStats()
-    session.statsInterval = window.setInterval(async () => {
-      if (pc.connectionState !== 'connected') return;
-      await this.calculateSessionStats(session, peerId);
-    }, 2000);
+    // Trigger initial stats collection for the newly established peer session
+    this.collectGlobalStats().catch(() => {});
 
     return session;
   }
@@ -511,97 +520,283 @@ export class PeerConnectionManager implements ITransportAdapter {
   // REAL STATS & DYNAMIC BANDWIDTH ADAPTATION
   // ==========================================
 
-  private async calculateSessionStats(session: PeerSession, peerId: string): Promise<void> {
+  private startGlobalStatsPolling(): void {
+    this.stopGlobalStatsPolling();
+    // Run an immediate collection so telemetry is available instantly without a 2s delay
+    this.collectGlobalStats().catch(() => {});
+    this.globalStatsInterval = window.setInterval(async () => {
+      await this.collectGlobalStats();
+    }, 2000);
+  }
+
+  private stopGlobalStatsPolling(): void {
+    if (this.globalStatsInterval !== null) {
+      clearInterval(this.globalStatsInterval);
+      this.globalStatsInterval = null;
+    }
+    this.lastGlobalStats = null;
+  }
+
+  private async collectGlobalStats(): Promise<void> {
     try {
-      const stats = await session.pc.getStats();
       const now = Date.now();
 
-      let rtt = 0;
-      let packetsLost = 0;
-      let packetsReceived = 0;
-      let jitter = 0;
-      let bytesReceived = 0;
-      let frameDropRate = 0;
-      let res = '1920x1080';
+      // 1. Inspect active local hardware tracks (camera / mic / screen)
+      const activeVideoTrack =
+        this.screenStream?.getVideoTracks().find((t) => t.readyState === 'live') ||
+        this.localStream?.getVideoTracks().find((t) => t.readyState === 'live');
+      const activeAudioTrack = this.localStream?.getAudioTracks().find((t) => t.readyState === 'live');
 
-      stats.forEach((report) => {
-        if (report.type === 'candidate-pair' && report.currentRoundTripTime !== undefined) {
-          rtt = Math.round(report.currentRoundTripTime * 1000);
+      let localRes: string | undefined;
+      let localFps: number | undefined;
+
+      if (activeVideoTrack && activeVideoTrack.enabled) {
+        const settings = activeVideoTrack.getSettings();
+        if (settings.width && settings.height) {
+          localRes = `${settings.width}x${settings.height}`;
         }
-
-        if (report.type === 'inbound-rtp') {
-          if (report.packetsLost) packetsLost += report.packetsLost;
-          if (report.packetsReceived) packetsReceived += report.packetsReceived;
-          if (report.jitter) jitter = Math.max(jitter, Math.round(report.jitter * 1000));
-          if (report.bytesReceived) bytesReceived += report.bytesReceived;
-          if (report.frameWidth && report.frameHeight) {
-            res = `${report.frameWidth}x${report.frameHeight}`;
-          }
-          if (report.framesDropped && report.framesReceived) {
-            frameDropRate = Math.round((report.framesDropped / (report.framesDropped + report.framesReceived)) * 100);
-          }
+        if (settings.frameRate) {
+          localFps = Math.round(settings.frameRate);
         }
-      });
+      }
 
-      // Calculate instantaneous bitrate (kbps) and packet loss percentage
-      let bitrate = 0;
-      let packetLossPercent = 0;
+      const defaultAudioCodec = activeAudioTrack && activeAudioTrack.enabled ? 'Opus 48kHz' : undefined;
+      const defaultVideoCodec = activeVideoTrack && activeVideoTrack.enabled ? 'VP8 / H.264' : undefined;
 
-      if (session.lastStats) {
-        const timeDelta = (now - session.lastStats.timestamp) / 1000;
+      // 2. Solo mode: User is in the room without remote peers (waiting for friends)
+      if (this.peerSessions.size === 0) {
+        this.localStats = {
+          rtt: undefined,
+          packetLoss: undefined,
+          jitter: undefined,
+          bitrate: 0,
+          fps: localFps,
+          resolution: localRes,
+          audioCodec: defaultAudioCodec,
+          videoCodec: defaultVideoCodec,
+          quality: 'excellent',
+        };
+        this.callbacks.onConnectionQualityChanged?.(this.localPeerId, 'excellent', this.localStats);
+        return;
+      }
+
+      // 3. Multi-peer mode: Query RTCPeerConnection statistics across all connected sessions
+      let totalRttSum = 0;
+      let rttCount = 0;
+      let maxJitter: number | undefined;
+      let totalPacketsLost = 0;
+      let totalPacketsReceived = 0;
+      let totalPacketsSent = 0;
+      let totalBytesReceived = 0;
+      let totalBytesSent = 0;
+      let hasPacketData = false;
+      let hasBytesData = false;
+      let measuredRes: string | undefined = localRes;
+      let measuredFps: number | undefined = localFps;
+      let audioCodec: string | undefined = defaultAudioCodec;
+      let videoCodec: string | undefined = defaultVideoCodec;
+      let measuredFrameDropRate: number | undefined;
+
+      for (const [peerId, session] of this.peerSessions.entries()) {
+        if (session.pc.connectionState !== 'connected') continue;
+
+        try {
+          const stats = await session.pc.getStats();
+
+          // Codec map for this session
+          const codecMap = new Map<string, string>();
+          stats.forEach((report) => {
+            if (report.type === 'codec') {
+              const mime = report.mimeType || '';
+              if (mime.toLowerCase().includes('opus')) {
+                codecMap.set(report.id, 'Opus 48kHz');
+              } else if (mime.toLowerCase().includes('h264')) {
+                codecMap.set(report.id, 'H.264');
+              } else if (mime.toLowerCase().includes('vp8')) {
+                codecMap.set(report.id, 'VP8');
+              } else if (mime.toLowerCase().includes('vp9')) {
+                codecMap.set(report.id, 'VP9');
+              } else if (mime.toLowerCase().includes('av1') || mime.toLowerCase().includes('av01')) {
+                codecMap.set(report.id, 'AV1');
+              } else if (mime) {
+                codecMap.set(report.id, mime.split('/')[1] || mime);
+              }
+            }
+          });
+
+          let sessionRtt: number | undefined;
+          let sessionLoss: number | undefined;
+
+          stats.forEach((report) => {
+            // Selected candidate-pair (RTT)
+            if (
+              report.type === 'candidate-pair' &&
+              (report.nominated || report.state === 'succeeded' || report.selected)
+            ) {
+              if (report.currentRoundTripTime !== undefined) {
+                const rttMs = Math.round(report.currentRoundTripTime * 1000);
+                totalRttSum += rttMs;
+                rttCount++;
+                sessionRtt = rttMs;
+              }
+            }
+
+            // Remote inbound RTP (RTCP RTT feedback)
+            if (report.type === 'remote-inbound-rtp') {
+              if (sessionRtt === undefined && report.roundTripTime !== undefined) {
+                const rttMs = Math.round(report.roundTripTime * 1000);
+                totalRttSum += rttMs;
+                rttCount++;
+                sessionRtt = rttMs;
+              }
+              if (report.jitter !== undefined) {
+                const jMs = Math.round(report.jitter * 1000);
+                maxJitter = Math.max(maxJitter ?? 0, jMs);
+              }
+            }
+
+            // Inbound & Outbound RTP
+            if (report.type === 'inbound-rtp' || report.type === 'outbound-rtp') {
+              const kind = report.kind || report.mediaType;
+              if (kind === 'audio') {
+                const resolved =
+                  (report.codecId && codecMap.get(report.codecId)) ||
+                  (report.mimeType ? report.mimeType.split('/')[1] : undefined);
+                if (resolved) audioCodec = resolved;
+              } else if (kind === 'video') {
+                const resolved =
+                  (report.codecId && codecMap.get(report.codecId)) ||
+                  (report.mimeType ? report.mimeType.split('/')[1] : undefined);
+                if (resolved) videoCodec = resolved;
+                if (report.frameWidth && report.frameHeight) {
+                  measuredRes = `${report.frameWidth}x${report.frameHeight}`;
+                }
+                if (report.framesPerSecond !== undefined && report.framesPerSecond > 0) {
+                  measuredFps = Math.round(report.framesPerSecond);
+                }
+                if (report.framesDropped !== undefined && report.framesReceived) {
+                  measuredFrameDropRate = Math.round(
+                    (report.framesDropped / (report.framesDropped + report.framesReceived)) * 100
+                  );
+                }
+              }
+
+              if (report.type === 'inbound-rtp') {
+                if (report.packetsLost !== undefined) {
+                  totalPacketsLost += report.packetsLost;
+                  hasPacketData = true;
+                }
+                if (report.packetsReceived !== undefined) {
+                  totalPacketsReceived += report.packetsReceived;
+                  hasPacketData = true;
+                }
+                if (report.jitter !== undefined) {
+                  maxJitter = Math.max(maxJitter ?? 0, Math.round(report.jitter * 1000));
+                }
+                if (report.bytesReceived !== undefined) {
+                  totalBytesReceived += report.bytesReceived;
+                  hasBytesData = true;
+                }
+              }
+
+              if (report.type === 'outbound-rtp') {
+                if (report.bytesSent !== undefined) {
+                  totalBytesSent += report.bytesSent;
+                  hasBytesData = true;
+                }
+                if (report.packetsSent !== undefined) {
+                  totalPacketsSent += report.packetsSent;
+                }
+              }
+            }
+          });
+
+          // Session-level quality calculation
+          let sessionQuality: ConnectionQuality = session.connectionQuality;
+          if (sessionRtt !== undefined || sessionLoss !== undefined) {
+            const rttVal = sessionRtt ?? 0;
+            const lossVal = sessionLoss ?? 0;
+            if (rttVal > 350 || lossVal > 12) sessionQuality = 'poor';
+            else if (rttVal > 220 || lossVal > 5) sessionQuality = 'fair';
+            else if (rttVal > 120 || lossVal > 2) sessionQuality = 'good';
+            else sessionQuality = 'excellent';
+          }
+          session.connectionQuality = sessionQuality;
+
+          // Bandwidth adaptation for this peer
+          if (sessionQuality === 'poor' || sessionQuality === 'fair') {
+            this.adaptVideoSenderBitrate(session.pc, sessionQuality === 'poor' ? 300000 : 600000);
+          } else {
+            this.adaptVideoSenderBitrate(session.pc, 2500000);
+          }
+        } catch (err) {
+          console.warn(`[WebRTC] Error collecting stats for peer ${peerId}:`, err);
+        }
+      }
+
+      // Aggregate bandwidth & packet loss calculation
+      const measuredRtt = rttCount > 0 ? Math.round(totalRttSum / rttCount) : undefined;
+      let measuredBitrate: number | undefined;
+      let packetLossPercent: number | undefined;
+
+      const currentTotalBytes = totalBytesReceived + totalBytesSent;
+      if (this.lastGlobalStats) {
+        const timeDelta = (now - this.lastGlobalStats.timestamp) / 1000;
         if (timeDelta > 0) {
-          const bytesDelta = bytesReceived - session.lastStats.bytesReceived;
-          bitrate = Math.max(0, Math.round((bytesDelta * 8) / (timeDelta * 1000)));
+          if (hasBytesData) {
+            const bytesDelta = currentTotalBytes - (this.lastGlobalStats.bytesReceived + this.lastGlobalStats.bytesSent);
+            if (bytesDelta >= 0) {
+              measuredBitrate = Math.round((bytesDelta * 8) / (timeDelta * 1000));
+            }
+          }
 
-          const lossDelta = Math.max(0, packetsLost - session.lastStats.packetsLost);
-          const recvDelta = Math.max(0, packetsReceived - session.lastStats.packetsReceived);
-          const totalPackets = lossDelta + recvDelta;
-          if (totalPackets > 0) {
-            packetLossPercent = Math.min(100, Math.round((lossDelta / totalPackets) * 100));
+          if (hasPacketData) {
+            const lossDelta = Math.max(0, totalPacketsLost - this.lastGlobalStats.packetsLost);
+            const recvDelta = Math.max(0, totalPacketsReceived - this.lastGlobalStats.packetsReceived);
+            const totalPackets = lossDelta + recvDelta;
+            if (totalPackets > 0) {
+              packetLossPercent = Math.min(100, Math.round((lossDelta / totalPackets) * 100));
+            }
           }
         }
       }
 
-      session.lastStats = {
+      this.lastGlobalStats = {
         timestamp: now,
-        bytesReceived,
-        packetsReceived,
-        packetsLost,
+        bytesReceived: totalBytesReceived,
+        bytesSent: totalBytesSent,
+        packetsReceived: totalPacketsReceived,
+        packetsSent: totalPacketsSent,
+        packetsLost: totalPacketsLost,
       };
 
-      // Holistic Quality Evaluation
-      let quality: ConnectionQuality = 'excellent';
-      if (rtt > 350 || packetLossPercent > 12) {
-        quality = 'poor';
-      } else if (rtt > 220 || packetLossPercent > 5) {
-        quality = 'fair';
-      } else if (rtt > 120 || packetLossPercent > 2) {
-        quality = 'good';
+      // Aggregate holistic quality
+      let overallQuality: ConnectionQuality = 'excellent';
+      if (measuredRtt !== undefined || packetLossPercent !== undefined) {
+        const rttVal = measuredRtt ?? 0;
+        const lossVal = packetLossPercent ?? 0;
+        if (rttVal > 350 || lossVal > 12) overallQuality = 'poor';
+        else if (rttVal > 220 || lossVal > 5) overallQuality = 'fair';
+        else if (rttVal > 120 || lossVal > 2) overallQuality = 'good';
+        else overallQuality = 'excellent';
       }
 
-      const connectionStats: ConnectionStats = {
-        rtt: rtt || 30,
+      this.localStats = {
+        rtt: measuredRtt,
         packetLoss: packetLossPercent,
-        jitter: jitter || 4,
-        bitrate: bitrate || 1600,
-        frameDropRate,
-        resolution: res,
-        audioCodec: 'Opus 48kHz (FEC)',
-        videoCodec: 'VP8/H.264',
-        quality,
+        jitter: maxJitter,
+        bitrate: measuredBitrate ?? (hasBytesData ? 0 : undefined),
+        fps: measuredFps,
+        frameDropRate: measuredFrameDropRate,
+        resolution: measuredRes,
+        audioCodec: audioCodec || defaultAudioCodec,
+        videoCodec: videoCodec || defaultVideoCodec,
+        quality: overallQuality,
       };
 
-      this.localStats = connectionStats;
-      this.updateQuality(peerId, quality, connectionStats);
-
-      // Audio-First Rule: If network is poor, throttle video bitrate to prioritize voice intelligibility
-      if (quality === 'poor' || quality === 'fair') {
-        this.adaptVideoSenderBitrate(session.pc, quality === 'poor' ? 300000 : 600000);
-      } else {
-        this.adaptVideoSenderBitrate(session.pc, 2500000); // Full 1080p allocation
-      }
+      this.callbacks.onConnectionQualityChanged?.(this.localPeerId, overallQuality, this.localStats);
     } catch (err) {
-      console.warn('[WebRTC] Error collecting stats:', err);
+      console.warn('[WebRTC] Error during global stats collection:', err);
     }
   }
 
@@ -715,7 +910,6 @@ export class PeerConnectionManager implements ITransportAdapter {
   private closePeer(peerId: string) {
     const session = this.peerSessions.get(peerId);
     if (session) {
-      if (session.statsInterval) clearInterval(session.statsInterval);
       session.pc.close();
       this.peerSessions.delete(peerId);
     }
@@ -725,9 +919,12 @@ export class PeerConnectionManager implements ITransportAdapter {
     this.peerScreenSharingState.delete(peerId);
     this.callbacks.onPeerLeft(peerId);
     this.evaluateOverallLifecycle();
+    this.collectGlobalStats().catch(() => {});
   }
 
   public async leave(): Promise<void> {
+    this.stopGlobalStatsPolling();
+
     if (this.unsubSignal) {
       this.unsubSignal();
       this.unsubSignal = undefined;
@@ -740,8 +937,7 @@ export class PeerConnectionManager implements ITransportAdapter {
 
     await this.signaling.leave(this.roomId, this.localPeerId);
 
-    for (const [peerId, session] of this.peerSessions.entries()) {
-      if (session.statsInterval) clearInterval(session.statsInterval);
+    for (const [, session] of this.peerSessions.entries()) {
       session.pc.close();
     }
     this.peerSessions.clear();

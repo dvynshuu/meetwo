@@ -23,6 +23,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const isProduction =
+    (import.meta as any).env?.VITE_APP_ENV === 'production' ||
+    (import.meta as any).env?.PROD;
+
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -47,8 +51,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               });
             }
           }
+        } else if (isProduction) {
+          // In production mode, do NOT silently create mock users
+          setCurrentUser(null);
+          setError('Supabase is not configured for production authentication.');
         } else {
-          // Demo / Local Store mode
+          // Development / Local Store mode
           const localUser = mockStore.getCurrentUser();
           setCurrentUser(localUser);
         }
@@ -184,7 +192,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentUser(null);
       return;
     }
-    // Local / Demo mode fallback
+
+    if (isProduction) {
+      // In production, session is destroyed and currentUser is set to null
+      setCurrentUser(null);
+      return;
+    }
+
+    // Local / Dev mode only: switch to a guest persona
     const guestUser: User = {
       id: `guest-${Date.now()}`,
       username: 'guest',
@@ -230,7 +245,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentUser,
         isLoading,
         error,
-        isDemoMode: !isSupabaseConfigured,
+        isDemoMode: !isProduction && !isSupabaseConfigured,
         login,
         signup,
         logout,

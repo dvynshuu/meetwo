@@ -197,7 +197,11 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
           <span>
             {connectionState === 'reconnecting'
               ? 'Reconnecting...'
-              : `${connectionStats.rtt} ms`}
+              : connectionStats.rtt !== undefined
+              ? `${connectionStats.rtt} ms`
+              : connectionStats.quality === 'excellent'
+              ? 'Excellent'
+              : connectionStats.quality.charAt(0).toUpperCase() + connectionStats.quality.slice(1)}
           </span>
         </button>
 
@@ -205,7 +209,7 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
           <div className="webrtc-telemetry-popover">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                CALL TELEMETRY (MEETWO V3.1)
+                CALL TELEMETRY (MEASURED)
               </span>
               <span
                 style={{
@@ -224,36 +228,50 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
             <div className="telemetry-grid">
               <div className="telemetry-item">
                 <span className="label">ROUND-TRIP (RTT)</span>
-                <span className="val" style={{ color: qualityColor }}>
-                  {connectionStats.rtt} ms
+                <span className="val" style={{ color: connectionStats.rtt !== undefined ? qualityColor : 'var(--text-muted)' }}>
+                  {connectionStats.rtt !== undefined ? `${connectionStats.rtt} ms` : '--'}
                 </span>
               </div>
               <div className="telemetry-item">
                 <span className="label">PACKET LOSS</span>
-                <span className="val">{connectionStats.packetLoss}%</span>
+                <span className="val">
+                  {connectionStats.packetLoss !== undefined ? `${connectionStats.packetLoss}%` : '--'}
+                </span>
               </div>
               <div className="telemetry-item">
                 <span className="label">JITTER</span>
-                <span className="val">{connectionStats.jitter} ms</span>
+                <span className="val">
+                  {connectionStats.jitter !== undefined ? `${connectionStats.jitter} ms` : '--'}
+                </span>
               </div>
               <div className="telemetry-item">
                 <span className="label">BITRATE</span>
-                <span className="val">{connectionStats.bitrate} kbps</span>
+                <span className="val">
+                  {connectionStats.bitrate !== undefined
+                    ? connectionStats.bitrate >= 1000
+                      ? `${(connectionStats.bitrate / 1000).toFixed(1)} Mbps`
+                      : `${connectionStats.bitrate} kbps`
+                    : '0 kbps'}
+                </span>
               </div>
               <div className="telemetry-item">
                 <span className="label">RESOLUTION</span>
-                <span className="val">{connectionStats.resolution || '1920x1080'}</span>
+                <span className="val">{connectionStats.resolution || (isVideoMuted ? 'Camera Off' : 'Unavailable')}</span>
+              </div>
+              <div className="telemetry-item">
+                <span className="label">FPS</span>
+                <span className="val">{connectionStats.fps !== undefined ? `${connectionStats.fps} fps` : (isVideoMuted ? '--' : 'Unavailable')}</span>
               </div>
               <div className="telemetry-item">
                 <span className="label">AUDIO CODEC</span>
                 <span className="val" style={{ color: 'var(--accent-light)' }}>
-                  {connectionStats.audioCodec || 'Opus 48kHz (Mono FEC)'}
+                  {connectionStats.audioCodec || (isAudioMuted ? 'Muted' : 'Opus 48kHz')}
                 </span>
               </div>
-              <div className="telemetry-item" style={{ gridColumn: '1 / -1' }}>
-                <span className="label">VIDEO CODEC / SIMULCAST</span>
-                <span className="val" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>
-                  {connectionStats.videoCodec || 'H.264 / VP8 Simulcast'}
+              <div className="telemetry-item">
+                <span className="label">VIDEO CODEC</span>
+                <span className="val" style={{ color: 'var(--text-secondary)' }}>
+                  {connectionStats.videoCodec || (isVideoMuted ? '--' : 'VP8 / H.264')}
                 </span>
               </div>
             </div>

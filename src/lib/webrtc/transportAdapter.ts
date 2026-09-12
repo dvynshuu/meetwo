@@ -64,14 +64,7 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
   private statsInterval: number | null = null;
   private currentQuality: ConnectionQuality = 'excellent';
   private currentStats: ConnectionStats = {
-    rtt: 25,
-    packetLoss: 0,
-    jitter: 3,
-    bitrate: 1800,
     quality: 'excellent',
-    audioCodec: 'Opus 48kHz (Mono FEC)',
-    videoCodec: 'H.264 / VP8 Simulcast',
-    resolution: '1920x1080',
   };
   private lastStats: {
     timestamp: number;
@@ -211,7 +204,17 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
         } catch {}
       });
 
-      // 8. Reconnection state handling
+      // 8. Participant-level connection quality updates from LiveKit
+      this.room.on(RoomEvent.ConnectionQualityChanged, (quality: any, participant: any) => {
+        let qStr: ConnectionQuality = 'good';
+        const qUpper = String(quality).toLowerCase();
+        if (qUpper.includes('poor')) qStr = 'poor';
+        else if (qUpper.includes('good')) qStr = 'good';
+        else if (qUpper.includes('excellent')) qStr = 'excellent';
+        this.callbacks.onConnectionQualityChanged?.(participant.identity, qStr);
+      });
+
+      // 9. Reconnection state handling
       this.room.on(RoomEvent.Disconnected, () => {
         this.stopStatsPolling();
         this.callbacks.onConnectionStateChanged?.('idle');
@@ -382,89 +385,247 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
     if (!this.room || this.room.state !== ConnectionState.Connected) return;
 
     try {
-      let statsReport: RTCStatsReport | null = null;
-      if (typeof (this.room as any).getRTCStats === 'function') {
-        statsReport = await (this.room as any).getRTCStats();
-      } else if ((this.room as any).engine?.client) {
-        statsReport = await (this.room as any).engine.client.getStats();
-      } else if ((this.room as any).engine?.publisher?.pc) {
-        statsReport = await (this.room as any).engine.publisher.pc.getStats();
+      const now = Date.now();
+      const localParticipant = this.room.localParticipant;
+
+      // 1. Inspect local hardware track settings
+      let localRes: string | undefined;
+      let localFps: number | undefined;
+      let defaultAudioCodec: string | undefined;
+      let defaultVideoCodec: string | undefined;
+
+      if (localParticipant) {
+        const localVideoPub = Array.from(localParticipant.videoTrackPublications.values()).find(
+          (p) => p.track && p.track.mediaStreamTrack
+        );
+        const localAudioPub = Array.from(localParticipant.audioTrackPublications.values()).find(
+          (p) => p.track && p.track.mediaStreamTrack
+        );
+
+        if (localVideoPub?.track?.mediaStreamTrack) {
+          const settings = localVideoPub.track.mediaStreamTrack.getSettings();
+          if (settings.width && settings.height) {
+            localRes = `${settings.width}x${settings.height}`;
+          }
+          if (settings.frameRate) {
+            localFps = Math.round(settings.frameRate);
+          }
+          defaultVideoCodec = 'VP8 / H.264';
+        }
+
+        if (localAudioPub) {
+          defaultAudioCodec = 'Opus 48kHz';
+        }
       }
 
-      if (!statsReport) return;
+      // 2. Query RTCPeerConnection statistics from LiveKit PCTransportManager (Publisher & Subscriber)
+      const reports: RTCStatsReport[] = [];
+      const pcManager = (this.room as any).engine?.pcManager;
 
-      const now = Date.now();
-      let rtt = 0;
+      if (pcManager) {
+        try {
+          if (pcManager.publisher?.getStats) {
+            const r = await pcManager.publisher.getStats();
+            if (r) reports.push(r);
+          } else if (pcManager.publisher?._pc?.getStats) {
+            const r = await pcManager.publisher._pc.getStats();
+            if (r) reports.push(r);
+          }
+        } catch {}
+
+        try {
+          if (pcManager.subscriber?.getStats) {
+            const r = await pcManager.subscriber.getStats();
+            if (r) reports.push(r);
+          } else if (pcManager.subscriber?._pc?.getStats) {
+            const r = await pcManager.subscriber._pc.getStats();
+            if (r) reports.push(r);
+          }
+        } catch {}
+      } else {
+        try {
+          if (typeof (this.room as any).getRTCStats === 'function') {
+            const r = await (this.room as any).getRTCStats();
+            if (r) reports.push(r);
+          } else if ((this.room as any).engine?.publisher?.pc?.getStats) {
+            const r = await (this.room as any).engine.publisher.pc.getStats();
+            if (r) reports.push(r);
+          }
+        } catch {}
+      }
+
+      // Check track publications senders if reports are still empty
+      if (reports.length === 0 && localParticipant) {
+        for (const pub of localParticipant.trackPublications.values()) {
+          if (pub.track && (pub.track as any).sender?.getStats) {
+            try {
+              const r = await (pub.track as any).sender.getStats();
+              if (r) reports.push(r);
+            } catch {}
+          }
+        }
+      }
+
+      let measuredRtt: number | undefined;
       let packetsLost = 0;
       let packetsReceived = 0;
-      let jitter = 0;
+      let hasPacketData = false;
+      let measuredJitter: number | undefined;
       let bytesReceived = 0;
-      let frameDropRate = 0;
-      let res = '1920x1080';
+      let bytesSent = 0;
+      let hasBytesData = false;
+      let measuredFrameDropRate: number | undefined;
+      let measuredRes: string | undefined = localRes;
+      let measuredFps: number | undefined = localFps;
+      let audioCodec: string | undefined = defaultAudioCodec;
+      let videoCodec: string | undefined = defaultVideoCodec;
 
-      statsReport.forEach((report: any) => {
-        if (report.type === 'candidate-pair' && (report.nominated || report.state === 'succeeded')) {
-          if (report.currentRoundTripTime !== undefined) {
-            rtt = Math.round(report.currentRoundTripTime * 1000);
+      for (const statsReport of reports) {
+        // Resolve Codec ID Map to actual negotiated codec MIME types
+        const codecMap = new Map<string, string>();
+        statsReport.forEach((report: any) => {
+          if (report.type === 'codec') {
+            const mime = report.mimeType || '';
+            if (mime.toLowerCase().includes('opus')) {
+              codecMap.set(report.id, 'Opus 48kHz');
+            } else if (mime.toLowerCase().includes('h264')) {
+              codecMap.set(report.id, 'H.264');
+            } else if (mime.toLowerCase().includes('vp8')) {
+              codecMap.set(report.id, 'VP8');
+            } else if (mime.toLowerCase().includes('vp9')) {
+              codecMap.set(report.id, 'VP9');
+            } else if (mime.toLowerCase().includes('av1') || mime.toLowerCase().includes('av01')) {
+              codecMap.set(report.id, 'AV1');
+            } else if (mime) {
+              codecMap.set(report.id, mime.split('/')[1] || mime);
+            }
           }
-        }
-        if (report.type === 'inbound-rtp') {
-          if (report.packetsLost) packetsLost += report.packetsLost;
-          if (report.packetsReceived) packetsReceived += report.packetsReceived;
-          if (report.jitter) jitter = Math.max(jitter, Math.round(report.jitter * 1000));
-          if (report.bytesReceived) bytesReceived += report.bytesReceived;
-          if (report.frameWidth && report.frameHeight) {
-            res = `${report.frameWidth}x${report.frameHeight}`;
-          }
-          if (report.framesDropped && report.framesReceived) {
-            frameDropRate = Math.round((report.framesDropped / (report.framesDropped + report.framesReceived)) * 100);
-          }
-        }
-      });
+        });
 
-      let bitrate = 0;
-      let packetLossPercent = 0;
+        // Parse candidate-pair, inbound-rtp, and outbound-rtp
+        statsReport.forEach((report: any) => {
+          if (report.type === 'candidate-pair' && (report.nominated || report.state === 'succeeded' || report.selected)) {
+            if (report.currentRoundTripTime !== undefined) {
+              measuredRtt = Math.round(report.currentRoundTripTime * 1000);
+            }
+          }
+
+          if (report.type === 'remote-inbound-rtp') {
+            if (measuredRtt === undefined && report.roundTripTime !== undefined) {
+              measuredRtt = Math.round(report.roundTripTime * 1000);
+            }
+            if (report.jitter !== undefined) {
+              measuredJitter = Math.max(measuredJitter || 0, Math.round(report.jitter * 1000));
+            }
+          }
+
+          if (report.type === 'inbound-rtp' || report.type === 'outbound-rtp') {
+            const kind = report.kind || report.mediaType;
+            if (kind === 'audio') {
+              const resolved = (report.codecId && codecMap.get(report.codecId)) || (report.mimeType ? report.mimeType.split('/')[1] : undefined);
+              if (resolved) audioCodec = resolved;
+            } else if (kind === 'video') {
+              const resolved = (report.codecId && codecMap.get(report.codecId)) || (report.mimeType ? report.mimeType.split('/')[1] : undefined);
+              if (resolved) videoCodec = resolved;
+              if (report.frameWidth && report.frameHeight) {
+                measuredRes = `${report.frameWidth}x${report.frameHeight}`;
+              }
+              if (report.framesPerSecond !== undefined && report.framesPerSecond > 0) {
+                measuredFps = Math.round(report.framesPerSecond);
+              }
+              if (report.framesDropped !== undefined && report.framesReceived) {
+                measuredFrameDropRate = Math.round((report.framesDropped / (report.framesDropped + report.framesReceived)) * 100);
+              }
+            }
+
+            if (report.type === 'inbound-rtp') {
+              if (report.packetsLost !== undefined) {
+                packetsLost += report.packetsLost;
+                hasPacketData = true;
+              }
+              if (report.packetsReceived !== undefined) {
+                packetsReceived += report.packetsReceived;
+                hasPacketData = true;
+              }
+              if (report.jitter !== undefined) {
+                measuredJitter = Math.max(measuredJitter || 0, Math.round(report.jitter * 1000));
+              }
+              if (report.bytesReceived !== undefined) {
+                bytesReceived += report.bytesReceived;
+                hasBytesData = true;
+              }
+            }
+
+            if (report.type === 'outbound-rtp') {
+              if (report.bytesSent !== undefined) {
+                bytesSent += report.bytesSent;
+                hasBytesData = true;
+              }
+            }
+          }
+        });
+      }
+
+      // Calculate instantaneous bitrate (kbps) and packet loss percentage truthfully
+      let measuredBitrate: number | undefined;
+      let packetLossPercent: number | undefined;
+
+      const totalBytes = bytesReceived + bytesSent;
       if (this.lastStats) {
         const timeDelta = (now - this.lastStats.timestamp) / 1000;
         if (timeDelta > 0) {
-          const bytesDelta = bytesReceived - this.lastStats.bytesReceived;
-          bitrate = Math.max(0, Math.round((bytesDelta * 8) / (timeDelta * 1000)));
+          if (hasBytesData) {
+            const bytesDelta = totalBytes - this.lastStats.bytesReceived;
+            if (bytesDelta >= 0) {
+              measuredBitrate = Math.round((bytesDelta * 8) / (timeDelta * 1000));
+            }
+          }
 
-          const lossDelta = Math.max(0, packetsLost - this.lastStats.packetsLost);
-          const recvDelta = Math.max(0, packetsReceived - this.lastStats.packetsReceived);
-          const totalPackets = lossDelta + recvDelta;
-          if (totalPackets > 0) {
-            packetLossPercent = Math.min(100, Math.round((lossDelta / totalPackets) * 100));
+          if (hasPacketData) {
+            const lossDelta = Math.max(0, packetsLost - this.lastStats.packetsLost);
+            const recvDelta = Math.max(0, packetsReceived - this.lastStats.packetsReceived);
+            const totalPackets = lossDelta + recvDelta;
+            if (totalPackets > 0) {
+              packetLossPercent = Math.min(100, Math.round((lossDelta / totalPackets) * 100));
+            }
           }
         }
       }
 
       this.lastStats = {
         timestamp: now,
-        bytesReceived,
+        bytesReceived: totalBytes,
         packetsReceived,
         packetsLost,
       };
 
-      let quality: ConnectionQuality = 'excellent';
-      if (rtt > 350 || packetLossPercent > 12) {
-        quality = 'poor';
-      } else if (rtt > 200 || packetLossPercent > 5) {
-        quality = 'fair';
-      } else if (rtt > 100 || packetLossPercent > 2) {
-        quality = 'good';
+      // Holistic connection quality calculation based only on actual measurements
+      let quality: ConnectionQuality = this.currentQuality;
+      if (measuredRtt !== undefined || packetLossPercent !== undefined) {
+        const rttVal = measuredRtt ?? 0;
+        const lossVal = packetLossPercent ?? 0;
+        if (rttVal > 350 || lossVal > 12) {
+          quality = 'poor';
+        } else if (rttVal > 200 || lossVal > 5) {
+          quality = 'fair';
+        } else if (rttVal > 100 || lossVal > 2) {
+          quality = 'good';
+        } else {
+          quality = 'excellent';
+        }
       }
 
       this.currentQuality = quality;
       this.currentStats = {
-        rtt: rtt || 25,
+        rtt: measuredRtt,
         packetLoss: packetLossPercent,
-        jitter: jitter || 3,
-        bitrate: bitrate || 1800,
-        frameDropRate,
-        resolution: res,
-        audioCodec: 'Opus 48kHz (Mono FEC)',
-        videoCodec: 'H.264 / VP8 Simulcast',
+        jitter: measuredJitter,
+        bitrate: measuredBitrate ?? (hasBytesData ? 0 : undefined),
+        fps: measuredFps,
+        frameDropRate: measuredFrameDropRate,
+        resolution: measuredRes,
+        audioCodec: audioCodec || defaultAudioCodec,
+        videoCodec: videoCodec || defaultVideoCodec,
         quality,
       };
 
