@@ -283,9 +283,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     value={deviceSettings.videoQuality}
                     onChange={(e) => updateSettings({ videoQuality: e.target.value as VideoQuality })}
                   >
-                    <option value="1080p">1080p Full HD (1920x1080 @ 30fps)</option>
-                    <option value="720p">720p HD (1280x720 @ 30fps)</option>
+                    <option value="4K">4K Ultra HD (3840x2160 @ 30fps)</option>
+                    <option value="1440p">1440p Quad HD (2560x1440 @ 30fps)</option>
+                    <option value="1080p">1080p Full HD (1920x1080 @ 60fps)</option>
+                    <option value="720p">720p HD (1280x720 @ 60fps)</option>
                     <option value="480p">480p SD (640x480 @ 30fps)</option>
+                    <option value="360p">360p Mobile (480x360 @ 24fps)</option>
                   </select>
                 </div>
 
@@ -296,8 +299,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     value={deviceSettings.qualityMode}
                     onChange={(e) => updateSettings({ qualityMode: e.target.value as QualityMode })}
                   >
+                    <option value="ultra">Ultra (Maximum Bitrate & Quality Lock)</option>
                     <option value="auto">Auto (Best Dynamic Adaptation)</option>
-                    <option value="high">High Quality (Prioritize 1080p)</option>
+                    <option value="high">High Quality (Prioritize 1080p+)</option>
                     <option value="balanced">Balanced (Stable Bandwidth)</option>
                     <option value="low_bandwidth">Low Bandwidth (Audio First)</option>
                   </select>

@@ -9,6 +9,7 @@ import {
   RemoteTrackPublication,
   LocalTrackPublication,
   ConnectionState,
+  VideoPresets,
 } from 'livekit-client';
 
 export interface TransportCallbacks {
@@ -89,12 +90,36 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
         adaptiveStream: true,
         dynacast: true,
         videoCaptureDefaults: {
-          resolution: { width: 1920, height: 1080, frameRate: 30 },
+          resolution: { width: 1920, height: 1080, frameRate: 60 },
+        },
+        audioCaptureDefaults: {
+          autoGainControl: true,
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 48000,
+          channelCount: 2,
         },
         publishDefaults: {
           simulcast: true,
+          videoSimulcastLayers: [
+            VideoPresets.h360,
+            VideoPresets.h720,
+          ],
+          videoEncoding: {
+            maxBitrate: 6_000_000,
+            maxFramerate: 60,
+          },
+          backupCodec: true,
           audioPreset: {
-            maxBitrate: 96000,
+            maxBitrate: 320_000,
+          },
+          dtx: true,
+          red: true,
+          forceStereo: true,
+          degradationPreference: 'maintain-framerate',
+          screenShareEncoding: {
+            maxBitrate: 6_000_000,
+            maxFramerate: 60,
           },
         },
       });
@@ -238,10 +263,20 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
       logger.log('transport_connected', { transport: 'livekit' });
       this.callbacks.onConnectionStateChanged?.('connected');
 
-      // Publish initial local tracks
+      // Publish initial local tracks with max quality settings & slow-network resilience
       if (localStream) {
         for (const track of localStream.getTracks()) {
-          await this.room.localParticipant.publishTrack(track);
+          const isVideo = track.kind === 'video';
+          await this.room.localParticipant.publishTrack(track, {
+            source: isVideo ? Track.Source.Camera : Track.Source.Microphone,
+            simulcast: isVideo,
+            videoSimulcastLayers: isVideo ? [VideoPresets.h360, VideoPresets.h720] : undefined,
+            videoEncoding: isVideo ? { maxBitrate: 6_000_000, maxFramerate: 60 } : undefined,
+            audioPreset: !isVideo ? { maxBitrate: 320_000 } : undefined,
+            dtx: !isVideo,
+            red: !isVideo,
+            forceStereo: !isVideo,
+          });
         }
       }
 
@@ -288,9 +323,17 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
         }
       }
     } else if (newTrack) {
-      // No active publication of this kind yet; publish it
+      // No active publication of this kind yet; publish it with high quality defaults
+      const isVideo = kind === 'video';
       await this.room.localParticipant.publishTrack(newTrack, {
-        source: kind === 'audio' ? Track.Source.Microphone : Track.Source.Camera,
+        source: isVideo ? Track.Source.Camera : Track.Source.Microphone,
+        simulcast: isVideo,
+        videoSimulcastLayers: isVideo ? [VideoPresets.h360, VideoPresets.h720] : undefined,
+        videoEncoding: isVideo ? { maxBitrate: 6_000_000, maxFramerate: 60 } : undefined,
+        audioPreset: !isVideo ? { maxBitrate: 320_000 } : undefined,
+        dtx: !isVideo,
+        red: !isVideo,
+        forceStereo: !isVideo,
       });
     }
   }
@@ -318,11 +361,21 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
       await this.room.localParticipant.publishTrack(videoTrack, {
         source: Track.Source.ScreenShare,
         name: 'screen_share',
+        simulcast: false,
+        degradationPreference: 'maintain-resolution',
+        videoEncoding: {
+          maxBitrate: 6_000_000,
+          maxFramerate: 60,
+        },
       });
       if (audioTrack) {
         await this.room.localParticipant.publishTrack(audioTrack, {
           source: Track.Source.ScreenShareAudio,
           name: 'screen_audio',
+          audioPreset: {
+            maxBitrate: 320_000,
+          },
+          forceStereo: true,
         });
       }
     } catch (err) {

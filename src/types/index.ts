@@ -157,8 +157,8 @@ export interface TypingUser {
   timestamp: number;
 }
 
-export type VideoQuality = '1080p' | '720p' | '480p' | '360p';
-export type QualityMode = 'auto' | 'high' | 'balanced' | 'low_bandwidth';
+export type VideoQuality = '4K' | '1440p' | '1080p' | '720p' | '480p' | '360p';
+export type QualityMode = 'ultra' | 'auto' | 'high' | 'balanced' | 'low_bandwidth';
 
 export type MediaLifecycleState =
   | 'idle'

@@ -256,7 +256,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } else {
           // Demo mode send
-          const actualMsg = mockStore.sendMessage(activeChannel.id, trimmed, replyToId, attachments);
+          const actualMsg = mockStore.sendMessage(activeChannel.id, trimmed, currentUser.id, replyingTo, attachments);
           setMessages((prev) =>
             prev.map((m) => (m.id === optimisticId ? actualMsg : m))
           );
@@ -315,7 +315,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
         }
       } else {
-        const updated = mockStore.toggleReaction(messageId, emoji);
+        const updated = mockStore.toggleReaction(messageId, emoji, currentUser.id);
         if (updated) {
           setMessages((prev) =>
             prev.map((m) => (m.id === messageId ? { ...m, reactions: updated.reactions } : m))

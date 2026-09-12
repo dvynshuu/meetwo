@@ -361,9 +361,12 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
               value={deviceSettings.videoQuality}
               onChange={(e) => updateSettings({ videoQuality: e.target.value as VideoQuality })}
             >
-              <option value="1080p">1080p FHD (Up to 30fps) - Sharpest</option>
-              <option value="720p">720p HD (Balanced)</option>
-              <option value="480p">480p SD (Low Bandwidth)</option>
+              <option value="4K">4K UHD (3840x2160 @ 30fps) - Ultra Sharp</option>
+              <option value="1440p">1440p QHD (2560x1440 @ 30fps) - Crisp</option>
+              <option value="1080p">1080p FHD (1920x1080 @ 60fps) - Fluid</option>
+              <option value="720p">720p HD (1280x720 @ 60fps) - Balanced</option>
+              <option value="480p">480p SD (640x480 @ 30fps) - Low Bandwidth</option>
+              <option value="360p">360p Mobile (480x360 @ 24fps) - Minimal</option>
             </select>
           </div>
         </div>

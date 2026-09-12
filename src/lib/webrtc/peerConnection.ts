@@ -15,7 +15,7 @@ const RTC_CONFIG: RTCConfiguration = {
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
   ],
-  iceCandidatePoolSize: 4,
+  iceCandidatePoolSize: 10,
 };
 
 interface PeerSession {
@@ -747,13 +747,13 @@ export class PeerConnectionManager implements ITransportAdapter {
 
           // Per-peer bandwidth & resolution adaptation: protects audio first (Phase 3 & 4)
           if (sessionQuality === 'poor') {
-            this.adaptVideoSenderBitrate(session.pc, 300000, 2.0, peerId);
-          } else if (sessionQuality === 'fair') {
             this.adaptVideoSenderBitrate(session.pc, 600000, 1.5, peerId);
+          } else if (sessionQuality === 'fair') {
+            this.adaptVideoSenderBitrate(session.pc, 1500000, 1.25, peerId);
           } else if (sessionQuality === 'good') {
-            this.adaptVideoSenderBitrate(session.pc, 1200000, 1.0, peerId);
+            this.adaptVideoSenderBitrate(session.pc, 4000000, 1.0, peerId);
           } else if (sessionQuality === 'excellent') {
-            this.adaptVideoSenderBitrate(session.pc, 2500000, 1.0, peerId);
+            this.adaptVideoSenderBitrate(session.pc, 8000000, 1.0, peerId);
           }
         } catch (err) {
           console.warn(`[WebRTC] Error collecting stats for peer ${peerId}:`, err);
@@ -863,6 +863,21 @@ export class PeerConnectionManager implements ITransportAdapter {
       }
       if (modified) {
         await videoSender.setParameters(params);
+      }
+
+      // Prioritize audio sender network priority so voice never starves when bandwidth fluctuates
+      const audioSender = pc.getSenders().find((s) => s.track && s.track.kind === 'audio');
+      if (audioSender && audioSender.getParameters) {
+        try {
+          const aParams = audioSender.getParameters();
+          if (aParams.encodings && aParams.encodings.length > 0) {
+            if (aParams.encodings[0].priority !== 'high') {
+              aParams.encodings[0].priority = 'high';
+              (aParams.encodings[0] as any).networkPriority = 'high';
+              await audioSender.setParameters(aParams);
+            }
+          }
+        } catch {}
       }
     } catch {}
   }

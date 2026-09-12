@@ -8,24 +8,24 @@
  */
 
 export interface OpusSDPOptions {
-  maxBitrate?: number; // default 96000 (96 kbps for conversational speech)
-  stereo?: boolean; // default false (mono voice optimized for speech intelligibility)
-  inbandFec?: boolean; // default true (resilience against packet loss)
+  maxBitrate?: number; // default 510000 (510 kbps maximum fullband stereo Opus)
+  stereo?: boolean; // default true (rich spatial stereo audio)
+  inbandFec?: boolean; // default true (forward error correction for packet loss resilience on slow links)
   dtx?: boolean; // default true (discontinuous transmission saves bandwidth when silent)
-  minPtime?: number; // default 10ms for low latency
+  minPtime?: number; // default 5ms for ultra-low latency
 }
 
 /**
- * Optimizes an SDP session description specifically for studio voice transmission
- * with Opus codec enhancement, packet loss resilience (FEC), and DTX.
+ * Optimizes an SDP session description specifically for studio broadcast audio transmission
+ * with Opus codec enhancement, packet loss resilience (FEC), stereo, and DTX.
  */
 export function mungeOpusSDP(sdp: string, options: OpusSDPOptions = {}): string {
   const {
-    maxBitrate = 96000,
-    stereo = false,
+    maxBitrate = 510000,
+    stereo = true,
     inbandFec = true,
     dtx = true,
-    minPtime = 10,
+    minPtime = 5,
   } = options;
 
   const lines = sdp.split('\r\n');

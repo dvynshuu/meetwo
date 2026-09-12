@@ -127,7 +127,7 @@ export class MediaSession {
       echoCancellation: this.settings.echoCancellation,
       noiseSuppression: this.settings.noiseSuppression,
       autoGainControl: this.settings.autoGainControl,
-      channelCount: { ideal: 1 }, // Mono conversational voice for optimal Opus encoding
+      channelCount: { ideal: 2 }, // Stereo capture with high fidelity
       sampleRate: { ideal: 48000 },
     };
 
@@ -171,7 +171,8 @@ export class MediaSession {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          channelCount: 1,
+          channelCount: 2,
+          sampleRate: 48000,
         },
       });
       const fallbackTrack = fallbackStream.getAudioTracks()[0];
@@ -241,9 +242,11 @@ export class MediaSession {
     const targetDeviceId = deviceId !== undefined ? deviceId : this.settings.videoInputId;
     const targetQuality = quality || this.settings.videoQuality;
 
-    const resolutionMap = {
-      '1080p': { width: 1920, height: 1080, fps: 30 },
-      '720p': { width: 1280, height: 720, fps: 30 },
+    const resolutionMap: Record<VideoQuality, { width: number; height: number; fps: number }> = {
+      '4K': { width: 3840, height: 2160, fps: 30 },
+      '1440p': { width: 2560, height: 1440, fps: 30 },
+      '1080p': { width: 1920, height: 1080, fps: 60 },
+      '720p': { width: 1280, height: 720, fps: 60 },
       '480p': { width: 640, height: 480, fps: 30 },
       '360p': { width: 480, height: 360, fps: 24 },
     };
@@ -252,8 +255,8 @@ export class MediaSession {
 
     const videoConstraints: MediaTrackConstraints = {
       deviceId: targetDeviceId ? { exact: targetDeviceId } : undefined,
-      width: { ideal: targetRes.width, min: 480 },
-      height: { ideal: targetRes.height, min: 360 },
+      width: { ideal: targetRes.width, min: 320 },
+      height: { ideal: targetRes.height, min: 240 },
       frameRate: { ideal: targetRes.fps, max: 60 },
     };
 
@@ -365,9 +368,9 @@ export class MediaSession {
       const displayStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           displaySurface: 'monitor',
-          width: { ideal: 1920, max: 3840 },
-          height: { ideal: 1080, max: 2160 },
-          frameRate: { ideal: 30, max: 60 },
+          width: { ideal: 3840, max: 3840 },
+          height: { ideal: 2160, max: 2160 },
+          frameRate: { ideal: 60, max: 60 },
         } as any,
         audio: captureAudio,
       });

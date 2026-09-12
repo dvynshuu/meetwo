@@ -697,9 +697,20 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         mediaSessionRef.current.setInputVolume(newSettings.inputVolume);
       }
       mediaSessionRef.current.savePreferences();
+
+      // If video quality was updated and camera is live, apply it immediately
+      if (newSettings.videoQuality && !isVideoMuted && activeRoomId) {
+        mediaSessionRef.current.startCamera(undefined, newSettings.videoQuality).then(async (newTrack) => {
+          setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
+          if (transportRef.current) {
+            await transportRef.current.replaceTrack('video', newTrack);
+          }
+        }).catch((e) => console.warn('[MediaContext] Quality switch warning:', e));
+      }
+
       return updated;
     });
-  }, []);
+  }, [activeRoomId, isVideoMuted]);
 
   // Combine local participant with remote participants
   const participants: Participant[] = [];

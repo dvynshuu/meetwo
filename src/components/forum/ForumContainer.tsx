@@ -109,7 +109,13 @@ export const ForumContainer: React.FC = () => {
       .map((t) => t.trim().toLowerCase())
       .filter(Boolean);
 
-    mockStore.createForumPost(activeChannel.id, newTitle.trim(), newContent.trim(), tags);
+    mockStore.createForumPost(
+      activeChannel.id,
+      currentUser?.id || 'anonymous',
+      newTitle.trim(),
+      newContent.trim(),
+      tags
+    );
     setNewTitle('');
     setNewContent('');
     setNewTagsInput('');
