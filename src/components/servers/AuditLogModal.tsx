@@ -29,11 +29,11 @@ export const AuditLogModal: React.FC<AuditLogModalProps> = ({ isOpen, onClose })
   );
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Server Audit Log" maxWidth="640px">
+    <Modal isOpen={isOpen} onClose={onClose} title="Workspace Audit Log" maxWidth="640px">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Shield size={20} style={{ color: 'var(--accent-light)' }} />
+            <Shield size={20} style={{ color: 'var(--accent)' }} />
             <div>
               <h4 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
                 {activeServer?.name} Governance History
@@ -93,9 +93,9 @@ export const AuditLogModal: React.FC<AuditLogModalProps> = ({ isOpen, onClose })
                       style={{
                         width: 28,
                         height: 28,
-                        borderRadius: '50%',
-                        background: 'rgba(99, 102, 241, 0.15)',
-                        color: 'var(--accent-light)',
+                        borderRadius: 'var(--radius-xs)',
+                        background: 'var(--accent-subtle)',
+                        color: 'var(--accent)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -105,7 +105,7 @@ export const AuditLogModal: React.FC<AuditLogModalProps> = ({ isOpen, onClose })
                     </div>
                     <div>
                       <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                        <span style={{ color: 'var(--accent-light)' }}>{log.actorName}</span>{' '}
+                        <span style={{ color: 'var(--accent)' }}>{log.actorName}</span>{' '}
                         {log.action}{' '}
                         <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
                           ({log.target})

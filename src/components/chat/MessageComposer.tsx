@@ -67,7 +67,6 @@ export const MessageComposer: React.FC = () => {
 
     const newAttachments: Attachment[] = [];
     Array.from(files).forEach((file) => {
-      const isImg = file.type.startsWith('image/');
       const fileUrl = URL.createObjectURL(file);
 
       newAttachments.push({
@@ -98,7 +97,7 @@ export const MessageComposer: React.FC = () => {
       {replyingTo && (
         <div className="composer-reply-banner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <CornerDownRight size={14} style={{ color: 'var(--accent-light)' }} />
+            <CornerDownRight size={13} style={{ color: 'var(--accent)' }} />
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               Replying to <strong style={{ color: 'var(--text-primary)' }}>
                 @{replyingTo.author?.displayName || replyingTo.author?.username || 'User'}
@@ -110,11 +109,11 @@ export const MessageComposer: React.FC = () => {
           </div>
           <button
             className="icon-btn"
-            style={{ width: 22, height: 22 }}
+            style={{ width: 20, height: 20 }}
             onClick={() => setReplyingTo(null)}
             title="Cancel Reply"
           >
-            <X size={14} />
+            <X size={13} />
           </button>
         </div>
       )}
@@ -125,9 +124,9 @@ export const MessageComposer: React.FC = () => {
           {attachments.map((att) => (
             <div key={att.id} className="composer-attachment-pill">
               {att.contentType.startsWith('image/') ? (
-                <img src={att.fileUrl} alt={att.fileName} style={{ width: 28, height: 28, borderRadius: 4, objectFit: 'cover' }} />
+                <img src={att.fileUrl} alt={att.fileName} style={{ width: 26, height: 26, borderRadius: 'var(--radius-xs)', objectFit: 'cover' }} />
               ) : (
-                <File size={16} style={{ color: 'var(--accent-light)' }} />
+                <File size={14} style={{ color: 'var(--accent)' }} />
               )}
               <span className="truncate" style={{ fontSize: 12, maxWidth: 140 }}>
                 {att.fileName}
@@ -135,9 +134,9 @@ export const MessageComposer: React.FC = () => {
               <button
                 type="button"
                 onClick={() => removeAttachment(att.id)}
-                style={{ cursor: 'pointer', color: 'var(--text-muted)' }}
+                style={{ cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
               >
-                <X size={14} />
+                <X size={13} />
               </button>
             </div>
           ))}
@@ -158,11 +157,12 @@ export const MessageComposer: React.FC = () => {
         <button
           type="button"
           className="icon-btn"
+          style={{ width: 30, height: 30 }}
           onClick={() => fileInputRef.current?.click()}
-          title="Upload File or Image"
+          title="Attach file"
           aria-label="Upload Attachment"
         >
-          <Paperclip size={18} />
+          <Paperclip size={16} />
         </button>
 
         <textarea
@@ -179,8 +179,15 @@ export const MessageComposer: React.FC = () => {
           {/* Quick Emojis */}
           <button
             type="button"
-            className="icon-btn"
-            style={{ width: 28, height: 28, fontSize: 16 }}
+            className="composer-emoji-btn"
+            onClick={() => addEmoji('👍')}
+            title="Thumbs Up"
+          >
+            👍
+          </button>
+          <button
+            type="button"
+            className="composer-emoji-btn"
             onClick={() => addEmoji('🔥')}
             title="Fire"
           >
@@ -188,39 +195,22 @@ export const MessageComposer: React.FC = () => {
           </button>
           <button
             type="button"
-            className="icon-btn"
-            style={{ width: 28, height: 28, fontSize: 16 }}
+            className="composer-emoji-btn"
             onClick={() => addEmoji('✨')}
             title="Sparkles"
           >
             ✨
           </button>
-          <button
-            type="button"
-            className="icon-btn"
-            style={{ width: 28, height: 28, fontSize: 16 }}
-            onClick={() => addEmoji('👍')}
-            title="Thumbs Up"
-          >
-            👍
-          </button>
 
           <button
             type="button"
-            className="icon-btn"
-            style={{
-              width: 32,
-              height: 32,
-              background: content.trim() || attachments.length > 0 ? 'var(--accent)' : 'transparent',
-              color: content.trim() || attachments.length > 0 ? '#fff' : 'var(--text-muted)',
-              borderRadius: 'var(--radius-sm)',
-            }}
+            className={`composer-send-btn ${content.trim() || attachments.length > 0 ? 'active' : ''}`}
             onClick={handleSend}
             disabled={!content.trim() && attachments.length === 0}
             title="Send (Enter)"
             aria-label="Send message"
           >
-            <Send size={16} />
+            <Send size={15} />
           </button>
         </div>
       </div>

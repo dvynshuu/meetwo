@@ -1,33 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" fill="none">
-  <defs>
-    <linearGradient id="fav_grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#6366F1"/>
-      <stop offset="50%" stop-color="#7C3AED"/>
-      <stop offset="100%" stop-color="#A855F7"/>
-    </linearGradient>
-    <linearGradient id="fav_iris" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#38BDF8"/>
-      <stop offset="100%" stop-color="#6366F1"/>
-    </linearGradient>
-  </defs>
+  <!-- meetwo base tile: mineral obsidian -->
+  <rect width="120" height="120" rx="28" fill="#0A0C10"/>
+  <rect x="1" y="1" width="118" height="118" rx="27" stroke="rgba(255, 255, 255, 0.08)" stroke-width="1.5"/>
 
-  <!-- Dark Rounded App Container -->
-  <rect width="120" height="120" rx="30" fill="#080A0F"/>
-  <rect x="2" y="2" width="116" height="116" rx="28" stroke="url(#fav_grad)" stroke-width="2" stroke-opacity="0.4"/>
+  <!-- meetwo icon: two converging human connection arcs & focal nodes -->
+  <g transform="translate(60, 60)">
+    <!-- Primary focal arc (left) -->
+    <path d="M-22 18 C-36 18 -42 6 -42 -8 C-42 -24 -28 -34 -12 -34 C4 -34 14 -20 14 -4" 
+          stroke="#10E7B2" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Secondary focal arc (right) - intersecting and converging -->
+    <path d="M22 -18 C36 -18 42 -6 42 8 C42 24 28 34 12 34 C-4 34 -14 20 -14 4" 
+          stroke="#10E7B2" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.85"/>
 
-  <!-- Mark -->
-  <g transform="translate(5, 5)">
-    <!-- Left Bubble -->
-    <path d="M45 20 C24 20 10 34 10 54 C10 68 19 79 30 85 L26 98 L44 90 C48 91 52 91 55 91 C76 91 90 77 90 55 C90 33 76 20 55 20 Z"
-          fill="none" stroke="url(#fav_grad)" stroke-width="6" stroke-linejoin="round"/>
-
-    <!-- Right Bubble (Interlocking) -->
-    <path d="M65 20 C86 20 100 34 100 54 C100 68 91 79 80 85 L84 98 L66 90 C62 91 58 91 55 91 C34 91 20 77 20 55 C20 33 34 20 55 20 Z"
-          fill="none" stroke="url(#fav_grad)" stroke-width="6" stroke-linejoin="round" opacity="0.85"/>
-
-    <!-- Center Aperture / Lens -->
-    <circle cx="55" cy="55" r="18" fill="#080A0F" stroke="url(#fav_iris)" stroke-width="4.5"/>
-    <circle cx="55" cy="55" r="7.5" fill="url(#fav_grad)"/>
-    <circle cx="55" cy="55" r="3.5" fill="#FFFFFF"/>
+    <!-- Central human focal connection points -->
+    <circle cx="-14" cy="4" r="5.5" fill="#38BDF8"/>
+    <circle cx="14" cy="-4" r="5.5" fill="#10E7B2"/>
   </g>
 </svg>

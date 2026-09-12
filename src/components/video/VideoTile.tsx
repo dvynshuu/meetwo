@@ -181,7 +181,7 @@ export const VideoTile: React.FC<VideoTileProps> = ({
       : participant.connectionQuality === 'excellent'
       ? 'var(--status-online)'
       : participant.connectionQuality === 'good'
-      ? '#38bdf8'
+      ? 'var(--sky)'
       : participant.connectionQuality === 'fair'
       ? 'var(--status-idle)'
       : 'var(--status-dnd)';
@@ -192,10 +192,8 @@ export const VideoTile: React.FC<VideoTileProps> = ({
       : participant.stats
       ? `Quality: ${participant.connectionQuality?.toUpperCase() || 'GOOD'}${
           participant.stats.rtt !== undefined ? ` | RTT: ${participant.stats.rtt}ms` : ''
-        }${participant.stats.packetLoss !== undefined ? ` | Loss: ${participant.stats.packetLoss}%` : ''}${
-          participant.stats.bitrate !== undefined ? ` | Bitrate: ${participant.stats.bitrate}kbps` : ''
-        }${participant.stats.candidateType ? ` | Type: ${participant.stats.candidateType}` : ''}`
-      : `Quality: ${participant.connectionQuality?.toUpperCase() || 'UNKNOWN'}`;
+        }`
+      : `Quality: ${participant.connectionQuality?.toUpperCase() || 'GOOD'}`;
 
   // Extract truthful screen stream track properties
   const videoTrack = participant.stream?.getVideoTracks()[0];
@@ -208,7 +206,7 @@ export const VideoTile: React.FC<VideoTileProps> = ({
     : '30 FPS';
 
   const screenTitle = isLocalScreenShare
-    ? 'Your Screen (Live)'
+    ? 'Your Screen'
     : participant.displayName?.endsWith("'s Screen")
     ? participant.displayName
     : `${participant.displayName || participant.username}'s Screen`;
@@ -227,7 +225,7 @@ export const VideoTile: React.FC<VideoTileProps> = ({
       {isFullscreen && (
         <div className={`fullscreen-top-bar ${!showFsBar ? 'faded' : ''}`}>
           <div className="fullscreen-title">
-            <Monitor size={16} style={{ color: 'var(--accent-light)' }} />
+            <Monitor size={15} style={{ color: 'var(--accent)' }} />
             <span>{screenTitle}</span>
           </div>
 
@@ -238,7 +236,6 @@ export const VideoTile: React.FC<VideoTileProps> = ({
                   type="button"
                   className="btn btn-danger btn-sm"
                   onClick={toggleScreenShare}
-                  style={{ borderRadius: 'var(--radius-pill)', padding: '4px 14px', fontSize: 12, gap: 6 }}
                 >
                   <StopCircle size={14} />
                   <span>Stop Sharing</span>
@@ -248,7 +245,6 @@ export const VideoTile: React.FC<VideoTileProps> = ({
                   type="button"
                   className="btn btn-secondary btn-sm"
                   onClick={() => setShowFullLocalVideo(!showFullLocalVideo)}
-                  style={{ borderRadius: 'var(--radius-pill)', padding: '4px 12px', fontSize: 12, gap: 6 }}
                 >
                   <Tv size={14} />
                   <span>{showFullLocalVideo ? 'Presenter Studio' : 'Live Mirror'}</span>
@@ -260,7 +256,6 @@ export const VideoTile: React.FC<VideoTileProps> = ({
               type="button"
               className="btn btn-secondary btn-sm"
               onClick={handleFullscreen}
-              style={{ borderRadius: 'var(--radius-pill)', padding: '4px 14px', fontSize: 12, gap: 6 }}
             >
               <Minimize2 size={14} />
               <span>Exit Fullscreen (Esc)</span>
@@ -269,7 +264,7 @@ export const VideoTile: React.FC<VideoTileProps> = ({
         </div>
       )}
 
-      {/* Quick Action Overlay Buttons (Always available in non-fullscreen) */}
+      {/* Quick Action Overlay Buttons */}
       {!isFullscreen && (
         <div className="video-tile-quick-actions">
           <button
@@ -280,7 +275,7 @@ export const VideoTile: React.FC<VideoTileProps> = ({
             }}
             title={isPinned ? 'Unpin participant' : 'Pin to stage'}
           >
-            {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+            {isPinned ? <PinOff size={13} /> : <Pin size={13} />}
           </button>
 
           {hasVideoTrack && document.pictureInPictureEnabled && (
@@ -292,11 +287,10 @@ export const VideoTile: React.FC<VideoTileProps> = ({
               }}
               title="Picture-in-Picture"
             >
-              <PictureInPicture size={14} />
+              <PictureInPicture size={13} />
             </button>
           )}
 
-          {/* Fullscreen Button Available on ALL Tiles */}
           <button
             className="action-pill-btn"
             onClick={(e) => {
@@ -305,12 +299,12 @@ export const VideoTile: React.FC<VideoTileProps> = ({
             }}
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           >
-            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
           </button>
         </div>
       )}
 
-      {/* Primary Video Element: kept mounted to allow zero-latency switching and snapshot rendering */}
+      {/* Primary Video Element */}
       <video
         ref={videoRef}
         autoPlay
@@ -331,57 +325,38 @@ export const VideoTile: React.FC<VideoTileProps> = ({
         }
       />
 
-      {/* Case A: Local Screen Sharer Presenter Studio (Industry standard anti-recursion shield) */}
+      {/* Local Screen Share Presenter Studio */}
       {isPresenterCardActive ? (
         <div className="local-screenshare-presenter-card">
           <div className="presenter-live-pill">
             <span className="presenter-live-dot" />
-            <span>LIVE BROADCAST • {screenResolution} • {screenFps}</span>
+            <span>LIVE SCREEN BROADCAST • {screenResolution}</span>
           </div>
 
           <div className="presenter-icon-pulse">
-            <Monitor size={36} />
+            <Monitor size={32} />
           </div>
 
           <div className="presenter-text">
-            <h3>You are presenting your screen</h3>
+            <h3>You are sharing your screen</h3>
             <p>
-              Your screen is broadcasting live in high definition to everyone in the room.
-              Remote participants see your clean screen with natural audio.
+              Your screen is visible in high quality to everyone in the room.
             </p>
-          </div>
-
-          {/* Real-time Broadcast Stats Badges */}
-          <div className="presenter-stats-row">
-            <div className="presenter-stat-chip">
-              <span className="label">RESOLUTION</span>
-              <span className="value">{screenResolution}</span>
-            </div>
-            <div className="presenter-stat-chip">
-              <span className="label">FRAMERATE</span>
-              <span className="value">{screenFps}</span>
-            </div>
-            <div className="presenter-stat-chip">
-              <span className="label">VIEWERS</span>
-              <span className="value">{Math.max(1, (participants?.length || 1) - 1)}</span>
-            </div>
           </div>
 
           <div className="presenter-actions">
             <button
               type="button"
-              className="btn btn-danger"
-              style={{ borderRadius: 'var(--radius-pill)', padding: '8px 22px', gap: 8, fontSize: 13, fontWeight: 600 }}
+              className="btn btn-danger btn-sm"
               onClick={toggleScreenShare}
             >
-              <StopCircle size={16} />
+              <StopCircle size={15} />
               <span>Stop Sharing</span>
             </button>
 
             <button
               type="button"
-              className="btn btn-secondary"
-              style={{ borderRadius: 'var(--radius-pill)', padding: '8px 16px', gap: 6, fontSize: 13 }}
+              className="btn btn-secondary btn-sm"
               onClick={() => {
                 setShowLocalMiniPreview(!showLocalMiniPreview);
                 if (!showLocalMiniPreview) {
@@ -390,52 +365,40 @@ export const VideoTile: React.FC<VideoTileProps> = ({
               }}
               title={showLocalMiniPreview ? 'Hide preview' : 'Preview snapshot'}
             >
-              {showLocalMiniPreview ? <EyeOff size={15} /> : <Eye size={15} />}
-              <span>{showLocalMiniPreview ? 'Hide Preview' : 'Snapshot Preview'}</span>
+              {showLocalMiniPreview ? <EyeOff size={14} /> : <Eye size={14} />}
+              <span>{showLocalMiniPreview ? 'Hide Preview' : 'Preview'}</span>
             </button>
 
             {document.pictureInPictureEnabled && (
               <button
                 type="button"
-                className="btn btn-secondary"
-                style={{ borderRadius: 'var(--radius-pill)', padding: '8px 14px', gap: 6, fontSize: 13 }}
+                className="btn btn-secondary btn-sm"
                 onClick={handlePiP}
                 title="Pop out into Picture-in-Picture window"
               >
-                <PictureInPicture size={15} />
-                <span>Pop-out PiP</span>
+                <PictureInPicture size={14} />
+                <span>PiP</span>
               </button>
             )}
 
             <button
               type="button"
-              className="btn btn-secondary"
-              style={{ borderRadius: 'var(--radius-pill)', padding: '8px 16px', gap: 6, fontSize: 13 }}
-              onClick={handleFullscreen}
-              title="Fullscreen Presenter Studio"
-            >
-              <Maximize2 size={15} />
-              <span>Fullscreen</span>
-            </button>
-
-            <button
-              type="button"
               className="btn btn-ghost btn-sm"
-              style={{ fontSize: 12, color: 'var(--text-muted)', gap: 4 }}
+              style={{ fontSize: 12, color: 'var(--text-muted)' }}
               onClick={() => setShowFullLocalVideo(true)}
-              title="View live stream (reflects screen if on single monitor)"
+              title="View live stream"
             >
               <Tv size={13} />
               <span>Live Mirror</span>
             </button>
           </div>
 
-          {/* Clean, Static Snapshot Preview (zero optical feedback recursion) */}
+          {/* Static Snapshot Preview */}
           {showLocalMiniPreview && (
             <div className="presenter-mini-preview-container">
               <canvas ref={snapshotCanvasRef} className="presenter-snapshot-canvas" />
               <div className="presenter-preview-overlay">
-                <span className="preview-tag">SAFE PREVIEW</span>
+                <span className="preview-tag">PREVIEW</span>
                 <button
                   type="button"
                   className="preview-refresh-btn"
@@ -451,31 +414,25 @@ export const VideoTile: React.FC<VideoTileProps> = ({
         </div>
       ) : (
         <>
-          {/* Mirror Warning Banner (Google Meet style) */}
+          {/* Mirror Warning Banner */}
           {isLocalScreenShare && showFullLocalVideo && (
             <div className="mirror-warning-banner">
-              <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+              <AlertTriangle size={14} style={{ flexShrink: 0 }} />
               <span>
-                To avoid an infinite mirror, switch to another window. Remote participants see your clean screen.
+                To avoid an infinite mirror, switch to another window.
               </span>
               <button
                 type="button"
                 className="btn btn-secondary btn-xs"
                 onClick={() => setShowFullLocalVideo(false)}
                 style={{
-                  background: 'rgba(0,0,0,0.7)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 'var(--radius-pill)',
-                  padding: '3px 10px',
+                  padding: '2px 8px',
                   fontSize: 11,
-                  fontWeight: 600,
-                  cursor: 'pointer',
                   marginLeft: 4,
                   flexShrink: 0,
                 }}
               >
-                Presenter Studio
+                Studio
               </button>
             </div>
           )}
@@ -486,11 +443,11 @@ export const VideoTile: React.FC<VideoTileProps> = ({
               <Avatar
                 src={participant.avatarUrl}
                 name={participant.displayName || participant.username}
-                size={isFeatured ? 110 : 72}
+                size={isFeatured ? 96 : 64}
                 status={participant.isSpeaking ? 'online' : undefined}
                 showStatus={false}
               />
-              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
                 {participant.displayName || participant.username}
               </span>
             </div>
@@ -506,27 +463,22 @@ export const VideoTile: React.FC<VideoTileProps> = ({
             style={{ backgroundColor: qualityColor }}
           />
           {(participant.isScreenSharing || isScreenTile) && (
-            <Monitor size={14} style={{ color: 'var(--accent-light)' }} />
+            <Monitor size={13} style={{ color: 'var(--accent)' }} />
           )}
           <span>
             {isScreenTile ? screenTitle : (participant.displayName || participant.username)} {isLocal && !isScreenTile && '(You)'}
           </span>
-          {participant.stats?.rtt !== undefined && (
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', marginLeft: 4 }}>
-              {participant.stats.rtt}ms
-            </span>
-          )}
         </div>
 
         <div className="video-tile-badges">
           {participant.isAudioMuted && (
             <div className="badge-icon muted" title="Microphone Muted">
-              <MicOff size={14} />
+              <MicOff size={13} />
             </div>
           )}
           {participant.isVideoMuted && !isScreenTile && (
             <div className="badge-icon muted" title="Camera Off">
-              <VideoOff size={14} />
+              <VideoOff size={13} />
             </div>
           )}
         </div>

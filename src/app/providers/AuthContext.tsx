@@ -117,7 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           username: email.split('@')[0],
           displayName: email.split('@')[0],
           avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${email}`,
-          bio: 'Hey there! I am using Meetwo.',
+          bio: 'Hey there! I am using meetwo.',
           status: 'online' as UserStatus,
           createdAt: new Date().toISOString(),
         };
@@ -170,7 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           username: username.toLowerCase().replace(/\s+/g, '_'),
           displayName: username,
           avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`,
-          bio: 'Hey there! I am using Meetwo.',
+          bio: 'Hey there! I am using meetwo.',
           status: 'online',
           createdAt: new Date().toISOString(),
         };

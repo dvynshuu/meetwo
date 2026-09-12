@@ -41,16 +41,16 @@ export const CreateServerModal: React.FC<CreateServerModalProps> = ({ isOpen, on
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Create Your Community"
+      title="Create a Workspace"
     >
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
-          Your server is where you and your friends or team hang out. Make it yours and start talking.
+          Your workspace is where you and your team communicate. Create a dedicated space for your discussions and calls.
         </p>
 
         <Input
-          label="Server Name"
-          placeholder="e.g. Pixel Forge, Audio Guild"
+          label="Workspace Name"
+          placeholder="e.g. Design Systems, Audio Engineering"
           value={name}
           onChange={(e) => setName(e.target.value)}
           error={error}
@@ -59,7 +59,7 @@ export const CreateServerModal: React.FC<CreateServerModalProps> = ({ isOpen, on
         />
 
         <Input
-          label="Server Icon URL (Optional)"
+          label="Workspace Icon URL (Optional)"
           placeholder="https://example.com/icon.png"
           value={iconUrl}
           onChange={(e) => setIconUrl(e.target.value)}
@@ -71,7 +71,7 @@ export const CreateServerModal: React.FC<CreateServerModalProps> = ({ isOpen, on
             Cancel
           </Button>
           <Button type="submit" variant="primary" isLoading={isLoading}>
-            Create Server
+            Create Workspace
           </Button>
         </div>
       </form>

@@ -135,13 +135,13 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
                 alignItems: 'center',
                 gap: 6,
                 padding: '4px 8px',
-                borderRadius: 'var(--radius-pill)',
+                borderRadius: 'var(--radius-xs)',
                 background:
                   connectionState === 'connected'
-                    ? 'rgba(34, 197, 94, 0.15)'
+                    ? 'var(--accent-subtle)'
                     : connectionState === 'degraded'
-                    ? 'rgba(234, 179, 8, 0.15)'
-                    : 'rgba(239, 68, 68, 0.15)',
+                    ? 'var(--warning-surface)'
+                    : 'var(--danger-surface)',
                 color:
                   connectionState === 'connected'
                     ? 'var(--status-online)'
@@ -216,7 +216,7 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
             {/* Global Connection Telemetry Card */}
             <div
               style={{
-                background: '#090d16',
+                background: 'var(--bg-app)',
                 border: '1px solid var(--border-subtle)',
                 borderRadius: 'var(--radius-md)',
                 padding: 14,
@@ -230,9 +230,9 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
                   style={{
                     fontSize: 11,
                     padding: '2px 8px',
-                    borderRadius: 'var(--radius-pill)',
-                    background: 'rgba(99, 102, 241, 0.15)',
-                    color: 'var(--accent-light)',
+                    borderRadius: 'var(--radius-xs)',
+                    background: 'var(--accent-subtle)',
+                    color: 'var(--accent)',
                     fontWeight: 600,
                   }}
                 >
@@ -335,7 +335,7 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
                             style={{
                               fontSize: 10,
                               padding: '2px 6px',
-                              borderRadius: 'var(--radius-pill)',
+                              borderRadius: 'var(--radius-xs)',
                               background: 'var(--bg-surface-active)',
                               color: 'var(--text-secondary)',
                             }}
@@ -423,10 +423,10 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
               style={{
                 height: 380,
                 overflowY: 'auto',
-                background: '#070a12',
+                background: 'var(--bg-app)',
                 borderRadius: 'var(--radius-md)',
                 padding: 12,
-                fontFamily: 'monospace',
+                fontFamily: 'var(--font-mono)',
                 fontSize: 12,
                 display: 'flex',
                 flexDirection: 'column',
@@ -460,14 +460,14 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
                           ? 'var(--danger)'
                           : entry.type.includes('reconnect')
                           ? 'var(--status-idle)'
-                          : 'var(--accent-light)',
+                          : 'var(--accent)',
                         fontWeight: 700,
                         flexShrink: 0,
                       }}
                     >
                       [{entry.type}]
                     </span>
-                    <span style={{ color: '#e2e8f0', wordBreak: 'break-all' }}>
+                    <span style={{ color: 'var(--text-secondary)', wordBreak: 'break-all' }}>
                       {entry.details ? JSON.stringify(entry.details) : 'OK'}
                     </span>
                   </div>
@@ -512,7 +512,7 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
                     border: '1px dashed var(--border-subtle)',
                   }}
                 >
-                  Click "Run All Scenarios" to execute programmatic verification of all Meetwo V4 subsystems.
+                  Click "Run All Scenarios" to execute programmatic verification of all meetwo subsystems.
                 </div>
               )}
 
@@ -525,8 +525,8 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
                     justifyContent: 'space-between',
                     padding: '10px 14px',
                     borderRadius: 'var(--radius-md)',
-                    background: res.passed ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                    border: `1px solid ${res.passed ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
+                    background: res.passed ? 'var(--accent-subtle)' : 'var(--danger-surface)',
+                    border: `1px solid ${res.passed ? 'var(--accent-border)' : 'var(--danger-border)'}`,
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

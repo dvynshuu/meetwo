@@ -56,7 +56,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       >
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Search size={20} style={{ color: 'var(--accent-light)' }} />
+            <Search size={20} style={{ color: 'var(--accent)' }} />
             <h3>Search Messages & Conversations</h3>
           </div>
           <button className="icon-btn" onClick={onClose}>
@@ -133,7 +133,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                       <Hash size={13} style={{ color: 'var(--text-muted)' }} />
                       <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{msg.channelName}</span>
                       <span style={{ color: 'var(--text-dim)' }}>•</span>
-                      <span style={{ color: 'var(--accent-light)' }}>
+                      <span style={{ color: 'var(--accent)' }}>
                         {msg.author?.displayName || msg.author?.username || 'User'}
                       </span>
                     </div>

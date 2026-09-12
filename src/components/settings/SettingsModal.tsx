@@ -420,7 +420,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Sliders size={16} style={{ color: 'var(--accent-light)' }} />
+                    <Sliders size={16} style={{ color: 'var(--accent)' }} />
                     <span style={{ fontSize: 13, fontWeight: 700 }}>Audio Hardware Test</span>
                   </div>
 
@@ -453,7 +453,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       height: 8,
                       width: '100%',
                       background: 'var(--bg-surface-active)',
-                      borderRadius: 'var(--radius-pill)',
+                      borderRadius: 'var(--radius-xs)',
                       overflow: 'hidden',
                     }}
                   >
@@ -461,7 +461,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       style={{
                         height: '100%',
                         width: `${audioLevel}%`,
-                        background: audioLevel > 50 ? 'var(--status-idle)' : 'var(--status-online)',
+                        background: audioLevel > 50 ? 'var(--warning)' : 'var(--accent)',
                         transition: 'width 80ms ease',
                       }}
                     />
@@ -558,9 +558,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     style={{
                       fontSize: 11,
                       padding: '2px 8px',
-                      borderRadius: 'var(--radius-pill)',
-                      background: activeRoomId ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.15)',
-                      color: activeRoomId ? 'var(--status-online)' : 'var(--text-muted)',
+                      borderRadius: 'var(--radius-xs)',
+                      background: activeRoomId ? 'var(--accent-subtle)' : 'var(--bg-surface-active)',
+                      color: activeRoomId ? 'var(--accent)' : 'var(--text-muted)',
+                      border: activeRoomId ? '1px solid rgba(16, 231, 178, 0.25)' : '1px solid var(--border-subtle)',
                       fontWeight: 600,
                     }}
                   >
@@ -589,7 +590,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </div>
                   <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>BITRATE</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: connectionStats.bitrate !== undefined ? 'var(--accent-light)' : 'var(--text-muted)' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: connectionStats.bitrate !== undefined ? 'var(--accent)' : 'var(--text-muted)' }}>
                       {connectionStats.bitrate !== undefined
                         ? connectionStats.bitrate >= 1000
                           ? `${(connectionStats.bitrate / 1000).toFixed(1)} Mbps`
@@ -614,7 +615,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </div>
                   <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>AUDIO CODEC</div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: connectionStats.audioCodec ? 'var(--accent-light)' : 'var(--text-muted)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: connectionStats.audioCodec ? 'var(--accent)' : 'var(--text-muted)' }}>
                       {connectionStats.audioCodec || (isAudioMuted ? 'Muted' : 'Opus 48kHz')}
                     </div>
                   </div>
@@ -666,7 +667,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     width: '100%',
                     height: 160,
                     borderRadius: 'var(--radius-md)',
-                    background: '#0a0d14',
+                    background: 'var(--bg-app)',
                     border: '1px solid var(--border-subtle)',
                     overflow: 'hidden',
                     display: 'flex',
@@ -700,25 +701,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     style={{
                       padding: 12,
                       borderRadius: 'var(--radius-sm)',
-                      background: '#0B0E14',
+                      background: 'var(--bg-main)',
                       border: '2px solid var(--accent)',
                       cursor: 'pointer',
                     }}
                   >
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Obsidian (Dark)</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Deep space obsidian aesthetic</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Mineral Obsidian (Default)</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Quiet, architectural dark space</div>
                   </div>
                   <div
                     style={{
                       padding: 12,
                       borderRadius: 'var(--radius-sm)',
-                      background: '#0F172A',
+                      background: 'var(--bg-surface)',
                       border: '1px solid var(--border-subtle)',
                       cursor: 'pointer',
                     }}
                   >
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#CBD5E1' }}>Midnight Blue</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Sleek navy contrast</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)' }}>Mineral Slate</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Subtle graphite tone</div>
                   </div>
                 </div>
               </div>

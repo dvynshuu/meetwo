@@ -72,22 +72,22 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
             background: 'var(--bg-surface)',
             border: '1px solid var(--border-subtle)',
             borderRadius: 'var(--radius-lg)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            boxShadow: 'var(--shadow-lg)',
           }}
         >
           <div
             style={{
-              width: 72,
-              height: 72,
-              borderRadius: '50%',
-              background: 'rgba(99, 102, 241, 0.15)',
+              width: 64,
+              height: 64,
+              borderRadius: 'var(--radius-lg)',
+              background: 'var(--accent-subtle)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'var(--accent-light)',
+              color: 'var(--accent)',
             }}
           >
-            <Radio size={36} />
+            <Radio size={32} />
           </div>
 
           <div>
@@ -103,8 +103,8 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
             className="btn btn-primary"
             style={{
               padding: '12px 32px',
-              fontSize: 15,
-              borderRadius: 'var(--radius-pill)',
+              fontSize: 14,
+              borderRadius: 'var(--radius-sm)',
               marginTop: 6,
             }}
             onClick={() => joinVoiceRoom(activeChannel.id)}
@@ -136,19 +136,19 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
             top: 54,
             right: 20,
             zIndex: 100,
-            background: 'rgba(15, 23, 42, 0.95)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
+            background: 'var(--bg-overlay)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid var(--border-medium)',
             borderRadius: 'var(--radius-md)',
             padding: '10px 14px',
             display: 'flex',
             alignItems: 'center',
             gap: 10,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            boxShadow: 'var(--shadow-lg)',
             fontSize: 13,
           }}
         >
-          <Volume2 size={16} style={{ color: 'var(--accent-light)' }} />
+          <Volume2 size={16} style={{ color: 'var(--accent)' }} />
           <span>
             {deviceNotification.kind === 'audio' ? 'Microphone' : 'Camera'}{' '}
             {deviceNotification.action === 'disconnected'
@@ -171,10 +171,10 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
         <div
           className="reconnection-banner"
           style={{
-            background: connectionState === 'failed' ? 'rgba(239, 68, 68, 0.9)' : 'rgba(234, 179, 8, 0.9)',
-            color: '#fff',
-            padding: '8px 16px',
-            fontSize: 13,
+            background: connectionState === 'failed' ? 'var(--danger)' : 'var(--warning)',
+            color: '#0A0C10',
+            padding: '6px 14px',
+            fontSize: 12,
             fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
@@ -223,7 +223,7 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
         {/* SPEAKERS ON STAGE */}
         <div className="stage-section">
           <div className="stage-section-title">
-            <ShieldCheck size={16} style={{ color: 'var(--accent-light)' }} />
+            <ShieldCheck size={16} style={{ color: 'var(--accent)' }} />
             <span>Speakers on Stage ({speakers.length})</span>
           </div>
 
@@ -418,7 +418,7 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
           {isSpeaker ? (
             <button
               className="btn btn-secondary"
-              style={{ fontSize: 12, borderRadius: 'var(--radius-pill)' }}
+              style={{ fontSize: 12, borderRadius: 'var(--radius-sm)' }}
               onClick={() => setStageRole('listener')}
               title="Step down to audience"
             >
@@ -427,7 +427,7 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
           ) : (
             <button
               className={`btn ${isHandRaised ? 'btn-secondary' : 'btn-primary'}`}
-              style={{ borderRadius: 'var(--radius-pill)', gap: 8 }}
+              style={{ borderRadius: 'var(--radius-sm)', gap: 8 }}
               onClick={() => (isHandRaised ? lowerHand() : raiseHand())}
             >
               <Hand size={16} />
@@ -477,7 +477,7 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
 
           <button
             className="btn btn-danger"
-            style={{ borderRadius: 'var(--radius-pill)', padding: '8px 18px' }}
+            style={{ borderRadius: 'var(--radius-sm)', padding: '8px 18px' }}
             onClick={() => leaveVoiceRoom()}
             title="Leave Stage"
           >

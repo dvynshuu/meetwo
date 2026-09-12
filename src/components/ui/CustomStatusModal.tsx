@@ -109,7 +109,7 @@ export const CustomStatusModal: React.FC<CustomStatusModalProps> = ({ isOpen, on
               type="button"
               onClick={() => setEmoji(e)}
               style={{
-                background: emoji === e ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                background: emoji === e ? 'var(--accent-subtle)' : 'transparent',
                 border: emoji === e ? '1px solid var(--accent)' : 'none',
                 borderRadius: 'var(--radius-xs)',
                 padding: '3px 6px',

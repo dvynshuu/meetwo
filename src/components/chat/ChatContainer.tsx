@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Hash, Pin, ArrowDown } from 'lucide-react';
+import { Hash, Pin } from 'lucide-react';
 import { useChat } from '../../app/providers/ChatContext';
 import { useServer } from '../../app/providers/ServerContext';
 import { MessageItem } from './MessageItem';
@@ -13,7 +13,7 @@ interface ChatContainerProps {
 }
 
 export const ChatContainer: React.FC<ChatContainerProps> = () => {
-  const { messages, isLoadingMessages } = useChat();
+  const { messages } = useChat();
   const { activeChannel } = useServer();
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -57,29 +57,29 @@ export const ChatContainer: React.FC<ChatContainerProps> = () => {
             title="Click to jump to pinned message"
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
-              <Pin size={14} style={{ color: '#EAB308', transform: 'rotate(45deg)', flexShrink: 0 }} />
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', flexShrink: 0 }}>
+              <Pin size={13} style={{ color: 'var(--warning)', transform: 'rotate(45deg)', flexShrink: 0 }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', flexShrink: 0 }}>
                 Pinned:
               </span>
               <span className="truncate" style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                 {pinnedMessage.author?.displayName || 'User'}: {pinnedMessage.content}
               </span>
             </div>
-            <span style={{ fontSize: 11, color: 'var(--accent-light)', fontWeight: 600, flexShrink: 0 }}>
+            <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>
               Jump
             </span>
           </div>
         )}
 
         <div className="chat-messages-container" ref={containerRef}>
-          {/* Channel Start Banner / Empty State */}
+          {/* Channel Start Banner / Editorial Welcome */}
           <div className="messages-empty-state">
             <div className="messages-empty-hash">
-              <Hash size={36} />
+              <Hash size={28} />
             </div>
-            <h2>Welcome to #{activeChannel.name}!</h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>
-              This is the start of the #{activeChannel.name} channel.
+            <h2>Welcome to #{activeChannel.name}</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.5 }}>
+              This is the beginning of the #{activeChannel.name} channel.
               {activeChannel.topic ? ` ${activeChannel.topic}` : ''}
             </p>
           </div>

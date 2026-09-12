@@ -167,14 +167,14 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
               gap: 6,
               fontSize: 11,
               padding: '4px 10px',
-              borderRadius: 'var(--radius-pill)',
-              background: 'rgba(99, 102, 241, 0.15)',
-              color: 'var(--accent-light)',
+              borderRadius: 'var(--radius-xs)',
+              background: 'var(--accent-subtle)',
+              color: 'var(--accent)',
               fontWeight: 600,
             }}
           >
             <Sparkles size={13} />
-            <span>Meetwo V4 Verified Media</span>
+            <span>meetwo Verified Media</span>
           </div>
         </div>
 
@@ -185,7 +185,7 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
             width: '100%',
             height: 240,
             borderRadius: 'var(--radius-md)',
-            background: '#0a0d14',
+            background: 'var(--bg-app)',
             border: '1px solid var(--border-subtle)',
             overflow: 'hidden',
             display: 'flex',
@@ -228,11 +228,11 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
               bottom: 12,
               display: 'flex',
               gap: 12,
-              background: 'rgba(15, 23, 42, 0.85)',
-              backdropFilter: 'blur(12px)',
-              padding: '6px 14px',
-              borderRadius: 'var(--radius-pill)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'rgba(24, 29, 40, 0.92)',
+              backdropFilter: 'blur(16px)',
+              padding: '6px 12px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-medium)',
             }}
           >
             <button
@@ -281,7 +281,7 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
               height: 8,
               width: '100%',
               background: 'var(--bg-surface-active)',
-              borderRadius: 'var(--radius-pill)',
+              borderRadius: 'var(--radius-xs)',
               overflow: 'hidden',
             }}
           >
@@ -371,7 +371,7 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
         {/* Pre-Call Readiness Checklist */}
         <div
           style={{
-            background: 'rgba(15, 23, 42, 0.6)',
+            background: 'var(--bg-surface-active)',
             borderRadius: 'var(--radius-md)',
             border: '1px solid var(--border-subtle)',
             padding: '10px 14px',
@@ -420,7 +420,7 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
           </Button>
           <Button
             variant="primary"
-            style={{ borderRadius: 'var(--radius-pill)', padding: '10px 28px', gap: 8 }}
+            style={{ borderRadius: 'var(--radius-sm)', padding: '10px 24px', gap: 8 }}
             onClick={handleJoinConfirmed}
           >
             <CheckCircle2 size={16} />

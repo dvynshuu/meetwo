@@ -1,4 +1,13 @@
-/* Application Root Shell */
+/* ====================================================================
+   MEETWO GLOBAL LAYOUT ARCHITECTURE
+   Level 0: .app-container
+   Level 1: .server-sidebar (56px)
+   Level 2: .channel-sidebar (240px) & .main-content
+   Level 3: .bg-surface elevated interactive elements
+   Level 4: .bg-overlay popovers, dropdowns, and modals
+   ==================================================================== */
+
+/* App Root Shell */
 .app-container {
   display: flex;
   height: 100vh;
@@ -8,7 +17,9 @@
   position: relative;
 }
 
-/* 1. Server Sidebar (Leftmost vertical rail) */
+/* ====================================================================
+   1. PRIMARY NAVIGATION RAIL (56px)
+   ==================================================================== */
 .server-sidebar {
   width: var(--server-sidebar-width);
   min-width: var(--server-sidebar-width);
@@ -17,73 +28,130 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 12px 0;
-  gap: 8px;
+  padding: 10px 0;
+  gap: 6px;
   border-right: 1px solid var(--border-subtle);
   z-index: 30;
   overflow-y: auto;
   overflow-x: hidden;
 }
 
-.server-item {
+/* Brand Anchor at Top of Rail */
+.brand-anchor {
   position: relative;
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-xl);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   background-color: var(--bg-surface);
-  color: var(--text-primary);
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 16px;
+  border: 1px solid var(--border-subtle);
   cursor: pointer;
-  transition: all var(--transition-normal);
+  transition: all var(--transition-fast);
+  margin-bottom: 4px;
 }
 
-.server-item:hover {
+.brand-anchor:hover {
+  background-color: var(--bg-surface-hover);
+  border-color: var(--border-medium);
+}
+
+.brand-anchor.active {
+  background-color: var(--bg-surface-active);
+  border-color: var(--border-accent);
+}
+
+/* Workspace / Server Item */
+.server-item {
+  position: relative;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-md);
-  background-color: var(--accent);
-  color: #fff;
-  transform: translateY(-1px);
-}
-
-.server-item.active {
-  border-radius: var(--radius-md);
-  background: var(--accent-gradient);
-  color: #fff;
-  box-shadow: var(--shadow-glow);
-}
-
-/* Left indicator pill */
-.server-pill {
-  position: absolute;
-  left: -12px;
-  width: 4px;
-  height: 8px;
-  background-color: #fff;
-  border-radius: 0 4px 4px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid transparent;
   transition: all var(--transition-fast);
 }
 
-.server-item:hover .server-pill {
-  height: 20px;
+.server-item:hover {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
 }
 
-.server-item.active .server-pill {
+.server-item.active {
+  background-color: var(--bg-surface-active);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+/* Create Workspace Rail Button */
+.create-server-btn {
+  position: relative;
+  width: 40px;
   height: 40px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  color: var(--text-muted);
+  border: 1px dashed var(--border-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.create-server-btn:hover {
+  background-color: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-border);
+  border-style: solid;
+}
+
+/* Left Indicator Marker (Clean Mint Bar, flush to viewport left edge) */
+.server-indicator {
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 0;
+  background-color: var(--accent);
+  border-radius: 0 3px 3px 0;
+  transition: height var(--transition-fast), opacity var(--transition-fast);
+  opacity: 0;
+}
+
+.server-item:hover .server-indicator,
+.brand-anchor:hover .server-indicator {
+  height: 12px;
+  opacity: 0.6;
+}
+
+.server-item.active .server-indicator,
+.brand-anchor.active .server-indicator {
+  height: 22px;
+  opacity: 1;
 }
 
 .server-divider {
-  width: 32px;
-  height: 2px;
-  background-color: var(--border-medium);
-  border-radius: 1px;
+  width: 24px;
+  height: 1px;
+  background-color: var(--border-subtle);
   margin: 4px 0;
 }
 
-/* 2. Channel Sidebar (Second rail) */
+/* ====================================================================
+   2. WORKSPACE CHANNEL SIDEBAR (240px)
+   ==================================================================== */
 .channel-sidebar {
   width: var(--channel-sidebar-width);
   min-width: var(--channel-sidebar-width);
@@ -98,7 +166,7 @@
 
 .server-header {
   height: var(--topbar-height);
-  padding: 0 16px;
+  padding: 0 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -108,21 +176,23 @@
 }
 
 .server-header:hover {
-  background-color: rgba(255, 255, 255, 0.03);
+  background-color: rgba(255, 255, 255, 0.02);
 }
 
 .server-header h2 {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .channel-list {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 8px;
+  padding: 8px 6px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .channel-category {
@@ -131,20 +201,28 @@
   align-items: center;
   justify-content: space-between;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--transition-fast);
+}
+
+.channel-category:hover {
+  color: var(--text-secondary);
 }
 
 .channel-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 6px 10px;
   border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  font-size: 14px;
+  color: var(--text-secondary);
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -152,31 +230,186 @@
 
 .channel-item:hover {
   background-color: var(--bg-surface);
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
+/* Restrained Active State: Subtle surface lift + accent marker + text emphasis */
 .channel-item.active {
-  background-color: var(--bg-surface-hover);
+  background-color: var(--bg-surface-active);
   color: var(--text-primary);
   font-weight: 600;
 }
 
-.channel-item.active .channel-icon {
-  color: var(--accent-light);
+.channel-item.active::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 14px;
+  background-color: var(--accent);
+  border-radius: 2px;
 }
 
 .channel-icon {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   color: var(--text-muted);
   flex-shrink: 0;
+  transition: color var(--transition-fast);
+}
+
+.channel-item:hover .channel-icon {
+  color: var(--text-secondary);
+}
+
+.channel-item.active .channel-icon {
+  color: var(--accent);
+}
+
+/* Channel Type Badges & Status */
+.channel-badge {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.channel-badge-stage {
+  background: var(--coral-soft);
+  color: var(--coral);
+}
+
+.channel-badge-locked {
+  color: var(--text-muted);
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Voice Status Bar (When connected to voice room) */
+.voice-status-bar {
+  margin: 8px;
+  padding: 8px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.voice-status-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.voice-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  flex-shrink: 0;
+  animation: pulseDot 2s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.9); }
+}
+
+.voice-status-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.voice-status-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.voice-status-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+.voice-disconnect-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--danger-surface);
+  color: var(--danger);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  border: 1px solid rgba(251, 113, 133, 0.2);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.voice-disconnect-btn:hover {
+  background: var(--danger);
+  color: #0A0C10;
+  border-color: var(--danger);
+}
+
+/* Nested voice participants in channel list */
+.channel-voice-participants {
+  padding-left: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 3px 0;
+}
+
+.channel-participant-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 400;
+  padding: 2px 4px;
+  border-radius: var(--radius-xs);
+  transition: color var(--transition-fast);
+}
+
+.channel-participant-row.speaking {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.participant-speaking-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--text-dim);
+  flex-shrink: 0;
+  transition: background-color var(--transition-fast);
+}
+
+.participant-speaking-dot.speaking {
+  background-color: var(--accent);
+  box-shadow: 0 0 4px var(--accent);
 }
 
 /* User status bar at bottom of channel sidebar */
 .user-bar {
   height: var(--userbar-height);
-  background-color: rgba(11, 14, 20, 0.6);
-  backdrop-filter: blur(12px);
+  background-color: var(--bg-sidebar-channels);
   border-top: 1px solid var(--border-subtle);
   padding: 0 10px;
   display: flex;
@@ -188,16 +421,16 @@
 .user-bar-profile {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   cursor: pointer;
-  padding: 4px;
+  padding: 4px 6px;
   border-radius: var(--radius-sm);
   transition: background-color var(--transition-fast);
 }
 
 .user-bar-profile:hover {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: var(--bg-surface);
 }
 
 .user-bar-info {
@@ -210,11 +443,13 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
+  line-height: 1.2;
 }
 
 .user-bar-status {
   font-size: 11px;
   color: var(--text-muted);
+  line-height: 1.2;
 }
 
 .user-bar-actions {
@@ -223,7 +458,52 @@
   gap: 2px;
 }
 
-/* 3. Main Content Area (Messages or Video Room) */
+.user-bar-actions .icon-btn svg {
+  transition: transform var(--transition-fast);
+}
+
+.user-bar-actions .icon-btn:hover svg {
+  transform: scale(1.08);
+}
+
+.user-bar-actions .icon-btn.active {
+  background: var(--danger-surface);
+  color: var(--danger);
+}
+
+/* User Status Popup Menu (Level 4 Overlay) */
+.user-status-menu {
+  position: absolute;
+  bottom: 58px;
+  left: 8px;
+  width: 195px;
+  background: rgba(27, 34, 48, 0.96);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 4px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  animation: userMenuSlideUp 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes userMenuSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ====================================================================
+   3. MAIN CONTENT VIEWPORT
+   ==================================================================== */
 .main-content {
   flex: 1;
   height: 100%;
@@ -235,16 +515,15 @@
   overflow: hidden;
 }
 
-/* Top App Bar in Main Content */
+/* Top App Bar in Main Content (Uncluttered, Focused) */
 .top-app-bar {
   height: var(--topbar-height);
-  padding: 0 18px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border-subtle);
-  background-color: rgba(20, 25, 36, 0.85);
-  backdrop-filter: blur(12px);
+  background-color: var(--bg-main);
   z-index: 10;
   gap: 12px;
 }
@@ -252,13 +531,13 @@
 .top-app-bar-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
 .top-app-bar-channel-name {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
@@ -266,13 +545,135 @@
   font-size: 12px;
   color: var(--text-muted);
   border-left: 1px solid var(--border-medium);
-  padding-left: 10px;
+  padding-left: 8px;
 }
 
 .top-app-bar-actions {
   display: flex;
   align-items: center;
+  gap: 4px;
+}
+
+/* Connection Health Status Indicator (Discreet, not raw numbers in header) */
+.connection-status-indicator {
+  display: flex;
+  align-items: center;
   gap: 6px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.connection-status-indicator:hover {
+  background-color: var(--bg-surface);
+  color: var(--text-secondary);
+}
+
+.status-indicator-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--accent);
+}
+
+.status-indicator-dot.reconnecting {
+  background-color: var(--warning);
+}
+
+.status-indicator-dot.disconnected {
+  background-color: var(--danger);
+}
+
+/* Quick Jump / Search Trigger Bar in Header */
+.command-trigger-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  transition: all var(--transition-fast);
+}
+
+.command-trigger-bar:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+}
+
+.command-trigger-bar:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-border);
+}
+
+.command-shortcut-badge {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface-active);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  line-height: 1.2;
+}
+
+/* Discreet System Health Popover (Level 4 Overlay) */
+.connection-popover {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  width: 240px;
+  background: rgba(27, 34, 48, 0.96);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  box-shadow: var(--shadow-lg);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: popoverSlideDown 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Secondary Context Dropdown Menu in Top App Bar */
+.top-app-bar-menu {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  width: 200px;
+  background: rgba(27, 34, 48, 0.96);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  box-shadow: var(--shadow-lg);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  animation: popoverSlideDown 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes popoverSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* Content Area with optional Member Sidebar */
@@ -291,8 +692,12 @@
   height: 100%;
   min-width: 0;
   position: relative;
+  background-color: var(--bg-main);
 }
 
+/* ====================================================================
+   4. MEMBER SIDEBAR (240px)
+   ==================================================================== */
 .member-sidebar {
   width: var(--member-sidebar-width);
   min-width: var(--member-sidebar-width);
@@ -300,26 +705,27 @@
   background-color: var(--bg-sidebar-channels);
   border-left: 1px solid var(--border-subtle);
   overflow-y: auto;
-  padding: 16px 12px;
+  padding: 14px 10px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .member-group-title {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--text-muted);
   margin-bottom: 6px;
+  padding: 0 4px;
 }
 
 .member-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 8px;
+  gap: 8px;
+  padding: 5px 6px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background-color var(--transition-fast);
@@ -337,6 +743,45 @@
 
 .member-item:hover .member-name {
   color: var(--text-primary);
+}
+
+.member-item.offline {
+  opacity: 0.55;
+  transition: opacity var(--transition-fast), background-color var(--transition-fast);
+}
+
+.member-item.offline:hover {
+  opacity: 0.9;
+}
+
+/* Member Role Chips */
+.member-role-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.member-role-owner {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+}
+
+.member-role-admin {
+  background: var(--sky-soft);
+  color: var(--sky);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.member-role-moderator {
+  background: var(--warning-surface);
+  color: var(--warning);
+  border: 1px solid rgba(251, 191, 36, 0.25);
 }
 
 /* Mobile responsive drawer toggles */
@@ -388,8 +833,7 @@
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.65);
-    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.7);
     z-index: 15;
   }
 }

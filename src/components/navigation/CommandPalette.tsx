@@ -92,7 +92,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     },
     {
       id: 'act-create-channel',
-      title: 'Create Channel in Current Server',
+      title: 'Create Channel in Current Workspace',
       category: 'Actions',
       icon: 'plus',
       action: () => {
@@ -102,7 +102,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     },
     {
       id: 'act-create-server',
-      title: 'Create New Server',
+      title: 'Create New Workspace',
       category: 'Actions',
       icon: 'plus',
       action: () => {
@@ -189,10 +189,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     {item.icon === 'hash' && <Hash size={16} style={{ color: 'var(--text-muted)' }} />}
                     {item.icon === 'voice' && <Volume2 size={16} style={{ color: 'var(--status-online)' }} />}
-                    {item.icon === 'server' && <ServerIcon size={16} style={{ color: 'var(--accent-light)' }} />}
+                    {item.icon === 'server' && <ServerIcon size={16} style={{ color: 'var(--accent)' }} />}
                     {item.icon === 'mic' && <Mic size={16} style={{ color: 'var(--text-muted)' }} />}
                     {item.icon === 'camera' && <VideoIcon size={16} style={{ color: 'var(--text-muted)' }} />}
-                    {item.icon === 'plus' && <Plus size={16} style={{ color: 'var(--status-online)' }} />}
+                    {item.icon === 'plus' && <Plus size={16} style={{ color: 'var(--accent)' }} />}
                     {item.icon === 'settings' && <Settings size={16} style={{ color: 'var(--text-muted)' }} />}
 
                     <span style={{ fontSize: 14, fontWeight: 500 }}>{item.title}</span>

@@ -13,6 +13,7 @@ import {
   UserPlus,
   PanelLeftClose,
   PanelLeft,
+  Lock,
 } from 'lucide-react';
 import { useServer } from '../../app/providers/ServerContext';
 import { useMedia } from '../../app/providers/MediaContext';
@@ -36,7 +37,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   onToggleCollapse,
 }) => {
   const { activeServer, channels, activeChannel, selectChannel } = useServer();
-  const { activeRoomId, participants, leaveVoiceRoom, joinVoiceRoom, openPreJoin } = useMedia();
+  const { activeRoomId, participants, leaveVoiceRoom, openPreJoin } = useMedia();
 
   // Collapsed categories state (map of categoryId -> isCollapsed)
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
@@ -85,11 +86,11 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
           <Volume2 className="channel-icon" />
         );
       case 'stage':
-        return <Radio className="channel-icon" style={{ color: '#F43F5E' }} />;
+        return <Radio className="channel-icon" />;
       case 'forum':
-        return <MessagesSquare className="channel-icon" style={{ color: '#A855F7' }} />;
+        return <MessagesSquare className="channel-icon" />;
       case 'announcement':
-        return <Megaphone className="channel-icon" style={{ color: 'var(--status-idle)' }} />;
+        return <Megaphone className="channel-icon" />;
       case 'text':
       default:
         return <Hash className="channel-icon" />;
@@ -99,9 +100,9 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   if (isCollapsed) {
     return (
       <aside className="channel-sidebar collapsed" style={{ width: 48, minWidth: 48 }}>
-        <div style={{ padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          <button className="icon-btn" onClick={onToggleCollapse} title="Expand Channels">
-            <PanelLeft size={18} />
+        <div style={{ padding: '10px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <button className="icon-btn" onClick={onToggleCollapse} title="Expand Sidebar">
+            <PanelLeft size={16} />
           </button>
         </div>
       </aside>
@@ -109,70 +110,48 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   }
 
   return (
-    <aside className="channel-sidebar" aria-label="Channels sidebar">
-      {/* Server Header */}
+    <aside className="channel-sidebar" aria-label="Channels">
+      {/* Workspace Header */}
       <header className="server-header">
-        <h2 className="truncate">{activeServer?.name || 'Select a Server'}</h2>
+        <h2 className="truncate">{activeServer?.name || 'meetwo'}</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <button
             className="icon-btn"
             style={{ width: 28, height: 28 }}
             onClick={onOpenInvite}
-            title="Invite Friends"
+            title="Invite to Workspace"
           >
-            <UserPlus size={15} />
+            <UserPlus size={14} />
           </button>
           {onToggleCollapse && (
             <button
               className="icon-btn"
               style={{ width: 28, height: 28 }}
               onClick={onToggleCollapse}
-              title="Collapse Channel Bar"
+              title="Collapse Sidebar"
             >
-              <PanelLeftClose size={15} />
+              <PanelLeftClose size={14} />
             </button>
           )}
         </div>
       </header>
 
-      {/* Voice Status Pill if in a room */}
+      {/* Voice Status Bar (when connected to a room) */}
       {activeRoomId && (
-        <div
-          style={{
-            margin: '8px 10px',
-            padding: '8px 12px',
-            background: 'rgba(16, 185, 129, 0.12)',
-            border: '1px solid rgba(16, 185, 129, 0.25)',
-            borderRadius: 'var(--radius-sm)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <PhoneCall size={16} style={{ color: 'var(--status-online)' }} />
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--status-online)' }}>
-                Voice Connected
-              </span>
-              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                {participants.length} in room
-              </span>
+        <div className="voice-status-bar">
+          <div className="voice-status-info">
+            <span className="voice-status-dot" />
+            <div className="voice-status-text">
+              <span className="voice-status-title">Voice Connected</span>
+              <span className="voice-status-count">{participants.length} connected</span>
             </div>
           </div>
           <button
+            className="voice-disconnect-btn"
             onClick={() => leaveVoiceRoom()}
-            style={{
-              padding: '4px 8px',
-              fontSize: 11,
-              fontWeight: 600,
-              background: 'var(--danger-surface)',
-              color: 'var(--danger)',
-              borderRadius: 'var(--radius-xs)',
-              cursor: 'pointer',
-            }}
+            title="Disconnect from voice room"
           >
-            Leave
+            Disconnect
           </button>
         </div>
       )}
@@ -180,45 +159,44 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
       {/* Channel Lists with Categories */}
       <div className="channel-list">
         {serverCategories.length > 0 ? (
-          // Render defined categories
           serverCategories.map((cat) => {
             const catChannels = channelsByCategory.get(cat.id) || [];
             const isCategoryCollapsed = !!collapsedCategories[cat.id];
 
             return (
-              <div key={cat.id} style={{ marginBottom: 12 }}>
+              <div key={cat.id} style={{ marginBottom: 8 }}>
                 {/* Category Header */}
                 <div
                   className="channel-category"
                   onClick={(e) => toggleCategory(cat.id, e)}
-                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  role="button"
+                  aria-expanded={!isCategoryCollapsed}
+                  title={isCategoryCollapsed ? 'Expand category' : 'Collapse category'}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     {isCategoryCollapsed ? (
-                      <ChevronRight size={13} style={{ color: 'var(--text-muted)' }} />
+                      <ChevronRight size={12} style={{ color: 'var(--text-muted)' }} />
                     ) : (
-                      <ChevronDown size={13} style={{ color: 'var(--text-muted)' }} />
+                      <ChevronDown size={12} style={{ color: 'var(--text-muted)' }} />
                     )}
-                    <span className="truncate" style={{ fontSize: 11, letterSpacing: '0.04em' }}>
-                      {cat.name}
-                    </span>
+                    <span className="truncate">{cat.name}</span>
                   </div>
                   <button
                     className="icon-btn"
-                    style={{ width: 20, height: 20 }}
+                    style={{ width: 18, height: 18 }}
                     onClick={(e) => {
                       e.stopPropagation();
                       onOpenCreateChannel(cat.id);
                     }}
-                    title={`Create Channel in ${cat.name}`}
+                    title={`Create channel in ${cat.name}`}
                   >
-                    <Plus size={14} />
+                    <Plus size={13} />
                   </button>
                 </div>
 
                 {/* Category Channels */}
                 {!isCategoryCollapsed && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                     {catChannels.map((chan) => {
                       const isActive = activeChannel?.id === chan.id;
                       const isCurrentVoice = activeRoomId === chan.id;
@@ -231,46 +209,27 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                           >
                             {getChannelIcon(chan.type, chan.name)}
                             <span className="truncate">{chan.name}</span>
+                            {chan.isLocked && (
+                              <span className="channel-badge-locked" title="Restricted channel">
+                                <Lock size={12} />
+                              </span>
+                            )}
                             {chan.type === 'stage' && (
-                              <span
-                                style={{
-                                  marginLeft: 'auto',
-                                  fontSize: 9,
-                                  fontWeight: 800,
-                                  background: 'rgba(244, 63, 94, 0.2)',
-                                  color: '#F43F5E',
-                                  padding: '1px 5px',
-                                  borderRadius: 'var(--radius-pill)',
-                                }}
-                              >
-                                LIVE
+                              <span className="channel-badge channel-badge-stage">
+                                STAGE
                               </span>
                             )}
                           </div>
 
                           {/* Show participants inside voice channel */}
                           {chan.type === 'voice' && isCurrentVoice && participants.length > 0 && (
-                            <div style={{ paddingLeft: 28, display: 'flex', flexDirection: 'column', gap: 4, margin: '4px 0' }}>
+                            <div className="channel-voice-participants">
                               {participants.map((p) => (
                                 <div
                                   key={p.id}
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                    fontSize: 12,
-                                    color: p.isSpeaking ? 'var(--status-online)' : 'var(--text-muted)',
-                                    fontWeight: p.isSpeaking ? 600 : 400,
-                                  }}
+                                  className={`channel-participant-row ${p.isSpeaking ? 'speaking' : ''}`}
                                 >
-                                  <span
-                                    style={{
-                                      width: 6,
-                                      height: 6,
-                                      borderRadius: '50%',
-                                      backgroundColor: p.isSpeaking ? 'var(--status-online)' : 'var(--text-dim)',
-                                    }}
-                                  />
+                                  <span className={`participant-speaking-dot ${p.isSpeaking ? 'speaking' : ''}`} />
                                   <span className="truncate">{p.displayName || p.username}</span>
                                 </div>
                               ))}
@@ -285,17 +244,17 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
             );
           })
         ) : (
-          // Fallback legacy grouped view if no server categories
+          // Fallback if no server categories
           <>
             <div className="channel-category">
-              <span>Text Channels</span>
+              <span>Channels</span>
               <button
                 className="icon-btn"
-                style={{ width: 20, height: 20 }}
+                style={{ width: 18, height: 18 }}
                 onClick={() => onOpenCreateChannel()}
                 title="Create Channel"
               >
-                <Plus size={14} />
+                <Plus size={13} />
               </button>
             </div>
             {channels.map((chan) => {
@@ -316,9 +275,9 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
 
         {/* Uncategorized channels (if any) */}
         {uncategorizedChannels.length > 0 && serverCategories.length > 0 && (
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 8 }}>
             <div className="channel-category">
-              <span>Other Channels</span>
+              <span>General</span>
             </div>
             {uncategorizedChannels.map((chan) => {
               const isActive = activeChannel?.id === chan.id;

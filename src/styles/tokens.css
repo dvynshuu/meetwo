@@ -1,73 +1,130 @@
 :root {
-  /* Core Palette - Deep Obsidian & Sleek Dark Mode */
-  --bg-app: #080A0F;
-  --bg-sidebar-servers: #0B0E14;
-  --bg-sidebar-channels: #10141D;
-  --bg-main: #141924;
-  --bg-surface: #19202E;
-  --bg-surface-hover: #222B3D;
-  --bg-surface-active: #29344A;
-  --bg-surface-glass: rgba(25, 32, 46, 0.7);
+  /* ====================================================================
+     MEETWO DESIGN SYSTEM TOKENS
+     Brand: meetwo
+     Philosophy: Human + Calm + Confident + Modern + Precise + Social
+     Palette: Mineral Graphite Surfaces & Electric Mint Accent
+     ==================================================================== */
 
-  /* Accents */
-  --accent: #6366F1;
-  --accent-hover: #4F46E5;
-  --accent-light: #818CF8;
-  --accent-glow: rgba(99, 102, 241, 0.25);
-  --accent-gradient: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
-  --accent-gradient-subtle: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
+  /* Surface Hierarchy (Level 0 to Level 4) */
+  --bg-app: #0A0C10;                /* Level 0: App viewport foundation */
+  --bg-sidebar-servers: #0F1217;    /* Level 1: Primary navigation rail */
+  --bg-sidebar-channels: #13171F;   /* Level 2: Workspace channel navigation */
+  --bg-main: #141820;               /* Level 2: Main content viewport */
+  --bg-surface: #19202C;            /* Level 3: Elevated surfaces, containers, cards */
+  --bg-surface-hover: #212B3B;      /* Level 3 Hover */
+  --bg-surface-active: #283447;     /* Level 3 Active / Selected */
+  --bg-overlay: #1B2230;            /* Level 4: Modals, popovers, dropdowns */
+  --bg-surface-raised: #1E2533;    /* Level 4: Floating quick menus and telemetry popovers */
+  --bg-elevated: #1F2737;
 
-  /* Status Colors */
-  --status-online: #10B981;
-  --status-idle: #F59E0B;
-  --status-dnd: #EF4444;
+  /* Primary Brand Accent (Electric Mint) */
+  --accent: #10E7B2;
+  --accent-hover: #0CD4A2;
+  --accent-active: #0ABF91;
+  --accent-light: #4EEDC4;
+  --accent-soft: rgba(16, 231, 178, 0.12);
+  --accent-subtle: rgba(16, 231, 178, 0.06);
+  --accent-border: rgba(16, 231, 178, 0.28);
+  --accent-glow: rgba(16, 231, 178, 0.25);
+  --accent-gradient: linear-gradient(135deg, #10E7B2 0%, #0D9488 100%);
+
+  /* Secondary Accents & Highlights */
+  --sky: #38BDF8;
+  --sky-soft: rgba(56, 189, 248, 0.12);
+  --coral: #FB7185;
+  --coral-soft: rgba(251, 113, 133, 0.12);
+
+  /* Semantic Status Indicators */
+  --status-online: #10E7B2;
+  --status-idle: #FBBF24;
+  --status-dnd: #FB7185;
   --status-offline: #64748B;
-  --danger: #F43F5E;
+  --danger: #FB7185;
   --danger-hover: #E11D48;
-  --danger-surface: rgba(244, 63, 94, 0.12);
-  --success: #10B981;
-  --warning: #F59E0B;
+  --danger-surface: rgba(251, 113, 133, 0.12);
+  --success: #10E7B2;
+  --warning: #FBBF24;
+  --warning-surface: rgba(251, 191, 36, 0.12);
+  --info: #38BDF8;
+  --info-surface: rgba(56, 189, 248, 0.12);
+
+  /* Media & Activity States */
+  --voice-active: #10E7B2;
+  --video-active: #38BDF8;
+  --screen-active: #FBBF24;
+  --speaking-indicator: #10E7B2;
+  --unread-indicator: #10E7B2;
 
   /* Typography Colors */
   --text-primary: #F8FAFC;
-  --text-secondary: #CBD5E1;
+  --text-secondary: #94A3B8;
   --text-muted: #64748B;
   --text-dim: #475569;
-  --text-on-accent: #FFFFFF;
+  --text-on-accent: #0A0C10;
 
-  /* Borders & Dividers */
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-medium: rgba(255, 255, 255, 0.1);
-  --border-focus: rgba(99, 102, 241, 0.5);
+  /* Subtle Structural Borders */
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-medium: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-focus: rgba(16, 231, 178, 0.45);
+  --border-accent: rgba(16, 231, 178, 0.28);
 
-  /* Shadows & Elevations */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 4px 12px 0 rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 12px 32px -4px rgba(0, 0, 0, 0.6);
-  --shadow-glow: 0 0 20px var(--accent-glow);
-  --shadow-speaking: 0 0 0 3px rgba(16, 185, 129, 0.5), 0 0 15px rgba(16, 185, 129, 0.3);
+  /* Clean Physical Elevation (No colored neon glows) */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px 0 rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 36px -4px rgba(0, 0, 0, 0.65);
+  --shadow-speaking: 0 0 0 2px var(--accent);
 
-  /* Border Radii */
+  /* Controlled Corner Radii */
   --radius-xs: 4px;
   --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
   --radius-pill: 9999px;
 
-  /* Typography */
-  --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Typography Scale */
+  --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* Animation Timings */
-  --transition-fast: 150ms cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-normal: 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  /* Type Scale */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 22px;
+  --font-size-3xl: 28px;
 
-  /* Dimensions */
-  --server-sidebar-width: 72px;
+  /* Line Heights */
+  --leading-none: 1;
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+
+  /* Spacing Scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Transition Timings */
+  --transition-fast: 120ms cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-normal: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Layout Dimensions */
+  --server-sidebar-width: 56px;
   --channel-sidebar-width: 240px;
   --member-sidebar-width: 240px;
-  --topbar-height: 52px;
-  --userbar-height: 56px;
+  --topbar-height: 48px;
+  --userbar-height: 54px;
 }

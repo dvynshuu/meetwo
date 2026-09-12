@@ -29,7 +29,7 @@ export const ServerInviteModal: React.FC<ServerInviteModalProps> = ({ isOpen, on
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Invite Friends to ${activeServer.name}`}
+      title={`Invite Members to ${activeServer.name}`}
       maxWidth="460px"
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -38,7 +38,7 @@ export const ServerInviteModal: React.FC<ServerInviteModalProps> = ({ isOpen, on
         </p>
 
         <div className="input-group">
-          <label className="input-label">Server Invite Link</label>
+          <label className="input-label">Workspace Invite Link</label>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               type="text"
@@ -72,7 +72,7 @@ export const ServerInviteModal: React.FC<ServerInviteModalProps> = ({ isOpen, on
             border: '1px solid var(--border-subtle)',
           }}
         >
-          <Users size={20} style={{ color: 'var(--accent-light)' }} />
+          <Users size={20} style={{ color: 'var(--accent)' }} />
           <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
             Joined members will automatically land in the <strong>#general</strong> channel.
           </div>

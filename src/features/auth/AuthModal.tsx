@@ -59,12 +59,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
-        <div className="modal-header">
-          <div>
-            <h3>{isSignUp ? 'Create an Account' : 'Welcome to Meetwo'}</h3>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-              {isSignUp ? 'Join servers and start communicating.' : 'Sign in to access your communities.'}
-            </p>
+        <div className="modal-header" style={{ alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', gap: 14 }}>
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--accent-subtle)',
+                border: '1px solid rgba(16, 231, 178, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
+                <circle cx="11" cy="16" r="8" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" />
+                <circle cx="21" cy="16" r="8" stroke="var(--text-primary)" strokeWidth="3" strokeLinecap="round" opacity="0.9" />
+                <circle cx="16" cy="16" r="3" fill="var(--accent)" />
+              </svg>
+            </div>
+            <div>
+              <h3>{isSignUp ? 'Create an account' : 'Welcome to meetwo'}</h3>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+                {isSignUp ? 'Join workspaces and start communicating.' : 'Sign in to access your spaces.'}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -126,7 +147,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             <button
               type="button"
               onClick={() => setIsSignUp(!isSignUp)}
-              style={{ color: 'var(--accent-light)', fontWeight: 600, cursor: 'pointer' }}
+              style={{ background: 'none', border: 'none', color: 'var(--accent)', fontWeight: 600, cursor: 'pointer', padding: 0 }}
             >
               {isSignUp ? 'Log In' : 'Sign Up'}
             </button>

@@ -4,6 +4,7 @@ import { useAuth } from '../../app/providers/AuthContext';
 import { mockStore } from '../../lib/supabase/mockStore';
 import { ForumPost } from '../../types';
 import { Avatar } from '../ui/Avatar';
+import { Modal } from '../ui/Modal';
 import {
   MessagesSquare,
   Plus,
@@ -276,8 +277,8 @@ export const ForumContainer: React.FC = () => {
                 width: 40,
                 height: 40,
                 borderRadius: 'var(--radius-sm)',
-                background: 'rgba(168, 85, 247, 0.15)',
-                color: '#A855F7',
+                background: 'var(--sky-soft)',
+                color: 'var(--sky)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -298,7 +299,7 @@ export const ForumContainer: React.FC = () => {
           <button
             className="btn btn-primary"
             onClick={() => setIsCreatingPost(true)}
-            style={{ borderRadius: 'var(--radius-pill)', padding: '8px 20px', gap: 8 }}
+            style={{ borderRadius: 'var(--radius-sm)', padding: '8px 16px', gap: 8 }}
           >
             <Plus size={16} />
             <span>New Post</span>
@@ -397,59 +398,59 @@ export const ForumContainer: React.FC = () => {
       </div>
 
       {/* New Post Modal */}
-      {isCreatingPost && (
-        <div className="modal-backdrop" onClick={() => setIsCreatingPost(false)}>
-          <div className="modal-content" style={{ maxWidth: 540 }} onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px 0' }}>Create a Discussion Topic</h2>
-            <form onSubmit={handleCreatePost} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div className="input-group">
-                <label className="input-label">Topic Title</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="e.g. Best practices for WebRTC audio quality"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-
-              <div className="input-group">
-                <label className="input-label">Details / Question</label>
-                <textarea
-                  className="textarea-field"
-                  rows={4}
-                  placeholder="Elaborate on your idea, issue, or question..."
-                  value={newContent}
-                  onChange={(e) => setNewContent(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="input-group">
-                <label className="input-label">Tags (comma-separated)</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="webrtc, audio, performance"
-                  value={newTagsInput}
-                  onChange={(e) => setNewTagsInput(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-                <button type="button" className="btn btn-ghost" onClick={() => setIsCreatingPost(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Post Topic
-                </button>
-              </div>
-            </form>
+      <Modal
+        isOpen={isCreatingPost}
+        onClose={() => setIsCreatingPost(false)}
+        title="Create a Discussion Topic"
+        maxWidth="540px"
+      >
+        <form onSubmit={handleCreatePost} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="input-group">
+            <label className="input-label">Topic Title</label>
+            <input
+              type="text"
+              className="input-field"
+              placeholder="e.g. Best practices for WebRTC audio quality"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              required
+              autoFocus
+            />
           </div>
-        </div>
-      )}
+
+          <div className="input-group">
+            <label className="input-label">Details / Question</label>
+            <textarea
+              className="textarea-field"
+              rows={4}
+              placeholder="Elaborate on your idea, issue, or question..."
+              value={newContent}
+              onChange={(e) => setNewContent(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="input-group">
+            <label className="input-label">Tags (comma-separated)</label>
+            <input
+              type="text"
+              className="input-field"
+              placeholder="webrtc, audio, performance"
+              value={newTagsInput}
+              onChange={(e) => setNewTagsInput(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+            <button type="button" className="btn btn-ghost" onClick={() => setIsCreatingPost(false)}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary">
+              Post Topic
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

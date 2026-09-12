@@ -45,6 +45,15 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
     }
   };
 
+  const formatShortTime = (isoString: string) => {
+    try {
+      const date = new Date(isoString);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
+    }
+  };
+
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);
     setCopied(true);
@@ -101,14 +110,14 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
 
   return (
     <div className={`message-item-container ${isGrouped ? 'grouped-msg' : ''}`} id={`message-${message.id}`}>
-      {/* Floating Actions Toolbar on Hover */}
+      {/* Floating Actions Toolbar on Hover (Level 4 Overlay) */}
       <div className="message-hover-actions">
         <button
           className="action-pill-btn"
           title="Add Reaction"
           onClick={() => setShowEmojiPicker(!showEmojiPicker)}
         >
-          <Smile size={16} />
+          <Smile size={15} />
         </button>
 
         <button
@@ -116,7 +125,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
           title="Reply"
           onClick={() => setReplyingTo(message)}
         >
-          <Reply size={16} />
+          <Reply size={15} />
         </button>
 
         {onOpenThread && (
@@ -125,7 +134,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
             title="Start Thread"
             onClick={() => onOpenThread(message)}
           >
-            <MessageSquare size={16} />
+            <MessageSquare size={15} />
           </button>
         )}
 
@@ -138,16 +147,16 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
           }}
         >
           <Star
-            size={16}
+            size={15}
             style={{
-              color: isBookmarked ? '#EAB308' : 'inherit',
-              fill: isBookmarked ? '#EAB308' : 'none',
+              color: isBookmarked ? 'var(--warning)' : 'inherit',
+              fill: isBookmarked ? 'var(--warning)' : 'none',
             }}
           />
         </button>
 
         <button className="action-pill-btn" title="Copy Text" onClick={handleCopy}>
-          {copied ? <Check size={16} style={{ color: 'var(--status-online)' }} /> : <Copy size={16} />}
+          {copied ? <Check size={15} style={{ color: 'var(--status-online)' }} /> : <Copy size={15} />}
         </button>
 
         {isAuthor && (
@@ -160,7 +169,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
                 setEditContent(message.content);
               }}
             >
-              <Edit2 size={16} />
+              <Edit2 size={15} />
             </button>
 
             <button
@@ -168,7 +177,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
               title="Delete Message"
               onClick={() => deleteMessage(message.id)}
             >
-              <Trash2 size={16} />
+              <Trash2 size={15} />
             </button>
           </>
         )}
@@ -195,23 +204,25 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
       {/* Quoted Reply Reference Banner */}
       {message.replyTo && (
         <div className="reply-reference-banner">
-          <CornerDownRight size={13} style={{ color: 'var(--text-muted)' }} />
+          <CornerDownRight size={12} style={{ color: 'var(--text-muted)' }} />
           <span className="reply-author">@{message.replyTo.authorName}</span>
           <span className="reply-snippet truncate">{message.replyTo.content}</span>
         </div>
       )}
 
       <div className={`message-item ${isGrouped ? 'grouped' : ''}`}>
-        {!isGrouped && (
+        {!isGrouped ? (
           <div className="message-avatar">
             <Avatar
               src={message.author?.avatarUrl}
               name={authorName}
-              size={40}
+              size={36}
               status={message.author?.status}
               showStatus={false}
             />
           </div>
+        ) : (
+          <span className="grouped-timestamp">{formatShortTime(message.createdAt)}</span>
         )}
 
         <div className="message-content-wrap">
@@ -220,13 +231,13 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
               <span className="message-author">{authorName}</span>
               <span className="message-timestamp">{formatTime(message.createdAt)}</span>
               {message.isPinned && (
-                <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(234, 179, 8, 0.15)', color: '#EAB308', padding: '1px 5px', borderRadius: 'var(--radius-xs)' }}>
-                  📌 PINNED
+                <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--warning-surface)', color: 'var(--warning)', padding: '1px 5px', borderRadius: 'var(--radius-xs)' }}>
+                  PINNED
                 </span>
               )}
               {isBookmarked && (
-                <span title="Bookmarked" style={{ color: '#EAB308', display: 'inline-flex', alignItems: 'center' }}>
-                  <Star size={12} fill="#EAB308" />
+                <span title="Bookmarked" style={{ color: 'var(--warning)', display: 'inline-flex', alignItems: 'center' }}>
+                  <Star size={11} fill="currentColor" />
                 </span>
               )}
               {message.isEdited && <span className="message-edited-tag">(edited)</span>}
@@ -283,7 +294,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
                     />
                   ) : (
                     <div className="attachment-file-box">
-                      <FileText size={28} style={{ color: 'var(--accent-light)' }} />
+                      <FileText size={24} style={{ color: 'var(--accent)' }} />
                       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                         <span className="truncate" style={{ fontSize: 13, fontWeight: 600 }}>{att.fileName}</span>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
@@ -296,7 +307,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, isGrouped, ch
                         className="icon-btn"
                         title="Download"
                       >
-                        <Download size={16} />
+                        <Download size={15} />
                       </a>
                     </div>
                   )}

@@ -4,7 +4,7 @@ import { useServer } from '../../app/providers/ServerContext';
 import { VideoGrid } from './VideoGrid';
 import { VideoControls } from './VideoControls';
 import { PreJoinModal } from './PreJoinModal';
-import { Users, Sparkles, ShieldCheck, AlertTriangle, RefreshCw, X, Volume2, Info } from 'lucide-react';
+import { Users, ShieldCheck, AlertTriangle, RefreshCw, X, Volume2, Info } from 'lucide-react';
 
 interface VideoRoomProps {
   onOpenSettings: () => void;
@@ -54,36 +54,37 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
             flexDirection: 'column',
             alignItems: 'center',
             gap: 16,
-            maxWidth: 440,
+            maxWidth: 420,
             textAlign: 'center',
             padding: 32,
             background: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
+            border: '1px solid var(--border-medium)',
             borderRadius: 'var(--radius-lg)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            boxShadow: 'var(--shadow-md)',
           }}
         >
           <div
             style={{
-              width: 72,
-              height: 72,
-              borderRadius: '50%',
-              background: 'rgba(99, 102, 241, 0.15)',
+              width: 56,
+              height: 56,
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--accent-soft)',
+              border: '1px solid var(--accent-border)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'var(--accent-light)',
+              color: 'var(--accent)',
             }}
           >
-            <Users size={36} />
+            <Users size={28} />
           </div>
 
           <div>
-            <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 6px 0' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 6px 0', color: 'var(--text-primary)' }}>
               {activeChannel.name}
             </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
-              Private small-group room optimized for 2–6 friends. Natural voice priority and resilient adaptive media.
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+              A calm space for voice, video, and screen sharing. Natural voice priority and high fidelity media.
             </p>
           </div>
 
@@ -91,28 +92,27 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
+              gap: 6,
               fontSize: 12,
               color: 'var(--status-online)',
-              fontWeight: 600,
+              fontWeight: 500,
             }}
           >
-            <ShieldCheck size={16} />
+            <ShieldCheck size={15} />
             <span>Low-latency peer media ready</span>
           </div>
 
           <button
             className="btn btn-primary"
             style={{
-              padding: '12px 32px',
-              fontSize: 15,
-              borderRadius: 'var(--radius-pill)',
-              marginTop: 6,
-              boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)',
+              padding: '10px 24px',
+              fontSize: 13,
+              borderRadius: 'var(--radius-sm)',
+              marginTop: 4,
             }}
             onClick={() => openPreJoin(activeChannel.id)}
           >
-            Connect to Voice & Video
+            Join Room
           </button>
         </div>
 
@@ -136,22 +136,21 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
           className="device-notification-toast"
           style={{
             position: 'absolute',
-            top: 54,
+            top: 50,
             right: 20,
             zIndex: 100,
-            background: 'rgba(15, 23, 42, 0.95)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
+            background: 'var(--bg-overlay)',
+            border: '1px solid var(--border-medium)',
             borderRadius: 'var(--radius-md)',
             padding: '10px 14px',
             display: 'flex',
             alignItems: 'center',
             gap: 10,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            boxShadow: 'var(--shadow-lg)',
             fontSize: 13,
           }}
         >
-          <Volume2 size={16} style={{ color: 'var(--accent-light)' }} />
+          <Volume2 size={15} style={{ color: 'var(--accent)' }} />
           <span>
             {deviceNotification.kind === 'audio' ? 'Microphone' : 'Camera'}{' '}
             {deviceNotification.action === 'disconnected'
@@ -161,10 +160,10 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
           <button
             type="button"
             className="icon-btn"
-            style={{ width: 22, height: 22, padding: 0 }}
+            style={{ width: 20, height: 20, padding: 0 }}
             onClick={dismissDeviceNotification}
           >
-            <X size={14} />
+            <X size={13} />
           </button>
         </div>
       )}
@@ -174,10 +173,10 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
         <div
           className="reconnection-banner"
           style={{
-            background: connectionState === 'failed' ? 'rgba(239, 68, 68, 0.9)' : 'rgba(234, 179, 8, 0.9)',
-            color: '#fff',
-            padding: '8px 16px',
-            fontSize: 13,
+            background: connectionState === 'failed' ? 'var(--danger)' : 'var(--warning)',
+            color: '#0A0C10',
+            padding: '6px 14px',
+            fontSize: 12,
             fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
@@ -185,7 +184,7 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
             gap: 8,
           }}
         >
-          <RefreshCw size={14} className={connectionState !== 'failed' ? 'spinning' : ''} />
+          <RefreshCw size={13} className={connectionState !== 'failed' ? 'spinning' : ''} />
           <span>{reconnectMessage}</span>
         </div>
       )}
@@ -196,27 +195,38 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
           className={`production-config-error-banner ${
             productionConfigError.startsWith('Notice:') ? 'banner-notice' : 'banner-error'
           }`}
+          style={{
+            margin: '8px 12px 0 12px',
+            padding: '8px 12px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--border-subtle)',
+            fontSize: 12,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}
         >
           {productionConfigError.startsWith('Notice:') ? (
-            <Info size={18} style={{ color: '#3b82f6', flexShrink: 0 }} />
+            <Info size={16} style={{ color: 'var(--sky)', flexShrink: 0 }} />
           ) : (
-            <AlertTriangle size={18} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+            <AlertTriangle size={16} style={{ color: 'var(--danger)', flexShrink: 0 }} />
           )}
           <div style={{ flex: 1 }}>
-            <strong style={{ display: 'block', color: '#fff' }}>
+            <span style={{ fontWeight: 600, marginRight: 6 }}>
               {productionConfigError.startsWith('Notice:')
-                ? 'Media Mode: Direct WebRTC Engine'
-                : 'Production SFU Configuration Required'}
-            </strong>
-            <span>{productionConfigError}</span>
+                ? 'Direct WebRTC Engine:'
+                : 'SFU Notice:'}
+            </span>
+            <span style={{ color: 'var(--text-secondary)' }}>{productionConfigError}</span>
           </div>
           {productionConfigError.startsWith('Notice:') && (
             <button
               onClick={handleDismissNotice}
-              className="production-config-dismiss-btn"
-              title="Dismiss notice"
+              className="icon-btn"
+              style={{ width: 20, height: 20 }}
+              title="Dismiss"
             >
-              <X size={16} />
+              <X size={14} />
             </button>
           )}
         </div>
@@ -224,14 +234,16 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
 
       {/* Top Unobtrusive Status Bar */}
       <div className="video-top-status-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontWeight: 700, fontSize: 14 }}>{activeChannel?.name || 'Voice Room'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
+            {activeChannel?.name || 'Voice Room'}
+          </span>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-            • {participants.length} {participants.length === 1 ? 'participant' : 'friends in call'}
+            • {participants.length} {participants.length === 1 ? 'person' : 'people'} in call
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div
             className={`connection-health-badge ${connectionState}`}
             title={`Status: ${connectionState.toUpperCase()}${connectionStats.rtt !== undefined ? ` | RTT: ${connectionStats.rtt}ms` : ''}`}
@@ -240,14 +252,10 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
             <span>
               {connectionState === 'connected'
                 ? connectionStats.quality === 'unknown'
-                  ? 'Measuring connection…'
-                  : connectionStats.rtt !== undefined
-                  ? `${connectionStats.quality.charAt(0).toUpperCase() + connectionStats.quality.slice(1)} (${connectionStats.rtt}ms)`
+                  ? 'Connected'
                   : `${connectionStats.quality.charAt(0).toUpperCase() + connectionStats.quality.slice(1)} connection`
                 : connectionState === 'reconnecting'
                 ? 'Reconnecting...'
-                : connectionState === 'degraded'
-                ? 'Degraded (Audio prioritized)'
                 : 'Connecting...'}
             </span>
           </div>

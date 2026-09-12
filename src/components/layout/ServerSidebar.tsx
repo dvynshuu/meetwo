@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Compass } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useServer } from '../../app/providers/ServerContext';
 
 interface ServerSidebarProps {
@@ -10,24 +10,25 @@ export const ServerSidebar: React.FC<ServerSidebarProps> = ({ onOpenCreateServer
   const { servers, activeServer, selectServer } = useServer();
 
   return (
-    <aside className="server-sidebar" aria-label="Servers sidebar">
-      {/* Home / Meetwo Brand Home */}
+    <aside className="server-sidebar" aria-label="Workspaces">
+      {/* Brand Anchor: meetwo mark */}
       <button
-        className={`server-item ${!activeServer ? 'active' : ''}`}
-        title="Meetwo Direct Messages & Communities"
+        className={`brand-anchor ${!activeServer ? 'active' : ''}`}
+        title="meetwo"
         onClick={() => {}}
+        aria-label="meetwo home"
       >
-        <div className="server-pill" />
+        <div className="server-indicator" />
         <img
           src="/favicon.svg"
-          alt="Meetwo Brand"
-          style={{ width: 28, height: 28, borderRadius: 'var(--radius-xs)' }}
+          alt="meetwo"
+          style={{ width: 24, height: 24, borderRadius: 'var(--radius-xs)' }}
         />
       </button>
 
       <div className="server-divider" />
 
-      {/* Server icons */}
+      {/* Workspace items */}
       {servers.map((server) => {
         const isActive = activeServer?.id === server.id;
         const initials = server.name
@@ -43,8 +44,9 @@ export const ServerSidebar: React.FC<ServerSidebarProps> = ({ onOpenCreateServer
             className={`server-item ${isActive ? 'active' : ''}`}
             onClick={() => selectServer(server.id)}
             title={server.name}
+            aria-label={server.name}
           >
-            <div className="server-pill" />
+            <div className="server-indicator" />
             {server.iconUrl ? (
               <img
                 src={server.iconUrl}
@@ -58,14 +60,14 @@ export const ServerSidebar: React.FC<ServerSidebarProps> = ({ onOpenCreateServer
         );
       })}
 
-      {/* Add Server Button */}
+      {/* Create Workspace Button */}
       <button
-        className="server-item"
+        className="create-server-btn"
         onClick={onOpenCreateServer}
-        title="Add a Server"
-        style={{ color: 'var(--status-online)', background: 'rgba(16, 185, 129, 0.1)' }}
+        title="Create Workspace"
+        aria-label="Create Workspace"
       >
-        <Plus size={22} />
+        <Plus size={16} />
       </button>
     </aside>
   );

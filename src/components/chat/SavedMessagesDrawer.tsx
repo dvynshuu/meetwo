@@ -55,7 +55,7 @@ export const SavedMessagesDrawer: React.FC<SavedMessagesDrawerProps> = ({
     <aside className="side-drawer" aria-label="Saved Messages Drawer">
       <div className="side-drawer-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Star size={18} style={{ color: '#EAB308', fill: '#EAB308' }} />
+          <Star size={18} style={{ color: 'var(--warning)', fill: 'var(--warning)' }} />
           <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Saved Messages</h3>
           <span className="side-drawer-badge">{bookmarks.length}</span>
         </div>

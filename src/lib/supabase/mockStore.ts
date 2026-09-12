@@ -42,7 +42,7 @@ export const SEED_USERS: User[] = [
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
     bio: 'Building next-gen real-time systems & WebRTC video.',
     status: 'online',
-    customStatus: { text: 'Building Meetwo V3 🚀', emoji: '💻' },
+    customStatus: { text: 'Building meetwo 🚀', emoji: '💻' },
     createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
   },
   {
@@ -247,7 +247,7 @@ export const SEED_MESSAGES: Message[] = [
     id: 'msg-1',
     channelId: 'chan-general',
     authorId: 'user-alex',
-    content: 'Welcome to Meetwo V3 everyone! The Next-Generation Realtime Platform is officially live with Stage Broadcasts, Forums, and Saved Bookmarks 🚀',
+    content: 'Welcome to meetwo everyone! The Next-Generation Realtime Platform is officially live with Stage Broadcasts, Forums, and Saved Bookmarks 🚀',
     createdAt: new Date(Date.now() - 3600000 * 3).toISOString(),
     reactions: [
       { emoji: '🚀', count: 3, userIds: ['user-divyanshu', 'user-sam', 'user-elena'] },
