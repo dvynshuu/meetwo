@@ -451,24 +451,24 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           },
         };
 
-        const isProduction =
-          (import.meta as any).env?.VITE_APP_ENV === 'production' ||
-          (import.meta as any).env?.PROD;
-
         let transport: ITransportAdapter;
         if (livekitUrl && livekitToken) {
           console.info('[MediaEngine] Initializing LiveKit SFU Transport (Primary Production Transport)');
+          setProductionConfigError(null);
           transport = new LiveKitSFUAdapter(livekitUrl, livekitToken, callbacks);
-        } else if (isProduction) {
-          const errMsg = !livekitUrl
-            ? 'LiveKit SFU endpoint is not configured for production (missing VITE_LIVEKIT_URL).'
-            : 'Failed to acquire secure LiveKit room access token for production.';
-          console.error(`[MediaEngine] Production configuration error: ${errMsg}`);
-          setProductionConfigError(errMsg);
-          setConnectionState('failed');
-          return;
         } else {
-          console.info('[MediaEngine] Initializing Enhanced Direct Media Engine (Development/Staging Fallback)');
+          // Graceful fallback to Enhanced Direct Media Engine (WebRTC Mesh)
+          if (livekitUrl && !livekitToken) {
+            console.warn(
+              '[MediaEngine] LiveKit URL configured but token unavailable. Gracefully falling back to Direct WebRTC Engine.'
+            );
+            setProductionConfigError(
+              'Notice: LiveKit SFU token unavailable. Connected via Direct WebRTC Engine.'
+            );
+          } else {
+            setProductionConfigError(null);
+          }
+          console.info('[MediaEngine] Initializing Enhanced Direct Media Engine (Direct WebRTC Mesh)');
           transport = new PeerConnectionManager(currentUser.id, callbacks);
         }
 

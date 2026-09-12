@@ -4,7 +4,7 @@ import { useServer } from '../../app/providers/ServerContext';
 import { VideoGrid } from './VideoGrid';
 import { VideoControls } from './VideoControls';
 import { PreJoinModal } from './PreJoinModal';
-import { Users, Sparkles, ShieldCheck, AlertTriangle, RefreshCw, X, Volume2 } from 'lucide-react';
+import { Users, Sparkles, ShieldCheck, AlertTriangle, RefreshCw, X, Volume2, Info } from 'lucide-react';
 
 interface VideoRoomProps {
   onOpenSettings: () => void;
@@ -27,6 +27,22 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
     dismissDeviceNotification,
   } = useMedia();
   const { activeChannel } = useServer();
+  const [isNoticeDismissed, setIsNoticeDismissed] = React.useState(() => {
+    try {
+      return Boolean(sessionStorage.getItem('meetwo_media_notice_dismissed'));
+    } catch {
+      return false;
+    }
+  });
+
+  const handleDismissNotice = () => {
+    setIsNoticeDismissed(true);
+    try {
+      sessionStorage.setItem('meetwo_media_notice_dismissed', '1');
+    } catch {
+      // Ignore in private browsing mode
+    }
+  };
 
   // If user navigated to a voice channel but hasn't joined yet
   if (!activeRoomId && activeChannel) {
@@ -174,28 +190,35 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
         </div>
       )}
 
-      {/* Production Configuration Error Banner */}
-      {productionConfigError && (
+      {/* Production Configuration / Media Mode Banner */}
+      {productionConfigError && !isNoticeDismissed && (
         <div
-          className="production-config-error-banner"
-          style={{
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid var(--danger)',
-            borderRadius: 'var(--radius-md)',
-            padding: '12px 16px',
-            margin: '12px 12px 0 12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            color: '#fca5a5',
-            fontSize: 13,
-          }}
+          className={`production-config-error-banner ${
+            productionConfigError.startsWith('Notice:') ? 'banner-notice' : 'banner-error'
+          }`}
         >
-          <AlertTriangle size={18} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+          {productionConfigError.startsWith('Notice:') ? (
+            <Info size={18} style={{ color: '#3b82f6', flexShrink: 0 }} />
+          ) : (
+            <AlertTriangle size={18} style={{ color: 'var(--danger)', flexShrink: 0 }} />
+          )}
           <div style={{ flex: 1 }}>
-            <strong style={{ display: 'block', color: '#fff' }}>Production SFU Configuration Required</strong>
+            <strong style={{ display: 'block', color: '#fff' }}>
+              {productionConfigError.startsWith('Notice:')
+                ? 'Media Mode: Direct WebRTC Engine'
+                : 'Production SFU Configuration Required'}
+            </strong>
             <span>{productionConfigError}</span>
           </div>
+          {productionConfigError.startsWith('Notice:') && (
+            <button
+              onClick={handleDismissNotice}
+              className="production-config-dismiss-btn"
+              title="Dismiss notice"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
       )}
 

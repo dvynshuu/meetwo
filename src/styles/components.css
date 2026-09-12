@@ -2205,5 +2205,43 @@
     background-color: transparent;
   }
 }
+/* Media Configuration & Mode Banners */
+.production-config-error-banner {
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  margin: 12px 12px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  transition: all var(--transition-fast);
+}
 
+.production-config-error-banner.banner-notice {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
+}
 
+.production-config-error-banner.banner-error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid var(--danger);
+  color: #fca5a5;
+}
+
+.production-config-dismiss-btn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  opacity: 0.8;
+  transition: opacity var(--transition-fast);
+}
+
+.production-config-dismiss-btn:hover {
+  opacity: 1;
+}
