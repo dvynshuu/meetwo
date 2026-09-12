@@ -1,0 +1,73 @@
+:root {
+  /* Core Palette - Deep Obsidian & Sleek Dark Mode */
+  --bg-app: #080A0F;
+  --bg-sidebar-servers: #0B0E14;
+  --bg-sidebar-channels: #10141D;
+  --bg-main: #141924;
+  --bg-surface: #19202E;
+  --bg-surface-hover: #222B3D;
+  --bg-surface-active: #29344A;
+  --bg-surface-glass: rgba(25, 32, 46, 0.7);
+
+  /* Accents */
+  --accent: #6366F1;
+  --accent-hover: #4F46E5;
+  --accent-light: #818CF8;
+  --accent-glow: rgba(99, 102, 241, 0.25);
+  --accent-gradient: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+  --accent-gradient-subtle: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
+
+  /* Status Colors */
+  --status-online: #10B981;
+  --status-idle: #F59E0B;
+  --status-dnd: #EF4444;
+  --status-offline: #64748B;
+  --danger: #F43F5E;
+  --danger-hover: #E11D48;
+  --danger-surface: rgba(244, 63, 94, 0.12);
+  --success: #10B981;
+  --warning: #F59E0B;
+
+  /* Typography Colors */
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #64748B;
+  --text-dim: #475569;
+  --text-on-accent: #FFFFFF;
+
+  /* Borders & Dividers */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-medium: rgba(255, 255, 255, 0.1);
+  --border-focus: rgba(99, 102, 241, 0.5);
+
+  /* Shadows & Elevations */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px 0 rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px -4px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 20px var(--accent-glow);
+  --shadow-speaking: 0 0 0 3px rgba(16, 185, 129, 0.5), 0 0 15px rgba(16, 185, 129, 0.3);
+
+  /* Border Radii */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-pill: 9999px;
+
+  /* Typography */
+  --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Animation Timings */
+  --transition-fast: 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-normal: 220ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Dimensions */
+  --server-sidebar-width: 72px;
+  --channel-sidebar-width: 240px;
+  --member-sidebar-width: 240px;
+  --topbar-height: 52px;
+  --userbar-height: 56px;
+}
