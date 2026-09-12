@@ -36,7 +36,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   onToggleCollapse,
 }) => {
   const { activeServer, channels, activeChannel, selectChannel } = useServer();
-  const { activeRoomId, participants, leaveVoiceRoom, joinVoiceRoom } = useMedia();
+  const { activeRoomId, participants, leaveVoiceRoom, joinVoiceRoom, openPreJoin } = useMedia();
 
   // Collapsed categories state (map of categoryId -> isCollapsed)
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
@@ -51,8 +51,8 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
 
   const handleChannelClick = (channel: Channel) => {
     selectChannel(channel.id);
-    if (channel.type === 'voice') {
-      joinVoiceRoom(channel.id);
+    if (channel.type === 'voice' && activeRoomId !== channel.id) {
+      openPreJoin(channel.id);
     }
   };
 

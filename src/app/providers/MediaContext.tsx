@@ -1,57 +1,115 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { Participant, MediaDeviceSettings, ConnectionQuality } from '../../types';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from 'react';
+import {
+  Participant,
+  MediaDeviceSettings,
+  ConnectionQuality,
+  ConnectionStats,
+  MediaLifecycleState,
+} from '../../types';
 import { MediaSession } from '../../lib/webrtc/mediaSession';
 import { PeerConnectionManager } from '../../lib/webrtc/peerConnection';
+import { LiveKitSFUAdapter, ITransportAdapter } from '../../lib/webrtc/transportAdapter';
 import { useAuth } from './AuthContext';
 
 interface MediaContextType {
   activeRoomId: string | null;
+  connectionState: MediaLifecycleState;
+  connectionStats: ConnectionStats;
   localStream: MediaStream | null;
+  screenStream: MediaStream | null;
   isAudioMuted: boolean;
   isVideoMuted: boolean;
   isScreenSharing: boolean;
   audioLevel: number;
+  isSpeaking: boolean;
   participants: Participant[];
   pinnedParticipantId: string | null;
   setPinnedParticipantId: (id: string | null) => void;
   deviceSettings: MediaDeviceSettings;
+  pendingRoomId: string | null;
+  isPreJoinOpen: boolean;
+  openPreJoin: (roomId: string) => void;
+  closePreJoin: () => void;
   joinVoiceRoom: (roomId: string) => Promise<void>;
   leaveVoiceRoom: () => Promise<void>;
   toggleAudio: () => void;
   toggleVideo: () => Promise<void>;
   toggleScreenShare: () => Promise<void>;
+  switchCamera: (deviceId: string) => Promise<void>;
+  switchMicrophone: (deviceId: string) => Promise<void>;
   updateSettings: (settings: Partial<MediaDeviceSettings>) => void;
+  raiseHand: () => Promise<void>;
+  lowerHand: () => Promise<void>;
+  setStageRole: (role: 'host' | 'speaker' | 'listener') => Promise<void>;
 }
 
 const MediaContext = createContext<MediaContextType | undefined>(undefined);
 
 export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAuth();
+
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [pendingRoomId, setPendingRoomId] = useState<string | null>(null);
+  const [isPreJoinOpen, setIsPreJoinOpen] = useState(false);
+
+  const [connectionState, setConnectionState] = useState<MediaLifecycleState>('idle');
+  const [connectionStats, setConnectionStats] = useState<ConnectionStats>({
+    rtt: 24,
+    packetLoss: 0,
+    jitter: 3,
+    bitrate: 1800,
+    audioCodec: 'Opus 48kHz (FEC)',
+    videoCodec: 'VP8/H.264 HD',
+    quality: 'excellent',
+  });
+
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isVideoMuted, setIsVideoMuted] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [pinnedParticipantId, setPinnedParticipantId] = useState<string | null>(null);
+
+  // Stage states for current user
+  const [myStageRole, setMyStageRole] = useState<'host' | 'speaker' | 'listener'>('host');
+  const [myHandRaised, setMyHandRaised] = useState(false);
+
   const [remoteParticipants, setRemoteParticipants] = useState<Map<string, Participant>>(new Map());
 
   const mediaSessionRef = useRef<MediaSession>(new MediaSession());
-  const peerManagerRef = useRef<PeerConnectionManager | null>(null);
+  const transportRef = useRef<ITransportAdapter | null>(null);
 
-  const [deviceSettings, setDeviceSettings] = useState<MediaDeviceSettings>({
-    audioInputId: '',
-    audioOutputId: '',
-    videoInputId: '',
-    videoQuality: '1080p',
-    echoCancellation: true,
-    noiseSuppression: true,
-  });
+  const [deviceSettings, setDeviceSettings] = useState<MediaDeviceSettings>(
+    mediaSessionRef.current.settings
+  );
 
-  // Wire audio level listener
+  // Bind AudioDSP listeners and hardware track change listeners
   useEffect(() => {
-    mediaSessionRef.current.onAudioLevel((level) => {
-      setAudioLevel(level);
+    mediaSessionRef.current.setEvents({
+      onAudioLevel: (level, speaking) => {
+        setAudioLevel(level);
+        setIsSpeaking(speaking);
+
+        if (transportRef.current) {
+          transportRef.current.sendSpeakingState(speaking, level).catch(() => {});
+        }
+      },
+      onTrackChanged: async (kind, track) => {
+        if (transportRef.current) {
+          if (kind === 'audio' || kind === 'video') {
+            await transportRef.current.replaceTrack(kind, track);
+          }
+        }
+      },
     });
 
     return () => {
@@ -59,24 +117,40 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, []);
 
+  const openPreJoin = useCallback((roomId: string) => {
+    setPendingRoomId(roomId);
+    setIsPreJoinOpen(true);
+  }, []);
+
+  const closePreJoin = useCallback(() => {
+    setIsPreJoinOpen(false);
+    setPendingRoomId(null);
+  }, []);
+
   const joinVoiceRoom = useCallback(
     async (roomId: string) => {
       if (!currentUser) return;
       if (activeRoomId === roomId) return;
 
-      // Leave existing room if any
+      // Close pre-join if it was open
+      setIsPreJoinOpen(false);
+      setPendingRoomId(null);
+
+      // Gracefully leave existing room
       if (activeRoomId) {
         await leaveVoiceRoom();
       }
 
       setActiveRoomId(roomId);
+      setConnectionState('initializing');
       setIsAudioMuted(false);
       setIsVideoMuted(false);
       setIsScreenSharing(false);
       setPinnedParticipantId(null);
+      setMyHandRaised(false);
 
       try {
-        // Start local media (camera & mic with 1080p fallback)
+        // 1. Initialize separated audio and video hardware tracks
         const stream = await mediaSessionRef.current.startLocalMedia(
           true,
           true,
@@ -84,8 +158,11 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         );
         setLocalStream(stream);
 
-        // Initialize Peer Manager
-        const peerManager = new PeerConnectionManager(currentUser.id, {
+        // 2. Select appropriate transport (LiveKit SFU or Direct Enhanced Engine)
+        const livekitUrl = (import.meta as any).env?.VITE_LIVEKIT_URL;
+        const livekitToken = (import.meta as any).env?.VITE_LIVEKIT_TOKEN;
+
+        const callbacks = {
           onRemoteStream: (peerId: string, remoteStream: MediaStream) => {
             setRemoteParticipants((prev) => {
               const next = new Map(prev);
@@ -93,14 +170,18 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               next.set(peerId, {
                 id: peerId,
                 userId: peerId,
-                username: existing?.username || `Peer ${peerId.slice(-4)}`,
+                username: existing?.username || `Friend ${peerId.slice(-4)}`,
                 displayName: existing?.displayName || `User ${peerId.slice(-4)}`,
+                avatarUrl: existing?.avatarUrl,
                 stream: remoteStream,
-                isAudioMuted: false,
-                isVideoMuted: false,
-                isScreenSharing: false,
-                isSpeaking: false,
-                connectionQuality: 'excellent',
+                isAudioMuted: existing?.isAudioMuted || false,
+                isVideoMuted: existing?.isVideoMuted || false,
+                isScreenSharing: existing?.isScreenSharing || false,
+                isSpeaking: existing?.isSpeaking || false,
+                stageRole: existing?.stageRole || 'speaker',
+                isHandRaised: existing?.isHandRaised || false,
+                audioLevel: existing?.audioLevel || 0,
+                connectionQuality: existing?.connectionQuality || 'excellent',
               });
               return next;
             });
@@ -113,108 +194,190 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
             setPinnedParticipantId((curr) => (curr === peerId ? null : curr));
           },
-          onConnectionQualityChanged: (peerId: string, quality: ConnectionQuality) => {
+          onPeerStateChanged: (peerId: string, state: any) => {
             setRemoteParticipants((prev) => {
               const next = new Map(prev);
               const target = next.get(peerId);
               if (target) {
-                next.set(peerId, { ...target, connectionQuality: quality });
+                next.set(peerId, { ...target, ...state });
               }
               return next;
             });
           },
-        });
+          onConnectionQualityChanged: (
+            peerId: string,
+            quality: ConnectionQuality,
+            stats?: ConnectionStats
+          ) => {
+            if (stats) {
+              setConnectionStats(stats);
+            }
+            setRemoteParticipants((prev) => {
+              const next = new Map(prev);
+              const target = next.get(peerId);
+              if (target) {
+                next.set(peerId, { ...target, connectionQuality: quality, stats });
+              }
+              return next;
+            });
+          },
+          onConnectionStateChanged: (state: MediaLifecycleState) => {
+            setConnectionState(state);
+          },
+        };
 
-        peerManagerRef.current = peerManager;
-        await peerManager.join(roomId, stream);
+        let transport: ITransportAdapter;
+        if (livekitUrl && livekitToken) {
+          console.info('[MediaEngine] Initializing LiveKit SFU Transport');
+          transport = new LiveKitSFUAdapter(livekitUrl, livekitToken, callbacks);
+        } else {
+          console.info('[MediaEngine] Initializing Enhanced Direct Media Engine (Opus FEC/DTX)');
+          transport = new PeerConnectionManager(currentUser.id, callbacks);
+        }
+
+        transportRef.current = transport;
+        await transport.join(roomId, stream);
       } catch (err) {
-        console.error('Failed to join voice room:', err);
+        console.error('[MediaEngine] Failed to connect to room:', err);
+        setConnectionState('failed');
       }
     },
     [activeRoomId, currentUser, deviceSettings.videoQuality]
   );
 
   const leaveVoiceRoom = useCallback(async () => {
-    if (peerManagerRef.current) {
-      await peerManagerRef.current.leave();
-      peerManagerRef.current = null;
+    if (transportRef.current) {
+      await transportRef.current.leave();
+      transportRef.current = null;
     }
 
     mediaSessionRef.current.stopLocalMedia();
     setLocalStream(null);
+    setScreenStream(null);
     setActiveRoomId(null);
+    setPendingRoomId(null);
+    setIsPreJoinOpen(false);
     setIsAudioMuted(false);
     setIsVideoMuted(false);
     setIsScreenSharing(false);
     setAudioLevel(0);
+    setIsSpeaking(false);
     setPinnedParticipantId(null);
+    setConnectionState('idle');
+    setMyHandRaised(false);
     setRemoteParticipants(new Map());
   }, []);
 
+  // In-call Track Muting
   const toggleAudio = useCallback(() => {
-    if (!localStream) return;
-    const audioTracks = localStream.getAudioTracks();
-    if (audioTracks.length > 0) {
-      const nextMuted = !isAudioMuted;
-      audioTracks.forEach((t) => (t.enabled = !nextMuted));
-      setIsAudioMuted(nextMuted);
+    const nextMuted = !isAudioMuted;
+    mediaSessionRef.current.setMicrophoneMute(nextMuted);
+    setIsAudioMuted(nextMuted);
+    if (transportRef.current) {
+      transportRef.current.sendMuteState(nextMuted, isVideoMuted).catch(() => {});
     }
-  }, [localStream, isAudioMuted]);
+  }, [isAudioMuted, isVideoMuted]);
 
   const toggleVideo = useCallback(async () => {
-    if (!localStream) return;
-    const videoTracks = localStream.getVideoTracks();
-    if (videoTracks.length > 0) {
-      const nextMuted = !isVideoMuted;
-      videoTracks.forEach((t) => (t.enabled = !nextMuted));
-      setIsVideoMuted(nextMuted);
+    const nextMuted = !isVideoMuted;
+    mediaSessionRef.current.setCameraMute(nextMuted);
+    setIsVideoMuted(nextMuted);
+    if (transportRef.current) {
+      transportRef.current.sendMuteState(isAudioMuted, nextMuted).catch(() => {});
     }
-  }, [localStream, isVideoMuted]);
+  }, [isAudioMuted, isVideoMuted]);
 
+  // In-call Seamless Device Switching (via RTCRtpSender.replaceTrack)
+  const switchCamera = useCallback(async (deviceId: string) => {
+    try {
+      const newTrack = await mediaSessionRef.current.switchCamera(deviceId);
+      setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
+      if (transportRef.current) {
+        await transportRef.current.replaceTrack('video', newTrack);
+      }
+    } catch (err) {
+      console.warn('[MediaEngine] switchCamera failed:', err);
+    }
+  }, []);
+
+  const switchMicrophone = useCallback(async (deviceId: string) => {
+    try {
+      const newTrack = await mediaSessionRef.current.switchMicrophone(deviceId);
+      setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
+      if (transportRef.current) {
+        await transportRef.current.replaceTrack('audio', newTrack);
+      }
+    } catch (err) {
+      console.warn('[MediaEngine] switchMicrophone failed:', err);
+    }
+  }, []);
+
+  // Screen Sharing (Independent presentation track)
   const toggleScreenShare = useCallback(async () => {
     if (isScreenSharing) {
-      // Revert back to camera
       mediaSessionRef.current.stopScreenShare();
-      const cameraStream = await mediaSessionRef.current.startLocalMedia(
-        !isAudioMuted,
-        !isVideoMuted,
-        deviceSettings.videoQuality
-      );
-      setLocalStream(cameraStream);
+      setScreenStream(null);
       setIsScreenSharing(false);
-      if (peerManagerRef.current) {
-        await peerManagerRef.current.updateLocalStream(cameraStream);
+      // Revert video track on sender to camera
+      const cameraTrack = mediaSessionRef.current.getCameraTrack();
+      if (transportRef.current) {
+        await transportRef.current.replaceTrack('video', cameraTrack);
       }
     } else {
-      // Start screen sharing
       try {
-        const screenStream = await mediaSessionRef.current.startScreenShare();
-        setLocalStream(screenStream);
+        const { videoTrack } = await mediaSessionRef.current.startScreenShare(true);
+        setScreenStream(mediaSessionRef.current.getScreenStream());
         setIsScreenSharing(true);
 
-        // When user stops sharing via native browser bar
-        screenStream.getVideoTracks()[0].onended = () => {
+        videoTrack.onended = () => {
           toggleScreenShare();
         };
 
-        if (peerManagerRef.current) {
-          await peerManagerRef.current.updateLocalStream(screenStream);
+        if (transportRef.current) {
+          await transportRef.current.replaceTrack('video', videoTrack);
         }
       } catch (err) {
-        console.warn('Screen share canceled or denied:', err);
+        console.warn('[MediaEngine] Screen share cancelled:', err);
       }
     }
-  }, [isScreenSharing, isAudioMuted, isVideoMuted, deviceSettings.videoQuality]);
+  }, [isScreenSharing]);
 
+  // Stage Hand-Raising
+  const raiseHand = useCallback(async () => {
+    setMyHandRaised(true);
+    if (transportRef.current) {
+      await transportRef.current.sendStageRole(myStageRole, true);
+    }
+  }, [myStageRole]);
+
+  const lowerHand = useCallback(async () => {
+    setMyHandRaised(false);
+    if (transportRef.current) {
+      await transportRef.current.sendStageRole(myStageRole, false);
+    }
+  }, [myStageRole]);
+
+  const setStageRole = useCallback(async (role: 'host' | 'speaker' | 'listener') => {
+    setMyStageRole(role);
+    if (transportRef.current) {
+      await transportRef.current.sendStageRole(role, myHandRaised);
+    }
+  }, [myHandRaised]);
+
+  // Device settings update
   const updateSettings = useCallback((newSettings: Partial<MediaDeviceSettings>) => {
     setDeviceSettings((prev) => {
       const updated = { ...prev, ...newSettings };
       mediaSessionRef.current.settings = updated;
+      if (newSettings.inputVolume !== undefined) {
+        mediaSessionRef.current.setInputVolume(newSettings.inputVolume);
+      }
+      mediaSessionRef.current.savePreferences();
       return updated;
     });
   }, []);
 
-  // Compute local participant and merge with remote participants
+  // Combine local participant with remote participants
   const participants: Participant[] = [];
   if (currentUser && activeRoomId) {
     participants.push({
@@ -227,12 +390,17 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       isAudioMuted,
       isVideoMuted,
       isScreenSharing,
-      isSpeaking: audioLevel > 15 && !isAudioMuted,
+      isSpeaking,
+      stageRole: myStageRole,
+      isStageSpeaker: myStageRole === 'host' || myStageRole === 'speaker',
+      isHandRaised: myHandRaised,
       audioLevel,
-      connectionQuality: 'excellent',
+      connectionQuality: connectionStats.quality,
+      stats: connectionStats,
       isPinned: pinnedParticipantId === currentUser.id,
     });
   }
+
   remoteParticipants.forEach((p) => {
     participants.push({
       ...p,
@@ -244,21 +412,34 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <MediaContext.Provider
       value={{
         activeRoomId,
+        connectionState,
+        connectionStats,
         localStream,
+        screenStream,
         isAudioMuted,
         isVideoMuted,
         isScreenSharing,
         audioLevel,
+        isSpeaking,
         participants,
         pinnedParticipantId,
         setPinnedParticipantId,
         deviceSettings,
+        pendingRoomId,
+        isPreJoinOpen,
+        openPreJoin,
+        closePreJoin,
         joinVoiceRoom,
         leaveVoiceRoom,
         toggleAudio,
         toggleVideo,
         toggleScreenShare,
+        switchCamera,
+        switchMicrophone,
         updateSettings,
+        raiseHand,
+        lowerHand,
+        setStageRole,
       }}
     >
       {children}

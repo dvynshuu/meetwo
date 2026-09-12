@@ -12,9 +12,11 @@ export const VideoGrid: React.FC<VideoGridProps> = ({ participants }) => {
   const { currentUser } = useAuth();
   const { pinnedParticipantId } = useMedia();
 
-  // Find featured participant (screen sharing or manually pinned)
+  // 1. Identify featured participant: Screen sharer prioritized, then pinned, then active speaker
   const screenSharer = participants.find((p) => p.isScreenSharing);
   const pinnedParticipant = participants.find((p) => p.id === pinnedParticipantId);
+
+  // If there's a screen sharer or a pinned participant, switch to presentation stage mode
   const featured = screenSharer || pinnedParticipant;
 
   if (featured && participants.length > 1) {
@@ -22,7 +24,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({ participants }) => {
 
     return (
       <div className="video-stage-container" id="video-grid">
-        {/* Main Stage */}
+        {/* Main Presentation Stage */}
         <div className="video-stage-viewport">
           <VideoTile
             participant={featured}
@@ -31,7 +33,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({ participants }) => {
           />
         </div>
 
-        {/* Participant Strip Below */}
+        {/* Secondary Participant Strip */}
         <div className="video-stage-strip">
           {stripParticipants.map((p) => (
             <div key={p.id} className="video-stage-strip-item">
@@ -47,12 +49,19 @@ export const VideoGrid: React.FC<VideoGridProps> = ({ participants }) => {
     );
   }
 
-  // Standard Balanced Grid
+  // 2. Intelligent Adaptive Grid for 1–6 Participants
   const count = participants.length;
   let layoutClass = 'layout-1';
-  if (count === 2) layoutClass = 'layout-2';
-  else if (count >= 3 && count <= 4) layoutClass = 'layout-4';
-  else if (count > 4) layoutClass = 'layout-6';
+
+  if (count === 2) {
+    layoutClass = 'layout-2';
+  } else if (count === 3) {
+    layoutClass = 'layout-3'; // 2 top, 1 centered bottom
+  } else if (count === 4) {
+    layoutClass = 'layout-4'; // 2x2
+  } else if (count >= 5) {
+    layoutClass = 'layout-6'; // 3x2 balanced
+  }
 
   return (
     <div className={`video-grid ${layoutClass}`} id="video-grid">

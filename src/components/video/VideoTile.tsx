@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { MicOff, VideoOff, Monitor, Pin, PinOff, Maximize2, PictureInPicture } from 'lucide-react';
+import { MicOff, VideoOff, Monitor, Pin, PinOff, Maximize2, PictureInPicture, Activity } from 'lucide-react';
 import { Participant } from '../../types';
 import { Avatar } from '../ui/Avatar';
 import { useMedia } from '../../app/providers/MediaContext';
@@ -12,18 +12,34 @@ interface VideoTileProps {
 
 export const VideoTile: React.FC<VideoTileProps> = ({ participant, isLocal, isFeatured = false }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { pinnedParticipantId, setPinnedParticipantId } = useMedia();
+  const { pinnedParticipantId, setPinnedParticipantId, deviceSettings } = useMedia();
 
+  // Attach stream to video element safely and efficiently
   useEffect(() => {
-    if (videoRef.current && participant.stream) {
-      videoRef.current.srcObject = participant.stream;
+    const videoEl = videoRef.current;
+    if (!videoEl) return;
+
+    if (participant.stream) {
+      if (videoEl.srcObject !== participant.stream) {
+        videoEl.srcObject = participant.stream;
+      }
+    } else {
+      videoEl.srcObject = null;
     }
   }, [participant.stream]);
 
+  // Audio sink routing for remote participants
+  useEffect(() => {
+    const videoEl = videoRef.current;
+    if (videoEl && !isLocal && deviceSettings.audioOutputId && typeof (videoEl as any).setSinkId === 'function') {
+      (videoEl as any).setSinkId(deviceSettings.audioOutputId).catch(() => {});
+    }
+  }, [deviceSettings.audioOutputId, isLocal]);
+
   const hasVideoTrack =
-    participant.stream &&
-    participant.stream.getVideoTracks().length > 0 &&
-    participant.stream.getVideoTracks()[0].enabled &&
+    Boolean(participant.stream) &&
+    participant.stream!.getVideoTracks().length > 0 &&
+    participant.stream!.getVideoTracks()[0].enabled &&
     !participant.isVideoMuted;
 
   const isPinned = pinnedParticipantId === participant.id;
@@ -34,10 +50,14 @@ export const VideoTile: React.FC<VideoTileProps> = ({ participant, isLocal, isFe
 
   const handlePiP = async () => {
     if (videoRef.current && document.pictureInPictureEnabled) {
-      if (document.pictureInPictureElement) {
-        await document.exitPictureInPicture();
-      } else {
-        await videoRef.current.requestPictureInPicture();
+      try {
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+        } else {
+          await videoRef.current.requestPictureInPicture();
+        }
+      } catch (err) {
+        console.warn('[VideoTile] PiP request failed:', err);
       }
     }
   };
@@ -57,15 +77,23 @@ export const VideoTile: React.FC<VideoTileProps> = ({ participant, isLocal, isFe
     participant.connectionQuality === 'excellent'
       ? 'var(--status-online)'
       : participant.connectionQuality === 'good'
+      ? '#38bdf8'
+      : participant.connectionQuality === 'fair'
       ? 'var(--status-idle)'
       : 'var(--status-dnd)';
 
+  const statsTooltip = participant.stats
+    ? `Quality: ${participant.connectionQuality?.toUpperCase()} | RTT: ${participant.stats.rtt}ms | Loss: ${participant.stats.packetLoss}% | Bitrate: ${participant.stats.bitrate}kbps`
+    : `Quality: ${participant.connectionQuality || 'Good'}`;
+
   return (
     <div
-      className={`video-tile ${participant.isSpeaking ? 'is-speaking' : ''} ${isFeatured ? 'video-tile-featured' : ''}`}
+      className={`video-tile ${participant.isSpeaking ? 'is-speaking' : ''} ${
+        isFeatured ? 'video-tile-featured' : ''
+      }`}
       id={`video-tile-${participant.id}`}
     >
-      {/* Tile Hover Quick Actions */}
+      {/* Quick Action Overlay Buttons */}
       <div className="video-tile-quick-actions">
         <button
           className={`action-pill-btn ${isPinned ? 'active-pin' : ''}`}
@@ -76,7 +104,7 @@ export const VideoTile: React.FC<VideoTileProps> = ({ participant, isLocal, isFe
         </button>
 
         {hasVideoTrack && document.pictureInPictureEnabled && (
-          <button className="action-pill-btn" onClick={handlePiP} title="Picture in Picture">
+          <button className="action-pill-btn" onClick={handlePiP} title="Picture-in-Picture">
             <PictureInPicture size={14} />
           </button>
         )}
@@ -86,17 +114,15 @@ export const VideoTile: React.FC<VideoTileProps> = ({ participant, isLocal, isFe
         </button>
       </div>
 
-      {/* Video Element */}
-      {participant.stream && (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted={isLocal}
-          className={`video-element ${participant.isScreenSharing ? 'video-tile-screen' : ''}`}
-          style={{ display: hasVideoTrack ? 'block' : 'none' }}
-        />
-      )}
+      {/* Video Element: stays mounted to prevent video element tearing */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted={isLocal}
+        className={`video-element ${participant.isScreenSharing ? 'video-tile-screen' : ''}`}
+        style={{ display: hasVideoTrack ? 'block' : 'none' }}
+      />
 
       {/* Avatar Placeholder when video is off */}
       {!hasVideoTrack && (
@@ -104,7 +130,7 @@ export const VideoTile: React.FC<VideoTileProps> = ({ participant, isLocal, isFe
           <Avatar
             src={participant.avatarUrl}
             name={participant.displayName || participant.username}
-            size={isFeatured ? 120 : 80}
+            size={isFeatured ? 110 : 72}
             status={participant.isSpeaking ? 'online' : undefined}
             showStatus={false}
           />
@@ -114,24 +140,29 @@ export const VideoTile: React.FC<VideoTileProps> = ({ participant, isLocal, isFe
         </div>
       )}
 
-      {/* Overlay: User Tag, Status Badges & Connection Quality */}
+      {/* Tile Overlay: User Tag, Health Status & Audio/Video Badges */}
       <div className="video-tile-overlay">
-        <div className="video-tile-user-tag">
-          {/* Real Connection Quality Dot */}
+        <div className="video-tile-user-tag" title={statsTooltip}>
           <span
             className="connection-quality-dot"
             style={{ backgroundColor: qualityColor }}
-            title={`Connection: ${participant.connectionQuality || 'Good'}`}
           />
-          {participant.isScreenSharing && <Monitor size={14} style={{ color: 'var(--accent-light)' }} />}
+          {participant.isScreenSharing && (
+            <Monitor size={14} style={{ color: 'var(--accent-light)' }} />
+          )}
           <span>
             {participant.displayName || participant.username} {isLocal && '(You)'}
           </span>
+          {participant.stats?.rtt && (
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', marginLeft: 4 }}>
+              {participant.stats.rtt}ms
+            </span>
+          )}
         </div>
 
         <div className="video-tile-badges">
           {participant.isAudioMuted && (
-            <div className="badge-icon muted" title="Muted">
+            <div className="badge-icon muted" title="Microphone Muted">
               <MicOff size={14} />
             </div>
           )}

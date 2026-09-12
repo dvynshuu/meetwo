@@ -157,18 +157,44 @@ export interface TypingUser {
   timestamp: number;
 }
 
-export type VideoQuality = '1080p' | '720p' | '480p';
+export type VideoQuality = '1080p' | '720p' | '480p' | '360p';
+export type QualityMode = 'auto' | 'high' | 'balanced' | 'low_bandwidth';
+
+export type MediaLifecycleState =
+  | 'idle'
+  | 'initializing'
+  | 'connecting'
+  | 'connected'
+  | 'degraded'
+  | 'reconnecting'
+  | 'failed';
+
+export interface ConnectionStats {
+  rtt: number; // ms
+  packetLoss: number; // %
+  jitter: number; // ms
+  bitrate: number; // kbps
+  frameDropRate?: number; // %
+  resolution?: string;
+  audioCodec?: string;
+  videoCodec?: string;
+  quality: ConnectionQuality;
+}
 
 export interface MediaDeviceSettings {
   audioInputId: string;
   audioOutputId: string;
   videoInputId: string;
   videoQuality: VideoQuality;
+  qualityMode: QualityMode;
   echoCancellation: boolean;
   noiseSuppression: boolean;
+  autoGainControl: boolean;
+  inputVolume: number; // 0 to 100
+  outputVolume: number; // 0 to 100
 }
 
-export type ConnectionQuality = 'excellent' | 'good' | 'poor' | 'reconnecting';
+export type ConnectionQuality = 'excellent' | 'good' | 'fair' | 'poor' | 'reconnecting';
 
 export interface Participant {
   id: string; // Peer or Session ID
@@ -181,14 +207,27 @@ export interface Participant {
   isVideoMuted: boolean;
   isScreenSharing: boolean;
   isSpeaking: boolean;
+  stageRole?: 'host' | 'speaker' | 'listener';
   isStageSpeaker?: boolean;
+  isHandRaised?: boolean;
   audioLevel?: number; // 0 to 100
   connectionQuality?: ConnectionQuality;
+  stats?: ConnectionStats;
   isPinned?: boolean;
 }
 
 export interface PeerSignalMessage {
-  type: 'offer' | 'answer' | 'ice-candidate' | 'join-room' | 'leave-room' | 'mute-state' | 'hand-raise';
+  type:
+    | 'offer'
+    | 'answer'
+    | 'ice-candidate'
+    | 'join-room'
+    | 'leave-room'
+    | 'mute-state'
+    | 'speaking-state'
+    | 'hand-raise'
+    | 'stage-role'
+    | 'track-update';
   fromPeerId: string;
   toPeerId?: string;
   roomId: string;

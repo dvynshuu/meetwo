@@ -5,10 +5,11 @@ import { Button } from '../ui/Button';
 import { useAuth } from '../../app/providers/AuthContext';
 import { useMedia } from '../../app/providers/MediaContext';
 import { MediaSession } from '../../lib/webrtc/mediaSession';
+import { playSpeakerTestChime } from '../../lib/webrtc/audioProcessing';
 import { SEED_USERS } from '../../lib/supabase/mockStore';
 import { Avatar } from '../ui/Avatar';
-import { User, Volume2, Video, Sliders, Bell } from 'lucide-react';
-import { VideoQuality } from '../../types';
+import { User, Volume2, Video, Sliders, Bell, Sparkles, CheckCircle2 } from 'lucide-react';
+import { VideoQuality, QualityMode } from '../../types';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -17,7 +18,14 @@ interface SettingsModalProps {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { currentUser, updateProfile, switchDemoUser, isDemoMode } = useAuth();
-  const { deviceSettings, updateSettings, audioLevel } = useMedia();
+  const {
+    deviceSettings,
+    updateSettings,
+    audioLevel,
+    connectionStats,
+    switchCamera,
+    switchMicrophone,
+  } = useMedia();
 
   const [activeTab, setActiveTab] = useState<'account' | 'voice_video' | 'appearance' | 'notifications'>('account');
 
@@ -30,8 +38,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   // Audio/Video State
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+  const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
   const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
   const [testVideoActive, setTestVideoActive] = useState(false);
+  const [isChimePlaying, setIsChimePlaying] = useState(false);
   const testVideoRef = useRef<HTMLVideoElement>(null);
   const testStreamRef = useRef<MediaStream | null>(null);
 
@@ -49,6 +59,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     if (isOpen && activeTab === 'voice_video') {
       MediaSession.getAvailableDevices().then((devs) => {
         setAudioInputs(devs.audioInputs);
+        setAudioOutputs(devs.audioOutputs);
         setVideoInputs(devs.videoInputs);
       });
     }
@@ -280,140 +291,318 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </form>
           )}
 
-          {/* TAB 2: Voice & Video */}
+          {/* TAB 2: Voice & Video (Meetwo V3 Quality-First) */}
           {activeTab === 'voice_video' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              {/* Quality Settings */}
-              <div className="input-group">
-                <label className="input-label">Target Video Quality</label>
-                <select
-                  className="input-field"
-                  value={deviceSettings.videoQuality}
-                  onChange={(e) => updateSettings({ videoQuality: e.target.value as VideoQuality })}
-                >
-                  <option value="1080p">1080p Full HD (1920x1080 @ 30fps) - Recommended</option>
-                  <option value="720p">720p HD (1280x720 @ 30fps)</option>
-                  <option value="480p">480p SD (640x480 @ 30fps)</option>
-                </select>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  Meetwo gracefully falls back if hardware or connection limits resolution.
-                </span>
-              </div>
-
-              {/* Microphone Selection */}
-              <div className="input-group">
-                <label className="input-label">Input Device (Microphone)</label>
-                <select
-                  className="input-field"
-                  value={deviceSettings.audioInputId}
-                  onChange={(e) => updateSettings({ audioInputId: e.target.value })}
-                >
-                  <option value="">Default Microphone</option>
-                  {audioInputs.map((d) => (
-                    <option key={d.deviceId} value={d.deviceId}>
-                      {d.label || `Microphone (${d.deviceId.slice(0, 6)})`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Web Audio Diagnostic Suite */}
-              <div style={{ padding: '12px 14px', background: 'var(--bg-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Sliders size={16} style={{ color: 'var(--accent-light)' }} />
-                    <span style={{ fontSize: 13, fontWeight: 700 }}>Web Audio Diagnostic Suite</span>
-                  </div>
-                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 'var(--radius-pill)', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--status-online)', fontWeight: 600 }}>
-                    DSP Active
-                  </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Quality Preset & Mode */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="input-group" style={{ margin: 0 }}>
+                  <label className="input-label">Target Video Quality</label>
+                  <select
+                    className="input-field"
+                    value={deviceSettings.videoQuality}
+                    onChange={(e) => updateSettings({ videoQuality: e.target.value as VideoQuality })}
+                  >
+                    <option value="1080p">1080p Full HD (1920x1080 @ 30fps)</option>
+                    <option value="720p">720p HD (1280x720 @ 30fps)</option>
+                    <option value="480p">480p SD (640x480 @ 30fps)</option>
+                  </select>
                 </div>
 
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      try {
-                        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-                        if (!AudioContextClass) return;
-                        const ctx = new AudioContextClass();
-                        const osc = ctx.createOscillator();
-                        const gain = ctx.createGain();
-                        osc.type = 'sine';
-                        osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-                        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
-                        gain.gain.setValueAtTime(0.2, ctx.currentTime);
-                        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-                        osc.connect(gain);
-                        gain.connect(ctx.destination);
-                        osc.start();
-                        osc.stop(ctx.currentTime + 0.45);
-                      } catch (err) {
-                        console.warn('Audio test failed:', err);
-                      }
+                <div className="input-group" style={{ margin: 0 }}>
+                  <label className="input-label">Quality Mode</label>
+                  <select
+                    className="input-field"
+                    value={deviceSettings.qualityMode}
+                    onChange={(e) => updateSettings({ qualityMode: e.target.value as QualityMode })}
+                  >
+                    <option value="auto">Auto (Best Dynamic Adaptation)</option>
+                    <option value="high">High Quality (Prioritize 1080p)</option>
+                    <option value="balanced">Balanced (Stable Bandwidth)</option>
+                    <option value="low_bandwidth">Low Bandwidth (Audio First)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Hardware Selection: Mic & Speaker */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {/* Microphone Selection */}
+                <div className="input-group" style={{ margin: 0 }}>
+                  <label className="input-label">Input Device (Microphone)</label>
+                  <select
+                    className="input-field"
+                    value={deviceSettings.audioInputId}
+                    onChange={(e) => {
+                      updateSettings({ audioInputId: e.target.value });
+                      switchMicrophone(e.target.value);
                     }}
                   >
-                    <Volume2 size={14} />
-                    <span>Test Audio Chime</span>
-                  </Button>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
-                    <span>Verifies browser output device & stereo panning</span>
-                  </div>
+                    <option value="">Default Microphone</option>
+                    {audioInputs.map((d) => (
+                      <option key={d.deviceId} value={d.deviceId}>
+                        {d.label || `Microphone (${d.deviceId.slice(0, 6)})`}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                {/* Diagnostics matrix */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 4 }}>
-                  <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>LATENCY (RTT)</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--status-online)' }}>~24 ms</div>
-                  </div>
-                  <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>PACKET LOSS</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--status-online)' }}>0.0 %</div>
-                  </div>
-                  <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>AUDIO CODEC</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-light)' }}>Opus 48kHz</div>
-                  </div>
+                {/* Speaker Output Selection */}
+                <div className="input-group" style={{ margin: 0 }}>
+                  <label className="input-label">Output Device (Speakers / Headphones)</label>
+                  <select
+                    className="input-field"
+                    value={deviceSettings.audioOutputId}
+                    onChange={(e) => updateSettings({ audioOutputId: e.target.value })}
+                  >
+                    <option value="">Default Speakers / Headphones</option>
+                    {audioOutputs.map((d) => (
+                      <option key={d.deviceId} value={d.deviceId}>
+                        {d.label || `Speaker (${d.deviceId.slice(0, 6)})`}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              {/* Mic Test Bar */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Mic Volume Activity</span>
-                  <span style={{ fontWeight: 600, color: 'var(--status-online)' }}>{audioLevel}%</span>
+              {/* Volume Sliders Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                {/* Input Volume */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Input Volume (Gain)</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {deviceSettings.inputVolume || 100}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="200"
+                    value={deviceSettings.inputVolume || 100}
+                    onChange={(e) => updateSettings({ inputVolume: parseInt(e.target.value, 10) })}
+                    style={{ width: '100%', accentColor: 'var(--accent)' }}
+                  />
                 </div>
-                <div
-                  style={{
-                    height: 10,
-                    width: '100%',
-                    background: 'var(--bg-surface-active)',
-                    borderRadius: 'var(--radius-pill)',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div
-                    style={{
-                      height: '100%',
-                      width: `${audioLevel}%`,
-                      background: audioLevel > 50 ? 'var(--status-idle)' : 'var(--status-online)',
-                      transition: 'width 100ms ease',
-                    }}
+
+                {/* Output Volume */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Output Volume</span>
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {deviceSettings.outputVolume || 100}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={deviceSettings.outputVolume || 100}
+                    onChange={(e) => updateSettings({ outputVolume: parseInt(e.target.value, 10) })}
+                    style={{ width: '100%', accentColor: 'var(--accent)' }}
                   />
                 </div>
               </div>
 
-              {/* Camera Selection */}
+              {/* Live Mic Activity & Speaker Chime Test */}
+              <div
+                style={{
+                  padding: '12px 14px',
+                  background: 'var(--bg-surface)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Sliders size={16} style={{ color: 'var(--accent-light)' }} />
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>Audio Hardware Test</span>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={async () => {
+                      setIsChimePlaying(true);
+                      await playSpeakerTestChime(deviceSettings.audioOutputId, deviceSettings.outputVolume);
+                      setIsChimePlaying(false);
+                    }}
+                    disabled={isChimePlaying}
+                  >
+                    <Volume2 size={14} />
+                    <span>{isChimePlaying ? 'Playing chime...' : 'Test Speaker Chime'}</span>
+                  </Button>
+                </div>
+
+                {/* Mic Volume Activity Meter */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Live Mic Volume Activity</span>
+                    <span style={{ fontWeight: 600, color: audioLevel > 15 ? 'var(--status-online)' : 'var(--text-muted)' }}>
+                      {audioLevel}%
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      height: 8,
+                      width: '100%',
+                      background: 'var(--bg-surface-active)',
+                      borderRadius: 'var(--radius-pill)',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: '100%',
+                        width: `${audioLevel}%`,
+                        background: audioLevel > 50 ? 'var(--status-idle)' : 'var(--status-online)',
+                        transition: 'width 80ms ease',
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Audio Processing DSP Toggles */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <span className="input-label" style={{ marginBottom: 2 }}>Voice Processing</span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      padding: '8px 10px',
+                      background: 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={deviceSettings.echoCancellation}
+                      onChange={(e) => updateSettings({ echoCancellation: e.target.checked })}
+                    />
+                    <span>Echo Cancellation</span>
+                  </label>
+
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      padding: '8px 10px',
+                      background: 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={deviceSettings.noiseSuppression}
+                      onChange={(e) => updateSettings({ noiseSuppression: e.target.checked })}
+                    />
+                    <span>Noise Suppression</span>
+                  </label>
+
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      padding: '8px 10px',
+                      background: 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={deviceSettings.autoGainControl}
+                      onChange={(e) => updateSettings({ autoGainControl: e.target.checked })}
+                    />
+                    <span>Auto Gain Control</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Real Active WebRTC Telemetry */}
+              <div
+                style={{
+                  padding: '12px 14px',
+                  background: 'var(--bg-surface)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                    LIVE WEBRTC TELEMETRY
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      padding: '2px 8px',
+                      borderRadius: 'var(--radius-pill)',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      color: 'var(--status-online)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {connectionStats.quality.toUpperCase()}
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>LATENCY (RTT)</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--status-online)' }}>
+                      {connectionStats.rtt} ms
+                    </div>
+                  </div>
+                  <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>PACKET LOSS</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--status-online)' }}>
+                      {connectionStats.packetLoss}%
+                    </div>
+                  </div>
+                  <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>JITTER</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--status-online)' }}>
+                      {connectionStats.jitter} ms
+                    </div>
+                  </div>
+                  <div style={{ background: 'var(--bg-surface-active)', padding: '8px 10px', borderRadius: 'var(--radius-xs)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>BITRATE</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-light)' }}>
+                      {connectionStats.bitrate} kbps
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Camera Selection & Preview */}
               <div className="input-group">
                 <label className="input-label">Video Device (Camera)</label>
                 <select
                   className="input-field"
                   value={deviceSettings.videoInputId}
-                  onChange={(e) => updateSettings({ videoInputId: e.target.value })}
+                  onChange={(e) => {
+                    updateSettings({ videoInputId: e.target.value });
+                    switchCamera(e.target.value);
+                  }}
                 >
                   <option value="">Default Camera</option>
                   {videoInputs.map((d) => (

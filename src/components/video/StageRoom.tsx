@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useMedia } from '../../app/providers/MediaContext';
 import { useServer } from '../../app/providers/ServerContext';
 import { useAuth } from '../../app/providers/AuthContext';
@@ -6,7 +6,7 @@ import { Avatar } from '../ui/Avatar';
 import {
   Mic,
   MicOff,
-  Video,
+  Video as VideoIcon,
   VideoOff,
   Hand,
   PhoneOff,
@@ -17,155 +17,103 @@ import {
   ShieldCheck,
   CheckCircle2,
   XCircle,
-  Volume2,
 } from 'lucide-react';
 
 interface StageRoomProps {
   onOpenSettings: () => void;
 }
 
-interface StageUser {
-  id: string;
-  name: string;
-  avatarUrl: string;
-  role: 'host' | 'speaker' | 'listener';
-  isSpeaking: boolean;
-  audioLevel: number;
-  isMuted: boolean;
-  isHandRaised?: boolean;
-}
-
 export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
   const { activeChannel } = useServer();
   const { currentUser } = useAuth();
   const {
+    participants,
+    activeRoomId,
+    joinVoiceRoom,
+    leaveVoiceRoom,
     isAudioMuted,
     isVideoMuted,
     isScreenSharing,
     audioLevel,
+    localStream,
     toggleAudio,
     toggleVideo,
     toggleScreenShare,
-    localStream,
+    raiseHand,
+    lowerHand,
+    setStageRole,
   } = useMedia();
 
-  // Local stage state
-  const [isSpeaker, setIsSpeaker] = useState(true); // Current user starts as host/speaker for demo
-  const [isHandRaised, setIsHandRaised] = useState(false);
   const [showHandQueue, setShowHandQueue] = useState(false);
 
-  // Simulated co-speakers & audience
-  const [speakers, setSpeakers] = useState<StageUser[]>([
-    {
-      id: 'speaker-elena',
-      name: 'Elena Rostova',
-      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-      role: 'speaker',
-      isSpeaking: true,
-      audioLevel: 68,
-      isMuted: false,
-    },
-  ]);
+  // If not joined to this stage channel yet
+  if (!activeRoomId && activeChannel) {
+    return (
+      <div className="video-room-container" style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 16,
+            maxWidth: 440,
+            textAlign: 'center',
+            padding: 32,
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          }}
+        >
+          <div
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: '50%',
+              background: 'rgba(99, 102, 241, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--accent-light)',
+            }}
+          >
+            <Radio size={36} />
+          </div>
 
-  const [audience, setAudience] = useState<StageUser[]>([
-    {
-      id: 'user-sam',
-      name: 'Sam Chen',
-      avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
-      role: 'listener',
-      isSpeaking: false,
-      audioLevel: 0,
-      isMuted: true,
-      isHandRaised: true,
-    },
-    {
-      id: 'user-alex',
-      name: 'Alex Rivera',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-      role: 'listener',
-      isSpeaking: false,
-      audioLevel: 0,
-      isMuted: true,
-      isHandRaised: false,
-    },
-    {
-      id: 'user-marcus',
-      name: 'Marcus Vance',
-      avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-      role: 'listener',
-      isSpeaking: false,
-      audioLevel: 0,
-      isMuted: true,
-      isHandRaised: false,
-    },
-    {
-      id: 'user-zoe',
-      name: 'Zoe Kim',
-      avatarUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&auto=format&fit=crop&q=80',
-      role: 'listener',
-      isSpeaking: false,
-      audioLevel: 0,
-      isMuted: true,
-      isHandRaised: false,
-    },
-  ]);
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 6px 0' }}>
+              {activeChannel.name}
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
+              Live audio-first Stage. Speakers broadcast crystal-clear Opus voice while listeners consume minimal bandwidth.
+            </p>
+          </div>
 
-  // Periodic simulated speaking energy pulse for Elena
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setSpeakers((prev) =>
-        prev.map((s) => {
-          if (s.id === 'speaker-elena') {
-            const talking = Math.random() > 0.35;
-            return {
-              ...s,
-              isSpeaking: talking,
-              audioLevel: talking ? Math.floor(Math.random() * 60 + 30) : 0,
-            };
-          }
-          return s;
-        })
-      );
-    }, 2400);
-    return () => clearInterval(interval);
-  }, []);
-
-  const raisedHandsCount = audience.filter((a) => a.isHandRaised).length;
-
-  const handleApproveSpeaker = (userId: string) => {
-    const target = audience.find((a) => a.id === userId);
-    if (!target) return;
-
-    setAudience((prev) => prev.filter((a) => a.id !== userId));
-    setSpeakers((prev) => [
-      ...prev,
-      {
-        ...target,
-        role: 'speaker',
-        isHandRaised: false,
-        isMuted: false,
-      },
-    ]);
-  };
-
-  const handleDismissHand = (userId: string) => {
-    setAudience((prev) =>
-      prev.map((a) => (a.id === userId ? { ...a, isHandRaised: false } : a))
+          <button
+            className="btn btn-primary"
+            style={{
+              padding: '12px 32px',
+              fontSize: 15,
+              borderRadius: 'var(--radius-pill)',
+              marginTop: 6,
+            }}
+            onClick={() => joinVoiceRoom(activeChannel.id)}
+          >
+            Join Live Stage
+          </button>
+        </div>
+      </div>
     );
-  };
+  }
 
-  const handleToggleMyHand = () => {
-    setIsHandRaised((prev) => !prev);
-  };
+  // Real participant partitioning
+  const localParticipant = participants.find((p) => p.userId === currentUser?.id);
+  const isSpeaker = localParticipant?.isStageSpeaker ?? true;
+  const isHandRaised = localParticipant?.isHandRaised ?? false;
 
-  const handleLeaveStage = () => {
-    setIsSpeaker(false);
-  };
-
-  const handleJoinAsSpeaker = () => {
-    setIsSpeaker(true);
-    setIsHandRaised(false);
-  };
+  const speakers = participants.filter((p) => p.isStageSpeaker);
+  const listeners = participants.filter((p) => !p.isStageSpeaker);
+  const handRequests = listeners.filter((p) => p.isHandRaised);
 
   return (
     <div className="stage-room-container">
@@ -178,10 +126,10 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>
-              {activeChannel?.name || 'Town Hall Stage'}
+              {activeChannel?.name || 'Community Stage'}
             </h2>
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              {activeChannel?.topic || 'Weekly Community Broadcast & Live Keynote'}
+              {activeChannel?.topic || 'Live Interactive Voice & Discussion'}
             </span>
           </div>
         </div>
@@ -189,11 +137,13 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div className="stage-listener-counter">
             <Users size={14} />
-            <span>{audience.length + (isSpeaker ? 0 : 1) + 128} listening</span>
+            <span>
+              {participants.length} {participants.length === 1 ? 'member' : 'members in room'}
+            </span>
           </div>
-          <div className="stage-simulcast-pill" title="Dynamic downscaling active: 720p/30fps">
+          <div className="stage-simulcast-pill" title="Audio-first adaptive delivery active">
             <Radio size={12} style={{ color: 'var(--status-online)' }} />
-            <span>HQ Adaptive Broadcast</span>
+            <span>Opus 48kHz HD</span>
           </div>
         </div>
       </header>
@@ -204,120 +154,86 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
         <div className="stage-section">
           <div className="stage-section-title">
             <ShieldCheck size={16} style={{ color: 'var(--accent-light)' }} />
-            <span>Speakers on Stage ({speakers.length + (isSpeaker ? 1 : 0)})</span>
+            <span>Speakers on Stage ({speakers.length})</span>
           </div>
 
           <div className="stage-speakers-grid">
-            {/* Current User Tile (if speaker) */}
-            {isSpeaker && currentUser && (
-              <div
-                className={`stage-speaker-card ${
-                  !isAudioMuted && audioLevel > 15 ? 'speaking' : ''
-                }`}
-              >
-                {/* Local Video if camera enabled, else rich avatar */}
-                {!isVideoMuted && localStream ? (
-                  <video
-                    autoPlay
-                    muted
-                    playsInline
-                    ref={(v) => {
-                      if (v && localStream) v.srcObject = localStream;
-                    }}
-                    className="stage-speaker-video"
-                  />
-                ) : (
-                  <div className="stage-speaker-avatar-wrap">
-                    <Avatar
-                      src={currentUser.avatarUrl}
-                      name={currentUser.displayName || currentUser.username}
-                      size={84}
+            {speakers.map((spk) => {
+              const isSelf = spk.userId === currentUser?.id;
+              const hasVideo =
+                Boolean(spk.stream) &&
+                spk.stream!.getVideoTracks().length > 0 &&
+                spk.stream!.getVideoTracks()[0].enabled &&
+                !spk.isVideoMuted;
+
+              return (
+                <div
+                  key={spk.id}
+                  className={`stage-speaker-card ${spk.isSpeaking ? 'speaking' : ''}`}
+                >
+                  {/* Speaker Video or Avatar */}
+                  {hasVideo && spk.stream ? (
+                    <video
+                      autoPlay
+                      muted={isSelf}
+                      playsInline
+                      ref={(v) => {
+                        if (v && spk.stream && v.srcObject !== spk.stream) {
+                          v.srcObject = spk.stream;
+                        }
+                      }}
+                      className="stage-speaker-video"
                     />
-                  </div>
-                )}
+                  ) : (
+                    <div className="stage-speaker-avatar-wrap">
+                      <Avatar
+                        src={spk.avatarUrl}
+                        name={spk.displayName || spk.username}
+                        size={84}
+                      />
+                    </div>
+                  )}
 
-                <div className="stage-speaker-info">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className="stage-speaker-name">
-                      {currentUser.displayName || currentUser.username} (You)
-                    </span>
-                    <span className="stage-role-pill host">Host</span>
-                  </div>
+                  <div className="stage-speaker-info">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="stage-speaker-name">
+                        {spk.displayName || spk.username} {isSelf && '(You)'}
+                      </span>
+                      <span className={`stage-role-pill ${spk.stageRole === 'host' ? 'host' : 'speaker'}`}>
+                        {spk.stageRole === 'host' ? 'Host' : 'Speaker'}
+                      </span>
+                    </div>
 
-                  <div className="stage-audio-indicator">
-                    {isAudioMuted ? (
-                      <MicOff size={14} style={{ color: 'var(--danger)' }} />
-                    ) : (
-                      <div className="audio-bars">
-                        <div
-                          className="bar"
-                          style={{
-                            height: `${Math.min(100, Math.max(20, audioLevel * 1.5))}%`,
-                          }}
-                        />
-                        <div
-                          className="bar"
-                          style={{
-                            height: `${Math.min(100, Math.max(30, audioLevel * 1.2))}%`,
-                          }}
-                        />
-                        <div
-                          className="bar"
-                          style={{
-                            height: `${Math.min(100, Math.max(15, audioLevel * 1.8))}%`,
-                          }}
-                        />
-                      </div>
-                    )}
+                    <div className="stage-audio-indicator">
+                      {spk.isAudioMuted ? (
+                        <MicOff size={14} style={{ color: 'var(--danger)' }} />
+                      ) : (
+                        <div className="audio-bars">
+                          <div
+                            className="bar"
+                            style={{
+                              height: `${Math.min(100, Math.max(15, (spk.audioLevel || 0) * 1.5))}%`,
+                            }}
+                          />
+                          <div
+                            className="bar"
+                            style={{
+                              height: `${Math.min(100, Math.max(25, (spk.audioLevel || 0) * 1.2))}%`,
+                            }}
+                          />
+                          <div
+                            className="bar"
+                            style={{
+                              height: `${Math.min(100, Math.max(15, (spk.audioLevel || 0) * 1.8))}%`,
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* Remote Speakers */}
-            {speakers.map((spk) => (
-              <div
-                key={spk.id}
-                className={`stage-speaker-card ${spk.isSpeaking ? 'speaking' : ''}`}
-              >
-                <div className="stage-speaker-avatar-wrap">
-                  <Avatar src={spk.avatarUrl} name={spk.name} size={84} />
-                </div>
-                <div className="stage-speaker-info">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className="stage-speaker-name">{spk.name}</span>
-                    <span className="stage-role-pill speaker">Speaker</span>
-                  </div>
-
-                  <div className="stage-audio-indicator">
-                    {spk.isMuted ? (
-                      <MicOff size={14} style={{ color: 'var(--danger)' }} />
-                    ) : (
-                      <div className="audio-bars">
-                        <div
-                          className="bar"
-                          style={{
-                            height: `${spk.isSpeaking ? spk.audioLevel : 20}%`,
-                          }}
-                        />
-                        <div
-                          className="bar"
-                          style={{
-                            height: `${spk.isSpeaking ? spk.audioLevel * 0.8 : 15}%`,
-                          }}
-                        />
-                        <div
-                          className="bar"
-                          style={{
-                            height: `${spk.isSpeaking ? spk.audioLevel * 1.1 : 25}%`,
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -333,105 +249,106 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
           >
             <div className="stage-section-title">
               <Users size={16} style={{ color: 'var(--text-muted)' }} />
-              <span>Audience Listeners</span>
+              <span>Audience Listeners ({listeners.length})</span>
             </div>
 
             {/* Raised Hands Badge for Speakers */}
-            {isSpeaker && raisedHandsCount > 0 && (
+            {isSpeaker && handRequests.length > 0 && (
               <button
                 className="stage-hand-queue-btn"
                 onClick={() => setShowHandQueue(!showHandQueue)}
               >
                 <Hand size={14} />
-                <span>{raisedHandsCount} Request{raisedHandsCount > 1 ? 's' : ''} to Speak</span>
+                <span>
+                  {handRequests.length} Request{handRequests.length > 1 ? 's' : ''} to Speak
+                </span>
               </button>
             )}
           </div>
 
           {/* Pending Hand Raised Queue Drawer */}
-          {isSpeaker && showHandQueue && raisedHandsCount > 0 && (
+          {isSpeaker && showHandQueue && handRequests.length > 0 && (
             <div className="stage-queue-panel">
               <h4 style={{ fontSize: 13, fontWeight: 600, margin: '0 0 10px 0' }}>
                 Hand Raised Requests
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {audience
-                  .filter((a) => a.isHandRaised)
-                  .map((a) => (
-                    <div key={a.id} className="queue-item">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Avatar src={a.avatarUrl} name={a.name} size={28} />
-                        <span style={{ fontSize: 13, fontWeight: 500 }}>{a.name}</span>
-                      </div>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                          className="btn btn-sm btn-primary"
-                          style={{ padding: '4px 10px', fontSize: 11 }}
-                          onClick={() => handleApproveSpeaker(a.id)}
-                        >
-                          <CheckCircle2 size={12} />
-                          <span>Invite to Stage</span>
-                        </button>
-                        <button
-                          className="btn btn-sm btn-ghost"
-                          style={{ padding: '4px 8px' }}
-                          onClick={() => handleDismissHand(a.id)}
-                        >
-                          <XCircle size={12} />
-                        </button>
-                      </div>
+                {handRequests.map((req) => (
+                  <div key={req.id} className="queue-item">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Avatar src={req.avatarUrl} name={req.displayName || req.username} size={28} />
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>
+                        {req.displayName || req.username}
+                      </span>
                     </div>
-                  ))}
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        className="btn btn-sm btn-primary"
+                        style={{ padding: '4px 10px', fontSize: 11 }}
+                        onClick={() => setStageRole('speaker')}
+                      >
+                        <CheckCircle2 size={12} />
+                        <span>Invite to Stage</span>
+                      </button>
+                      <button
+                        className="btn btn-sm btn-ghost"
+                        style={{ padding: '4px 8px' }}
+                        onClick={() => lowerHand()}
+                      >
+                        <XCircle size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Audience Grid */}
+          {/* Real Audience Grid */}
           <div className="stage-audience-grid">
-            {/* If current user is listener */}
-            {!isSpeaker && currentUser && (
-              <div className="stage-listener-chip self">
-                <Avatar
-                  src={currentUser.avatarUrl}
-                  name={currentUser.displayName || currentUser.username}
-                  size={40}
-                />
-                <span className="listener-name">
-                  {currentUser.displayName || currentUser.username} (You)
-                </span>
-                {isHandRaised && (
-                  <span className="hand-badge" title="Waiting for host">
-                    ✋
+            {listeners.map((listener) => {
+              const isSelf = listener.userId === currentUser?.id;
+              return (
+                <div
+                  key={listener.id}
+                  className={`stage-listener-chip ${isSelf ? 'self' : ''}`}
+                >
+                  <Avatar
+                    src={listener.avatarUrl}
+                    name={listener.displayName || listener.username}
+                    size={38}
+                  />
+                  <span className="listener-name">
+                    {listener.displayName || listener.username} {isSelf && '(You)'}
                   </span>
-                )}
-              </div>
-            )}
+                  {listener.isHandRaised && (
+                    <span className="hand-badge" title="Raised hand to speak">
+                      ✋
+                    </span>
+                  )}
+                </div>
+              );
+            })}
 
-            {audience.map((a) => (
-              <div key={a.id} className="stage-listener-chip">
-                <Avatar src={a.avatarUrl} name={a.name} size={40} />
-                <span className="listener-name">{a.name}</span>
-                {a.isHandRaised && (
-                  <span className="hand-badge" title="Hand raised">
-                    ✋
-                  </span>
-                )}
-              </div>
-            ))}
+            {listeners.length === 0 && (
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                No listeners currently in the audience.
+              </span>
+            )}
           </div>
         </div>
       </div>
 
       {/* Stage Bottom Toolbar */}
       <footer className="stage-bottom-bar">
-        {/* Left Action: Hand Raise / Leave Stage */}
+        {/* Left Action: Hand Raise / Step Down */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {isSpeaker ? (
             <button
               className="btn btn-secondary"
               style={{ fontSize: 12, borderRadius: 'var(--radius-pill)' }}
-              onClick={handleLeaveStage}
-              title="Step down from stage to audience"
+              onClick={() => setStageRole('listener')}
+              title="Step down to audience"
             >
               Step Down to Audience
             </button>
@@ -439,20 +356,10 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
             <button
               className={`btn ${isHandRaised ? 'btn-secondary' : 'btn-primary'}`}
               style={{ borderRadius: 'var(--radius-pill)', gap: 8 }}
-              onClick={handleToggleMyHand}
+              onClick={() => (isHandRaised ? lowerHand() : raiseHand())}
             >
               <Hand size={16} />
               <span>{isHandRaised ? 'Lower Hand' : 'Request to Speak'}</span>
-            </button>
-          )}
-
-          {!isSpeaker && (
-            <button
-              className="btn btn-ghost"
-              style={{ fontSize: 11, color: 'var(--text-muted)' }}
-              onClick={handleJoinAsSpeaker}
-            >
-              (Demo: Switch to Speaker)
             </button>
           )}
         </div>
@@ -473,7 +380,7 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
               onClick={toggleVideo}
               title={isVideoMuted ? 'Start Camera' : 'Stop Camera'}
             >
-              {isVideoMuted ? <VideoOff size={18} /> : <Video size={18} />}
+              {isVideoMuted ? <VideoOff size={18} /> : <VideoIcon size={18} />}
             </button>
 
             <button
@@ -499,7 +406,7 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
           <button
             className="btn btn-danger"
             style={{ borderRadius: 'var(--radius-pill)', padding: '8px 18px' }}
-            onClick={() => window.history.back?.()}
+            onClick={() => leaveVoiceRoom()}
             title="Leave Stage"
           >
             <PhoneOff size={16} />
