@@ -38,6 +38,7 @@ interface MediaContextType {
   isScreenSharing: boolean;
   audioLevel: number;
   isSpeaking: boolean;
+  gateState: 'open' | 'attenuated';
   participants: Participant[];
   pinnedParticipantId: string | null;
   setPinnedParticipantId: (id: string | null) => void;
@@ -112,6 +113,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const lastAudioLevelUpdateRef = useRef<number>(0);
   const lastSpeakingRef = useRef<boolean>(false);
 
+  const [gateState, setGateState] = useState<'open' | 'attenuated'>('open');
   const [deviceSettings, setDeviceSettings] = useState<MediaDeviceSettings>(
     mediaSessionRef.current.settings
   );
@@ -127,10 +129,14 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Bind AudioDSP listeners and hardware track change listeners
   useEffect(() => {
     mediaSessionRef.current.setEvents({
-      onAudioLevel: (level, speaking) => {
+      onAudioLevel: (level, speaking, gate) => {
         const now = performance.now();
         const speakingChanged = speaking !== lastSpeakingRef.current;
         const timeElapsed = now - lastAudioLevelUpdateRef.current >= 120;
+
+        if (gate) {
+          setGateState(gate);
+        }
 
         if (speakingChanged || timeElapsed) {
           lastAudioLevelUpdateRef.current = now;
@@ -551,6 +557,12 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           displayName: currentUser.displayName,
           avatarUrl: currentUser.avatarUrl,
         });
+
+        // Apply audio compression profile to active transport
+        transport.setAudioProfile?.(
+          deviceSettings.audioCompressionProfile,
+          deviceSettings.stereoAudio
+        );
       } catch (err) {
         console.error('[MediaEngine] Failed to connect to room:', err);
         setConnectionState('failed');
@@ -794,13 +806,19 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const updateSettings = useCallback((newSettings: Partial<MediaDeviceSettings>) => {
     setDeviceSettings((prev) => {
       const updated = { ...prev, ...newSettings };
-      mediaSessionRef.current.settings = updated;
-      if (newSettings.inputVolume !== undefined) {
-        mediaSessionRef.current.setInputVolume(newSettings.inputVolume);
-      }
-      mediaSessionRef.current.savePreferences();
+      
+      // 1. Apply live audio settings (updates Web Audio DSP parameters & applies hardware constraints)
+      mediaSessionRef.current.applyLiveAudioSettings(updated).catch(() => {});
 
-      // If video quality was updated and camera is live, apply it immediately
+      // 2. If audio compression profile or stereo audio changed, dynamically update audio bitrates on active transport
+      if ((newSettings.audioCompressionProfile !== undefined || newSettings.stereoAudio !== undefined) && transportRef.current?.setAudioProfile) {
+        transportRef.current.setAudioProfile(
+          updated.audioCompressionProfile,
+          updated.stereoAudio
+        );
+      }
+
+      // 3. If video quality was updated and camera is live, apply it immediately
       if (newSettings.videoQuality && !isVideoMuted && activeRoomId) {
         mediaSessionRef.current.startCamera(undefined, newSettings.videoQuality).then(async (newTrack) => {
           setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
@@ -862,6 +880,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         isScreenSharing,
         audioLevel,
         isSpeaking,
+        gateState,
         participants,
         pinnedParticipantId,
         setPinnedParticipantId,

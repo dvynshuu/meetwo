@@ -253,10 +253,19 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
       const newStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: deviceSettings.audioInputId ? { exact: deviceSettings.audioInputId } : undefined,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1,
+          echoCancellation: deviceSettings.echoCancellation,
+          noiseSuppression: deviceSettings.noiseSuppression,
+          autoGainControl: deviceSettings.autoGainControl,
+          channelCount: deviceSettings.stereoAudio ? 2 : 1,
+          sampleRate: 48000,
+          // @ts-ignore
+          googEchoCancellation: deviceSettings.echoCancellation,
+          googAutoGainControl: deviceSettings.autoGainControl,
+          googNoiseSuppression: deviceSettings.noiseSuppression,
+          googHighpassFilter: deviceSettings.highPassFilter,
+          googTypingNoiseDetection: deviceSettings.noiseSuppression,
+          googNoiseReduction: deviceSettings.noiseSuppression,
+          voiceIsolation: deviceSettings.voiceIsolation ? true : false,
         },
         video: false,
       });

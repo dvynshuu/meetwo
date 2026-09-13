@@ -1,5 +1,6 @@
-import { ConnectionQuality, ConnectionStats, MediaLifecycleState } from '../../types';
+import { ConnectionQuality, ConnectionStats, MediaLifecycleState, AudioCompressionProfile } from '../../types';
 import { logger } from './observability';
+import { applyRtpSenderAudioBitrate } from './audioProcessing';
 import {
   Room,
   RoomEvent,
@@ -52,6 +53,7 @@ export interface ITransportAdapter {
   sendSpeakingState(isSpeaking: boolean, level: number): Promise<void>;
   sendStageRole(role: 'host' | 'speaker' | 'listener', isHandRaised?: boolean): Promise<void>;
   sendTargetedStageAction(targetUserId: string, action: 'invite' | 'demote' | 'lower-hand'): Promise<void>;
+  setAudioProfile?(profile: AudioCompressionProfile, stereo?: boolean): Promise<void> | void;
   getConnectionQuality(): ConnectionQuality;
   getConnectionStats(): ConnectionStats;
   destroy(): void;
@@ -118,11 +120,11 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
           },
           backupCodec: true,
           audioPreset: {
-            maxBitrate: 320_000,
+            maxBitrate: 64_000,
           },
           dtx: true,
           red: true,
-          forceStereo: true,
+          forceStereo: false,
           degradationPreference: 'maintain-framerate',
           screenShareEncoding: {
             maxBitrate: 6_000_000,
@@ -279,10 +281,10 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
             simulcast: isVideo,
             videoSimulcastLayers: isVideo ? [VideoPresets.h360, VideoPresets.h720] : undefined,
             videoEncoding: isVideo ? { maxBitrate: 6_000_000, maxFramerate: 60 } : undefined,
-            audioPreset: !isVideo ? { maxBitrate: 320_000 } : undefined,
+            audioPreset: !isVideo ? { maxBitrate: 64_000 } : undefined,
             dtx: !isVideo,
             red: !isVideo,
-            forceStereo: !isVideo,
+            forceStereo: false,
           });
         }
       }
@@ -337,11 +339,30 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
         simulcast: isVideo,
         videoSimulcastLayers: isVideo ? [VideoPresets.h360, VideoPresets.h720] : undefined,
         videoEncoding: isVideo ? { maxBitrate: 6_000_000, maxFramerate: 60 } : undefined,
-        audioPreset: !isVideo ? { maxBitrate: 320_000 } : undefined,
+        audioPreset: !isVideo ? { maxBitrate: 64_000 } : undefined,
         dtx: !isVideo,
         red: !isVideo,
-        forceStereo: !isVideo,
+        forceStereo: false,
       });
+    }
+  }
+
+  setAudioProfile(profile: AudioCompressionProfile, stereo: boolean = false): void {
+    if (!this.room) return;
+    const bitrateMap: Record<AudioCompressionProfile, number> = {
+      high_compression: 28_000,
+      balanced: 64_000,
+      studio_hd: 128_000,
+    };
+    const targetBitrate = bitrateMap[profile] || 64_000;
+    const audioPubs = Array.from(this.room.localParticipant.audioTrackPublications.values());
+    for (const pub of audioPubs) {
+      if (pub.track) {
+        const sender = (pub.track as any).sender as RTCRtpSender | undefined;
+        if (sender) {
+          applyRtpSenderAudioBitrate(sender, targetBitrate).catch(() => {});
+        }
+      }
     }
   }
 

@@ -22,6 +22,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     deviceSettings,
     updateSettings,
     audioLevel,
+    isSpeaking,
+    gateState,
     connectionStats,
     isAudioMuted,
     isVideoMuted,
@@ -387,7 +389,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </div>
               </div>
 
-              {/* Live Mic Activity & Speaker Chime Test */}
+              {/* Mic Volume Activity Meter with Gate Status */}
               <div
                 style={{
                   padding: '12px 14px',
@@ -402,7 +404,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Sliders size={16} style={{ color: 'var(--accent)' }} />
-                    <span style={{ fontSize: 13, fontWeight: 700 }}>Audio Hardware Test</span>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>Audio Hardware Test & Telemetry</span>
                   </div>
 
                   <Button
@@ -421,13 +423,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </Button>
                 </div>
 
-                {/* Mic Volume Activity Meter */}
+                {/* Mic Volume Activity Meter & Gate Indicator */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Live Mic Volume Activity</span>
-                    <span style={{ fontWeight: 600, color: audioLevel > 15 ? 'var(--status-online)' : 'var(--text-muted)' }}>
-                      {audioLevel}%
-                    </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Live Mic Activity</span>
+                      {deviceSettings.noiseGate && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: 'var(--radius-xs)',
+                            background: gateState === 'open' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(234, 179, 8, 0.15)',
+                            color: gateState === 'open' ? 'var(--status-online)' : 'var(--warning)',
+                            border: `1px solid ${gateState === 'open' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(234, 179, 8, 0.3)'}`,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em',
+                          }}
+                        >
+                          {gateState === 'open' ? '● Gate: Open' : '✦ Gate: Muffled'}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: 'var(--text-muted)',
+                          background: 'var(--bg-surface-active)',
+                          padding: '1px 6px',
+                          borderRadius: 4,
+                        }}
+                      >
+                        {deviceSettings.audioCompressionProfile === 'high_compression'
+                          ? 'Opus 28kbps SILK • DTX'
+                          : deviceSettings.audioCompressionProfile === 'studio_hd'
+                          ? 'Opus 128kbps CELT • HD'
+                          : 'Opus 64kbps VBR • FEC'}
+                      </span>
+                      <span style={{ fontWeight: 600, color: audioLevel > 15 ? 'var(--status-online)' : 'var(--text-muted)' }}>
+                        {audioLevel}%
+                      </span>
+                    </div>
                   </div>
                   <div
                     style={{
@@ -450,72 +488,382 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </div>
               </div>
 
-              {/* Audio Processing DSP Toggles */}
+              {/* Voice Processing & Isolation Studio Grid */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <span className="input-label" style={{ marginBottom: 2 }}>Voice Processing</span>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="input-label" style={{ marginBottom: 0 }}>Active Voice Processing & Isolation</span>
+                  <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>Zero-Latency DSP</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                   <label
                     style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
+                      flexDirection: 'column',
+                      gap: 4,
                       fontSize: 12,
                       cursor: 'pointer',
                       padding: '8px 10px',
-                      background: 'var(--bg-surface)',
+                      background: deviceSettings.echoCancellation ? 'var(--bg-surface-active)' : 'var(--bg-surface)',
                       borderRadius: 'var(--radius-sm)',
-                      border: '1px solid var(--border-subtle)',
+                      border: `1px solid ${deviceSettings.echoCancellation ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                      transition: 'all 0.15s ease',
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={deviceSettings.echoCancellation}
-                      onChange={(e) => updateSettings({ echoCancellation: e.target.checked })}
-                    />
-                    <span>Echo Cancellation</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={deviceSettings.echoCancellation}
+                        onChange={(e) => updateSettings({ echoCancellation: e.target.checked })}
+                      />
+                      <span style={{ fontWeight: 600 }}>Echo Cancellation</span>
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 22 }}>
+                      AEC feedback prevention
+                    </span>
                   </label>
 
                   <label
                     style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
+                      flexDirection: 'column',
+                      gap: 4,
                       fontSize: 12,
                       cursor: 'pointer',
                       padding: '8px 10px',
-                      background: 'var(--bg-surface)',
+                      background: deviceSettings.noiseSuppression ? 'var(--bg-surface-active)' : 'var(--bg-surface)',
                       borderRadius: 'var(--radius-sm)',
-                      border: '1px solid var(--border-subtle)',
+                      border: `1px solid ${deviceSettings.noiseSuppression ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                      transition: 'all 0.15s ease',
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={deviceSettings.noiseSuppression}
-                      onChange={(e) => updateSettings({ noiseSuppression: e.target.checked })}
-                    />
-                    <span>Noise Suppression</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={deviceSettings.noiseSuppression}
+                        onChange={(e) => updateSettings({ noiseSuppression: e.target.checked })}
+                      />
+                      <span style={{ fontWeight: 600 }}>Noise Suppression</span>
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 22 }}>
+                      Spectral noise subtraction
+                    </span>
                   </label>
 
                   <label
                     style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
+                      flexDirection: 'column',
+                      gap: 4,
                       fontSize: 12,
                       cursor: 'pointer',
+                      padding: '8px 10px',
+                      background: deviceSettings.autoGainControl ? 'var(--bg-surface-active)' : 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: `1px solid ${deviceSettings.autoGainControl ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={deviceSettings.autoGainControl}
+                        onChange={(e) => updateSettings({ autoGainControl: e.target.checked })}
+                      />
+                      <span style={{ fontWeight: 600 }}>Auto Gain Control</span>
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 22 }}>
+                      Automatic hardware leveling
+                    </span>
+                  </label>
+
+                  <label
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      padding: '8px 10px',
+                      background: deviceSettings.voiceIsolation ? 'var(--bg-surface-active)' : 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: `1px solid ${deviceSettings.voiceIsolation ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={deviceSettings.voiceIsolation}
+                        onChange={(e) => updateSettings({ voiceIsolation: e.target.checked })}
+                      />
+                      <span style={{ fontWeight: 600 }}>Voice Isolation</span>
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 22 }}>
+                      2.8 kHz formant boost
+                    </span>
+                  </label>
+
+                  <label
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      padding: '8px 10px',
+                      background: deviceSettings.noiseGate ? 'var(--bg-surface-active)' : 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: `1px solid ${deviceSettings.noiseGate ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={deviceSettings.noiseGate}
+                        onChange={(e) => updateSettings({ noiseGate: e.target.checked })}
+                      />
+                      <span style={{ fontWeight: 600 }}>Adaptive Noise Gate</span>
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 22 }}>
+                      Downward expander on pauses
+                    </span>
+                  </label>
+
+                  <label
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      padding: '8px 10px',
+                      background: deviceSettings.dynamicsCompressor ? 'var(--bg-surface-active)' : 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: `1px solid ${deviceSettings.dynamicsCompressor ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={deviceSettings.dynamicsCompressor}
+                        onChange={(e) => updateSettings({ dynamicsCompressor: e.target.checked })}
+                      />
+                      <span style={{ fontWeight: 600 }}>Studio Compressor</span>
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 22 }}>
+                      Broadcast soft-knee leveling
+                    </span>
+                  </label>
+                </div>
+
+                {/* Sub-row: Noise Gate Mode & Rumble Filter */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 2 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
                       padding: '8px 10px',
                       background: 'var(--bg-surface)',
                       borderRadius: 'var(--radius-sm)',
                       border: '1px solid var(--border-subtle)',
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={deviceSettings.autoGainControl}
-                      onChange={(e) => updateSettings({ autoGainControl: e.target.checked })}
-                    />
-                    <span>Auto Gain Control</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, fontWeight: 600 }}>Noise Gate Sensitivity</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                        {deviceSettings.noiseGateMode === 'aggressive'
+                          ? '-40 dB (Deep)'
+                          : deviceSettings.noiseGateMode === 'gentle'
+                          ? '-20 dB (Soft)'
+                          : '-30 dB (Balanced)'}
+                      </span>
+                    </div>
+                    <select
+                      className="input"
+                      value={deviceSettings.noiseGateMode || 'balanced'}
+                      onChange={(e) => updateSettings({ noiseGateMode: e.target.value as any })}
+                      disabled={!deviceSettings.noiseGate}
+                      style={{ height: 28, fontSize: 11, padding: '2px 8px' }}
+                    >
+                      <option value="gentle">Gentle (-20 dB) - For quiet rooms</option>
+                      <option value="balanced">Balanced (-30 dB) - Recommended</option>
+                      <option value="aggressive">Aggressive (-40 dB) - Deep silence</option>
+                    </select>
+                  </div>
+
+                  <label
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                      gap: 4,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      padding: '8px 10px',
+                      background: deviceSettings.highPassFilter ? 'var(--bg-surface-active)' : 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: `1px solid ${deviceSettings.highPassFilter ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={deviceSettings.highPassFilter}
+                        onChange={(e) => updateSettings({ highPassFilter: e.target.checked })}
+                      />
+                      <span style={{ fontWeight: 600 }}>85Hz Rumble Highpass</span>
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 22 }}>
+                      Eliminates desk thuds & AC hum
+                    </span>
                   </label>
+                </div>
+              </div>
+
+              {/* Audio Compression & Codec Profile Selector */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="input-label" style={{ marginBottom: 0 }}>
+                    Audio Compression & Bitrate (Opus Codec)
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    In-Band FEC • DTX Silence Suppression
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => updateSettings({ audioCompressionProfile: 'balanced', stereoAudio: false })}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      padding: '10px 12px',
+                      background:
+                        deviceSettings.audioCompressionProfile === 'balanced'
+                          ? 'var(--bg-surface-active)'
+                          : 'var(--bg-surface)',
+                      border: `1px solid ${
+                        deviceSettings.audioCompressionProfile === 'balanced'
+                          ? 'var(--accent)'
+                          : 'var(--border-subtle)'
+                      }`,
+                      borderRadius: 'var(--radius-sm)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: 2 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>Balanced Voice</span>
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          padding: '1px 5px',
+                          borderRadius: 3,
+                          background: 'rgba(59, 130, 246, 0.15)',
+                          color: 'var(--accent)',
+                        }}
+                      >
+                        DEFAULT
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>64 kbps Opus VBR</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                      Pristine speech intelligibility & low latency
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => updateSettings({ audioCompressionProfile: 'high_compression', stereoAudio: false })}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      padding: '10px 12px',
+                      background:
+                        deviceSettings.audioCompressionProfile === 'high_compression'
+                          ? 'var(--bg-surface-active)'
+                          : 'var(--bg-surface)',
+                      border: `1px solid ${
+                        deviceSettings.audioCompressionProfile === 'high_compression'
+                          ? 'var(--accent)'
+                          : 'var(--border-subtle)'
+                      }`,
+                      borderRadius: 'var(--radius-sm)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: 2 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>High Compression</span>
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          padding: '1px 5px',
+                          borderRadius: 3,
+                          background: 'rgba(34, 197, 94, 0.15)',
+                          color: 'var(--status-online)',
+                        }}
+                      >
+                        SAVER
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--status-online)' }}>28 kbps SILK + DTX</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                      Saves 70% bandwidth on weak networks
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => updateSettings({ audioCompressionProfile: 'studio_hd', stereoAudio: true })}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      padding: '10px 12px',
+                      background:
+                        deviceSettings.audioCompressionProfile === 'studio_hd'
+                          ? 'var(--bg-surface-active)'
+                          : 'var(--bg-surface)',
+                      border: `1px solid ${
+                        deviceSettings.audioCompressionProfile === 'studio_hd'
+                          ? 'var(--accent)'
+                          : 'var(--border-subtle)'
+                      }`,
+                      borderRadius: 'var(--radius-sm)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: 2 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>Studio HD</span>
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          padding: '1px 5px',
+                          borderRadius: 3,
+                          background: 'rgba(168, 85, 247, 0.15)',
+                          color: '#c084fc',
+                        }}
+                      >
+                        HI-FI
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#c084fc' }}>128 kbps CELT Stereo</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                      Full dynamic range for studio mics & music
+                    </span>
+                  </button>
                 </div>
               </div>
 

@@ -6,7 +6,7 @@ export type TrackKind = 'audio' | 'video' | 'screen' | 'screen-audio';
 
 export interface MediaSessionEvents {
   onTrackChanged?: (kind: TrackKind, track: MediaStreamTrack | null) => void;
-  onAudioLevel?: (level: number, isSpeaking: boolean) => void;
+  onAudioLevel?: (level: number, isSpeaking: boolean, gateState?: 'open' | 'attenuated') => void;
   onDeviceListChanged?: () => void;
   onDeviceUnplugged?: (kind: 'audio' | 'video') => void;
   onDeviceReconnected?: (kind: 'audio' | 'video', label: string) => void;
@@ -14,6 +14,7 @@ export interface MediaSessionEvents {
 
 export class MediaSession {
   // Separated Track Model
+  private rawMicrophoneTrack: MediaStreamTrack | null = null;
   private microphoneTrack: MediaStreamTrack | null = null;
   private cameraTrack: MediaStreamTrack | null = null;
   private screenShareTrack: MediaStreamTrack | null = null;
@@ -26,7 +27,7 @@ export class MediaSession {
   private screenStream: MediaStream = new MediaStream();
 
   // DSP & Audio Analytics
-  private dspManager: AudioDSPManager = new AudioDSPManager();
+  public dspManager: AudioDSPManager = new AudioDSPManager();
   private events: MediaSessionEvents = {};
 
   public settings: MediaDeviceSettings = {
@@ -38,6 +39,13 @@ export class MediaSession {
     echoCancellation: true,
     noiseSuppression: true,
     autoGainControl: true,
+    voiceIsolation: true,
+    noiseGate: true,
+    noiseGateMode: 'balanced',
+    highPassFilter: true,
+    dynamicsCompressor: true,
+    audioCompressionProfile: 'balanced',
+    stereoAudio: false,
     inputVolume: 100,
     outputVolume: 100,
   };
@@ -48,9 +56,9 @@ export class MediaSession {
     }
 
     // Bind DSP level updates
-    this.dspManager.onLevel((level, isSpeaking) => {
+    this.dspManager.onLevel((level, isSpeaking, gateState) => {
       if (this.events.onAudioLevel) {
-        this.events.onAudioLevel(level, isSpeaking);
+        this.events.onAudioLevel(level, isSpeaking, gateState);
       }
     });
 
@@ -116,19 +124,30 @@ export class MediaSession {
   // ==========================================
 
   public async startMicrophone(deviceId?: string): Promise<MediaStreamTrack> {
-    if (this.microphoneTrack) {
+    if (this.microphoneTrack || this.rawMicrophoneTrack) {
       this.stopMicrophone();
     }
 
     const targetDeviceId = deviceId !== undefined ? deviceId : this.settings.audioInputId;
+    const isStereo = Boolean(this.settings.stereoAudio);
 
     const audioConstraints: MediaTrackConstraints = {
       deviceId: targetDeviceId ? { exact: targetDeviceId } : undefined,
       echoCancellation: this.settings.echoCancellation,
       noiseSuppression: this.settings.noiseSuppression,
       autoGainControl: this.settings.autoGainControl,
-      channelCount: { ideal: 2 }, // Stereo capture with high fidelity
+      channelCount: isStereo ? { ideal: 2 } : { ideal: 1 },
       sampleRate: { ideal: 48000 },
+      sampleSize: { ideal: 16 },
+      // Advanced vendor audio processing
+      // @ts-ignore
+      googEchoCancellation: this.settings.echoCancellation,
+      googAutoGainControl: this.settings.autoGainControl,
+      googNoiseSuppression: this.settings.noiseSuppression,
+      googHighpassFilter: this.settings.highPassFilter,
+      googTypingNoiseDetection: this.settings.noiseSuppression,
+      googNoiseReduction: this.settings.noiseSuppression,
+      voiceIsolation: this.settings.voiceIsolation ? { ideal: true } : undefined,
     };
 
     try {
@@ -137,18 +156,23 @@ export class MediaSession {
         video: false,
       });
 
-      const track = micStream.getAudioTracks()[0];
-      this.microphoneTrack = track;
+      const rawTrack = micStream.getAudioTracks()[0];
+      this.rawMicrophoneTrack = rawTrack;
+
+      // Active Web Audio DSP Pipeline: highpass, voice formant peak EQ, de-hiss, noise gate, dynamics compressor, limiter
+      const processedTrack = this.dspManager.attachStream(
+        micStream,
+        this.settings.inputVolume / 100,
+        this.settings
+      );
+      this.microphoneTrack = processedTrack;
 
       // Update local composite stream
       this.localStream.getAudioTracks().forEach((t) => this.localStream.removeTrack(t));
-      this.localStream.addTrack(track);
-
-      // Attach to DSP for VAD and Volume
-      this.dspManager.attachStream(micStream, this.settings.inputVolume / 100);
+      this.localStream.addTrack(processedTrack);
 
       // Handle external unplug / mute
-      track.onended = () => {
+      rawTrack.onended = () => {
         console.warn('[MediaSession] Microphone track ended (device disconnected/unplugged)');
         this.lastUnpluggedKind = 'audio';
         this.stopMicrophone();
@@ -159,11 +183,11 @@ export class MediaSession {
       };
 
       if (this.events.onTrackChanged) {
-        this.events.onTrackChanged('audio', track);
+        this.events.onTrackChanged('audio', processedTrack);
       }
 
       logger.log('device_changed', { kind: 'audio', deviceId: targetDeviceId });
-      return track;
+      return processedTrack;
     } catch (err) {
       console.warn('[MediaSession] Microphone with constraints failed, falling back:', err);
       const fallbackStream = await navigator.mediaDevices.getUserMedia({
@@ -171,18 +195,24 @@ export class MediaSession {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          channelCount: 2,
+          channelCount: 1,
           sampleRate: 48000,
         },
       });
-      const fallbackTrack = fallbackStream.getAudioTracks()[0];
-      this.microphoneTrack = fallbackTrack;
+      const fallbackRawTrack = fallbackStream.getAudioTracks()[0];
+      this.rawMicrophoneTrack = fallbackRawTrack;
+
+      const processedTrack = this.dspManager.attachStream(
+        fallbackStream,
+        this.settings.inputVolume / 100,
+        this.settings
+      );
+      this.microphoneTrack = processedTrack;
 
       this.localStream.getAudioTracks().forEach((t) => this.localStream.removeTrack(t));
-      this.localStream.addTrack(fallbackTrack);
-      this.dspManager.attachStream(fallbackStream, this.settings.inputVolume / 100);
+      this.localStream.addTrack(processedTrack);
 
-      fallbackTrack.onended = () => {
+      fallbackRawTrack.onended = () => {
         console.warn('[MediaSession] Fallback microphone track ended');
         this.lastUnpluggedKind = 'audio';
         this.stopMicrophone();
@@ -193,16 +223,24 @@ export class MediaSession {
       };
 
       if (this.events.onTrackChanged) {
-        this.events.onTrackChanged('audio', fallbackTrack);
+        this.events.onTrackChanged('audio', processedTrack);
       }
 
-      return fallbackTrack;
+      return processedTrack;
     }
   }
 
   public stopMicrophone() {
+    if (this.rawMicrophoneTrack) {
+      try {
+        this.rawMicrophoneTrack.stop();
+      } catch {}
+      this.rawMicrophoneTrack = null;
+    }
     if (this.microphoneTrack) {
-      this.microphoneTrack.stop();
+      try {
+        this.microphoneTrack.stop();
+      } catch {}
       this.localStream.removeTrack(this.microphoneTrack);
       this.microphoneTrack = null;
     }
@@ -219,15 +257,50 @@ export class MediaSession {
   }
 
   public setMicrophoneMute(muted: boolean) {
+    if (this.rawMicrophoneTrack) {
+      this.rawMicrophoneTrack.enabled = !muted;
+    }
     if (this.microphoneTrack) {
       this.microphoneTrack.enabled = !muted;
     }
+    this.dspManager.setMuted(muted);
   }
 
   public setInputVolume(volumePercent: number) {
     this.settings.inputVolume = volumePercent;
     this.dspManager.setInputGain(volumePercent);
     this.savePreferences();
+  }
+
+  public async applyLiveAudioSettings(newSettings: Partial<MediaDeviceSettings>): Promise<void> {
+    this.settings = { ...this.settings, ...newSettings };
+    this.savePreferences();
+
+    // 1. Update active Web Audio DSP nodes in real time
+    this.dspManager.updateDSPParameters(this.settings);
+
+    // 2. If raw hardware track is active, update hardware constraints seamlessly
+    if (this.rawMicrophoneTrack && typeof this.rawMicrophoneTrack.applyConstraints === 'function') {
+      try {
+        const isStereo = Boolean(this.settings.stereoAudio);
+        await this.rawMicrophoneTrack.applyConstraints({
+          echoCancellation: this.settings.echoCancellation,
+          noiseSuppression: this.settings.noiseSuppression,
+          autoGainControl: this.settings.autoGainControl,
+          channelCount: isStereo ? 2 : 1,
+          // @ts-ignore
+          googEchoCancellation: this.settings.echoCancellation,
+          googAutoGainControl: this.settings.autoGainControl,
+          googNoiseSuppression: this.settings.noiseSuppression,
+          googHighpassFilter: this.settings.highPassFilter,
+          googTypingNoiseDetection: this.settings.noiseSuppression,
+          googNoiseReduction: this.settings.noiseSuppression,
+          voiceIsolation: this.settings.voiceIsolation ? true : false,
+        });
+      } catch (e) {
+        console.warn('[MediaSession] Hardware constraint update warning:', e);
+      }
+    }
   }
 
   // ==========================================

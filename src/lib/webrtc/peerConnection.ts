@@ -3,10 +3,11 @@ import {
   ConnectionQuality,
   ConnectionStats,
   MediaLifecycleState,
+  AudioCompressionProfile,
 } from '../../types';
 import { ISignalingTransport, createSignalingTransport } from './signaling';
 import { ITransportAdapter, TransportCallbacks } from './transportAdapter';
-import { mungeOpusSDP } from './audioProcessing';
+import { mungeOpusSDP, getOpusOptionsForProfile, applyRtpSenderAudioBitrate } from './audioProcessing';
 import { logger } from './observability';
 
 const RTC_CONFIG: RTCConfiguration = {
@@ -70,6 +71,31 @@ export class PeerConnectionManager implements ITransportAdapter {
   private userProfile?: { username?: string; displayName?: string; avatarUrl?: string };
   private peerLastSeen: Map<string, number> = new Map();
   private livenessInterval: number | null = null;
+  private audioCompressionProfile: AudioCompressionProfile = 'balanced';
+  private isStereoAudio: boolean = false;
+
+  private mungeSdpForAudio(sdp: string): string {
+    return mungeOpusSDP(
+      sdp,
+      getOpusOptionsForProfile(this.audioCompressionProfile, this.isStereoAudio)
+    );
+  }
+
+  public setAudioProfile(profile: AudioCompressionProfile, stereo: boolean = false): void {
+    this.audioCompressionProfile = profile;
+    this.isStereoAudio = stereo;
+    const opts = getOpusOptionsForProfile(profile, stereo);
+    const targetBitrate = opts.maxBitrate || 64000;
+
+    for (const session of this.peerSessions.values()) {
+      const senders = session.pc.getSenders();
+      for (const sender of senders) {
+        if (sender.track && sender.track.kind === 'audio') {
+          applyRtpSenderAudioBitrate(sender, targetBitrate).catch(() => {});
+        }
+      }
+    }
+  }
 
   // Event handlers for auto-recovery
   private handleOnline = () => this.recoverConnections('online');
@@ -178,7 +204,7 @@ export class PeerConnectionManager implements ITransportAdapter {
     try {
       session.makingOffer = true;
       const offer = await pc.createOffer();
-      offer.sdp = mungeOpusSDP(offer.sdp || '');
+      offer.sdp = this.mungeSdpForAudio(offer.sdp || '');
       await pc.setLocalDescription(offer);
 
       await this.signaling.sendSignal({
@@ -407,7 +433,7 @@ export class PeerConnectionManager implements ITransportAdapter {
           session.makingOffer = true;
           const offer = await pc.createOffer();
           // Apply studio Opus audio munging
-          offer.sdp = mungeOpusSDP(offer.sdp || '');
+          offer.sdp = this.mungeSdpForAudio(offer.sdp || '');
           await pc.setLocalDescription(offer);
 
           await this.signaling.sendSignal({
@@ -436,7 +462,7 @@ export class PeerConnectionManager implements ITransportAdapter {
           await this.flushPendingCandidates(fromPeerId, pc);
 
           const answer = await pc.createAnswer();
-          answer.sdp = mungeOpusSDP(answer.sdp || '');
+          answer.sdp = this.mungeSdpForAudio(answer.sdp || '');
           await pc.setLocalDescription(answer);
 
           await this.signaling.sendSignal({
@@ -1027,7 +1053,7 @@ export class PeerConnectionManager implements ITransportAdapter {
     try {
       session.pc.restartIce();
       const offer = await session.pc.createOffer({ iceRestart: true });
-      offer.sdp = mungeOpusSDP(offer.sdp || '');
+      offer.sdp = this.mungeSdpForAudio(offer.sdp || '');
       await session.pc.setLocalDescription(offer);
 
       await this.signaling.sendSignal({

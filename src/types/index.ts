@@ -200,6 +200,9 @@ export interface ConnectionStats {
   quality: ConnectionQuality;
 }
 
+export type AudioCompressionProfile = 'high_compression' | 'balanced' | 'studio_hd';
+export type NoiseGateMode = 'off' | 'gentle' | 'balanced' | 'aggressive';
+
 export interface MediaDeviceSettings {
   audioInputId: string;
   audioOutputId: string;
@@ -209,6 +212,13 @@ export interface MediaDeviceSettings {
   echoCancellation: boolean;
   noiseSuppression: boolean;
   autoGainControl: boolean;
+  voiceIsolation: boolean;
+  noiseGate: boolean;
+  noiseGateMode: NoiseGateMode;
+  highPassFilter: boolean;
+  dynamicsCompressor: boolean;
+  audioCompressionProfile: AudioCompressionProfile;
+  stereoAudio: boolean;
   inputVolume: number; // 0 to 100
   outputVolume: number; // 0 to 100
 }
