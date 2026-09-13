@@ -92,11 +92,13 @@ export const ForumContainer: React.FC = () => {
   );
 
   const filteredPosts = posts.filter((post) => {
+    const title = post.title || '';
+    const content = post.content || '';
     const matchesQuery =
-      post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.content.toLowerCase().includes(searchQuery.toLowerCase());
+      title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      content.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesTag =
-      selectedTag === 'all' || (post.tags && post.tags.includes(selectedTag));
+      selectedTag === 'all' || (Array.isArray(post.tags) && post.tags.includes(selectedTag));
     return matchesQuery && matchesTag;
   });
 

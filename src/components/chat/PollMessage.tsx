@@ -13,21 +13,25 @@ export const PollMessage: React.FC<PollMessageProps> = ({ poll: initialPoll, onV
   const [poll, setPoll] = useState<Poll>(initialPoll);
 
   const userId = currentUser?.id || 'anonymous';
-  const totalVotes = poll.options.reduce((sum, opt) => sum + opt.voterIds.length, 0);
+  const totalVotes = (poll.options || []).reduce(
+    (sum, opt) => sum + (Array.isArray(opt.voterIds) ? opt.voterIds.length : 0),
+    0
+  );
 
   const handleToggleVote = (optionId: string) => {
     setPoll((prev) => {
-      const nextOptions = prev.options.map((opt) => {
-        const hasVoted = opt.voterIds.includes(userId);
+      const nextOptions = (prev.options || []).map((opt) => {
+        const voterIds = Array.isArray(opt.voterIds) ? opt.voterIds : [];
+        const hasVoted = voterIds.includes(userId);
         if (opt.id === optionId) {
           return {
             ...opt,
             voterIds: hasVoted
-              ? opt.voterIds.filter((id) => id !== userId)
-              : [...opt.voterIds, userId],
+              ? voterIds.filter((id) => id !== userId)
+              : [...voterIds, userId],
           };
         }
-        return opt;
+        return { ...opt, voterIds };
       });
       return { ...prev, options: nextOptions };
     });
@@ -50,9 +54,10 @@ export const PollMessage: React.FC<PollMessageProps> = ({ poll: initialPoll, onV
       </div>
 
       <div className="poll-options-list">
-        {poll.options.map((opt) => {
-          const hasVoted = opt.voterIds.includes(userId);
-          const percent = totalVotes > 0 ? Math.round((opt.voterIds.length / totalVotes) * 100) : 0;
+        {(poll.options || []).map((opt) => {
+          const voterIds = Array.isArray(opt.voterIds) ? opt.voterIds : [];
+          const hasVoted = voterIds.includes(userId);
+          const percent = totalVotes > 0 ? Math.round((voterIds.length / totalVotes) * 100) : 0;
 
           return (
             <button

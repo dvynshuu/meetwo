@@ -198,10 +198,10 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (activeRoomId && stage.channelId === activeRoomId) {
         if (currentUser) {
           const isHost = stage.hostId === currentUser.id;
-          const isSpeaker = stage.speakers.includes(currentUser.id);
+          const isSpeaker = Boolean(stage.speakers?.includes(currentUser.id));
           const role = isHost ? 'host' : isSpeaker ? 'speaker' : 'listener';
           setMyStageRole(role);
-          setMyHandRaised(stage.handRaisedQueue.includes(currentUser.id));
+          setMyHandRaised(Boolean(stage.handRaisedQueue?.includes(currentUser.id)));
         }
 
         setRemoteParticipants((prev) => {
@@ -209,13 +209,13 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           next.forEach((participant, peerId) => {
             const pUserId = participant.userId || peerId;
             const isHost = stage.hostId === pUserId;
-            const isSpeaker = stage.speakers.includes(pUserId);
+            const isSpeaker = Boolean(stage.speakers?.includes(pUserId));
             const pRole = isHost ? 'host' : isSpeaker ? 'speaker' : 'listener';
             next.set(peerId, {
               ...participant,
               stageRole: pRole,
               isStageSpeaker: isHost || isSpeaker,
-              isHandRaised: stage.handRaisedQueue.includes(pUserId),
+              isHandRaised: Boolean(stage.handRaisedQueue?.includes(pUserId)),
             });
           });
           return next;
@@ -310,11 +310,11 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         // Check stage state if active room is a stage channel
         const stageState = mockStore.getStageState(roomId);
-        const isHost = stageState.hostId === currentUser.id;
-        const isSpeaker = stageState.speakers.includes(currentUser.id);
+        const isHost = stageState ? stageState.hostId === currentUser.id : false;
+        const isSpeaker = Boolean(stageState?.speakers?.includes(currentUser.id));
         const initialRole: StageRole = isHost ? 'host' : isSpeaker ? 'speaker' : 'listener';
         setMyStageRole(initialRole);
-        setMyHandRaised(stageState.handRaisedQueue.includes(currentUser.id));
+        setMyHandRaised(Boolean(stageState?.handRaisedQueue?.includes(currentUser.id)));
 
         // Initialize dedicated Reconnection Manager
         reconnectionManagerRef.current = new ReconnectionManager({

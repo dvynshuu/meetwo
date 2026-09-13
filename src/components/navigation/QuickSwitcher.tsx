@@ -192,18 +192,18 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
   } else if (cleanQuery.startsWith('#')) {
     const term = cleanQuery.slice(1).trim();
     filteredItems = allItems.filter(
-      (item) => item.type === 'channel' && item.title.toLowerCase().includes(term)
+      (item) => item.type === 'channel' && (item.title || '').toLowerCase().includes(term)
     );
   } else if (cleanQuery.startsWith('@')) {
     const term = cleanQuery.slice(1).trim();
     filteredItems = allItems.filter(
-      (item) => item.type === 'dm' && item.title.toLowerCase().includes(term)
+      (item) => item.type === 'dm' && (item.title || '').toLowerCase().includes(term)
     );
   } else {
     filteredItems = allItems.filter(
       (item) =>
-        item.title.toLowerCase().includes(cleanQuery) ||
-        item.subtitle.toLowerCase().includes(cleanQuery)
+        (item.title || '').toLowerCase().includes(cleanQuery) ||
+        (item.subtitle || '').toLowerCase().includes(cleanQuery)
     );
   }
 

@@ -55,12 +55,13 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const username = currentUser?.username || '';
       const displayName = currentUser?.displayName || '';
+      const content = msg.content || '';
 
       const isMention =
-        Boolean(username && msg.content.includes(`@${username}`)) ||
-        Boolean(displayName && msg.content.includes(`@${displayName}`)) ||
-        msg.content.includes('@everyone') ||
-        msg.content.includes('@here');
+        Boolean(username && content.includes(`@${username}`)) ||
+        Boolean(displayName && content.includes(`@${displayName}`)) ||
+        content.includes('@everyone') ||
+        content.includes('@here');
 
       const isReply = Boolean(currentUser && msg.replyTo && msg.replyTo.authorName === currentUser.displayName);
 

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Message, Attachment } from '../../types';
+import { Message, Attachment, MessageReaction } from '../../types';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { mockStore } from '../../lib/supabase/mockStore';
 import { useAuth } from './AuthContext';
@@ -15,6 +15,54 @@ interface ChatContextType {
   deleteMessage: (messageId: string) => Promise<void>;
   toggleReaction: (messageId: string, emoji: string) => Promise<void>;
 }
+
+const formatReactions = (rawReactions: any[]): MessageReaction[] => {
+  if (!rawReactions || !Array.isArray(rawReactions)) return [];
+
+  const map = new Map<string, { emoji: string; count: number; userIds: string[] }>();
+
+  for (const r of rawReactions) {
+    if (!r || !r.emoji) continue;
+
+    // If it's already an aggregated reaction object: { emoji, count, userIds }
+    if (Array.isArray(r.userIds)) {
+      const existing = map.get(r.emoji);
+      if (existing) {
+        for (const uid of r.userIds) {
+          if (uid && !existing.userIds.includes(uid)) {
+            existing.userIds.push(uid);
+          }
+        }
+        existing.count = existing.userIds.length;
+      } else {
+        map.set(r.emoji, {
+          emoji: r.emoji,
+          count: r.count || r.userIds.length,
+          userIds: [...r.userIds],
+        });
+      }
+      continue;
+    }
+
+    // It's a raw Supabase relational row: { id, message_id, user_id, emoji }
+    const uid = r.user_id || r.userId;
+    const existing = map.get(r.emoji);
+    if (existing) {
+      if (uid && !existing.userIds.includes(uid)) {
+        existing.userIds.push(uid);
+        existing.count += 1;
+      }
+    } else {
+      map.set(r.emoji, {
+        emoji: r.emoji,
+        count: 1,
+        userIds: uid ? [uid] : [],
+      });
+    }
+  }
+
+  return Array.from(map.values());
+};
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
@@ -67,7 +115,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                       createdAt: m.author.created_at,
                     }
                   : undefined,
-                reactions: m.reactions || [],
+                reactions: formatReactions(m.reactions),
                 attachments: m.attachments || [],
               }))
             );
@@ -118,6 +166,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 createdAt: newMsg.created_at,
                 isEdited: newMsg.is_edited,
                 replyToId: newMsg.reply_to_id,
+                reactions: [],
+                attachments: [],
                 author: authorProfile
                   ? {
                       id: authorProfile.id,
@@ -152,10 +202,86 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         )
         .subscribe();
 
+      const reactionsSub = supabase
+        .channel(`reactions:${activeChannel.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'message_reactions',
+          },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              const newRec = payload.new as any;
+              if (!newRec || newRec.user_id === currentUser?.id) return;
+              setMessages((prev) =>
+                prev.map((msg) => {
+                  if (msg.id !== newRec.message_id) return msg;
+                  const curReactions = msg.reactions || [];
+                  const existing = curReactions.find((r) => r.emoji === newRec.emoji);
+                  if (existing) {
+                    const userIds = Array.isArray(existing.userIds) ? existing.userIds : [];
+                    if (userIds.includes(newRec.user_id)) return msg;
+                    const nextUserIds = [...userIds, newRec.user_id];
+                    return {
+                      ...msg,
+                      reactions: curReactions.map((r) =>
+                        r.emoji === newRec.emoji
+                          ? { ...r, count: nextUserIds.length, userIds: nextUserIds }
+                          : r
+                      ),
+                    };
+                  } else {
+                    return {
+                      ...msg,
+                      reactions: [
+                        ...curReactions,
+                        { emoji: newRec.emoji, count: 1, userIds: [newRec.user_id] },
+                      ],
+                    };
+                  }
+                })
+              );
+            } else if (payload.eventType === 'DELETE') {
+              const oldRec = payload.old as any;
+              if (oldRec && oldRec.message_id && oldRec.emoji && oldRec.user_id) {
+                if (oldRec.user_id === currentUser?.id) return;
+                setMessages((prev) =>
+                  prev.map((msg) => {
+                    if (msg.id !== oldRec.message_id) return msg;
+                    const curReactions = msg.reactions || [];
+                    const existing = curReactions.find((r) => r.emoji === oldRec.emoji);
+                    if (!existing) return msg;
+                    const userIds = Array.isArray(existing.userIds) ? existing.userIds : [];
+                    const nextUserIds = userIds.filter((id) => id !== oldRec.user_id);
+                    if (nextUserIds.length === 0) {
+                      return {
+                        ...msg,
+                        reactions: curReactions.filter((r) => r.emoji !== oldRec.emoji),
+                      };
+                    }
+                    return {
+                      ...msg,
+                      reactions: curReactions.map((r) =>
+                        r.emoji === oldRec.emoji
+                          ? { ...r, count: nextUserIds.length, userIds: nextUserIds }
+                          : r
+                      ),
+                    };
+                  })
+                );
+              }
+            }
+          }
+        )
+        .subscribe();
+
       return () => {
         isMounted = false;
         if (supabase) {
           supabase.removeChannel(channelSub);
+          supabase.removeChannel(reactionsSub);
         }
       };
     } else {
@@ -296,23 +422,67 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async (messageId: string, emoji: string) => {
       if (!currentUser) return;
       if (isSupabaseConfigured && supabase) {
-        // Toggle reaction in DB
-        const { data: existing } = await supabase
-          .from('message_reactions')
-          .select('id')
-          .eq('message_id', messageId)
-          .eq('user_id', currentUser.id)
-          .eq('emoji', emoji)
-          .maybeSingle();
+        // Optimistic UI update
+        setMessages((prev) =>
+          prev.map((msg) => {
+            if (msg.id !== messageId) return msg;
+            const curReactions = msg.reactions || [];
+            const existing = curReactions.find((r) => r.emoji === emoji);
+            let nextReactions: MessageReaction[];
 
-        if (existing) {
-          await supabase.from('message_reactions').delete().eq('id', existing.id);
-        } else {
-          await supabase.from('message_reactions').insert({
-            message_id: messageId,
-            user_id: currentUser.id,
-            emoji,
-          });
+            if (existing) {
+              const userIds = Array.isArray(existing.userIds) ? existing.userIds : [];
+              const hasReacted = userIds.includes(currentUser.id);
+              if (hasReacted) {
+                const nextUserIds = userIds.filter((id) => id !== currentUser.id);
+                if (nextUserIds.length === 0) {
+                  nextReactions = curReactions.filter((r) => r.emoji !== emoji);
+                } else {
+                  nextReactions = curReactions.map((r) =>
+                    r.emoji === emoji
+                      ? { ...r, count: nextUserIds.length, userIds: nextUserIds }
+                      : r
+                  );
+                }
+              } else {
+                const nextUserIds = [...userIds, currentUser.id];
+                nextReactions = curReactions.map((r) =>
+                  r.emoji === emoji
+                    ? { ...r, count: nextUserIds.length, userIds: nextUserIds }
+                    : r
+                );
+              }
+            } else {
+              nextReactions = [
+                ...curReactions,
+                { emoji, count: 1, userIds: [currentUser.id] },
+              ];
+            }
+            return { ...msg, reactions: nextReactions };
+          })
+        );
+
+        try {
+          // Toggle reaction in DB
+          const { data: existing } = await supabase
+            .from('message_reactions')
+            .select('id')
+            .eq('message_id', messageId)
+            .eq('user_id', currentUser.id)
+            .eq('emoji', emoji)
+            .maybeSingle();
+
+          if (existing) {
+            await supabase.from('message_reactions').delete().eq('id', existing.id);
+          } else {
+            await supabase.from('message_reactions').insert({
+              message_id: messageId,
+              user_id: currentUser.id,
+              emoji,
+            });
+          }
+        } catch (err) {
+          console.error('Error toggling reaction in database:', err);
         }
       } else {
         const updated = mockStore.toggleReaction(messageId, emoji, currentUser.id);

@@ -30,13 +30,13 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
 
   const filteredMessages = allFoundMessages.filter((m) => {
     const matchesQuery = searchQuery.trim()
-      ? m.content.toLowerCase().includes(searchQuery.toLowerCase())
+      ? (m.content || '').toLowerCase().includes(searchQuery.toLowerCase())
       : true;
     const matchesUser = filterUser.trim()
       ? (m.author?.displayName || m.author?.username || '').toLowerCase().includes(filterUser.toLowerCase())
       : true;
     const matchesChannel = filterChannel.trim()
-      ? m.channelName.toLowerCase().includes(filterChannel.toLowerCase())
+      ? (m.channelName || '').toLowerCase().includes(filterChannel.toLowerCase())
       : true;
 
     return matchesQuery && matchesUser && matchesChannel;

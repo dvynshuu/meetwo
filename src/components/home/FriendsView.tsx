@@ -47,9 +47,11 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onOpenDM }) => {
     filter === 'online' ? onlineFriends : filter === 'all' ? allFriends : pendingFriends
   ).filter((f) => {
     const query = searchQuery.toLowerCase();
+    const displayName = f.user?.displayName || '';
+    const username = f.user?.username || '';
     return (
-      f.user.displayName.toLowerCase().includes(query) ||
-      f.user.username.toLowerCase().includes(query)
+      displayName.toLowerCase().includes(query) ||
+      username.toLowerCase().includes(query)
     );
   });
 

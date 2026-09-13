@@ -447,16 +447,20 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           {message.reactions && message.reactions.length > 0 && (
             <div className="message-reactions-row">
               {message.reactions.map((r) => {
-                const hasReacted = currentUser ? r.userIds.includes(currentUser.id) : false;
+                const userIds = Array.isArray(r.userIds) ? r.userIds : [];
+                const hasReacted = currentUser
+                  ? userIds.includes(currentUser.id) || (r as any).user_id === currentUser.id
+                  : false;
+                const count = r.count ?? userIds.length ?? 1;
                 return (
                   <button
                     key={r.emoji}
                     className={`reaction-pill ${hasReacted ? 'user-reacted' : ''}`}
                     onClick={() => toggleReaction(message.id, r.emoji)}
-                    title={`${r.count} reaction${r.count > 1 ? 's' : ''}`}
+                    title={`${count} reaction${count > 1 ? 's' : ''}`}
                   >
                     <span className="reaction-emoji">{r.emoji}</span>
-                    <span className="reaction-count">{r.count}</span>
+                    <span className="reaction-count">{count}</span>
                   </button>
                 );
               })}
