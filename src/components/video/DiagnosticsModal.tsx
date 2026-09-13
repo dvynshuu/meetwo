@@ -126,9 +126,11 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
             padding: '10px 16px',
             borderRadius: 'var(--radius-md)',
             border: '1px solid var(--border-subtle)',
+            flexWrap: 'wrap',
+            gap: 12,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, minWidth: 0 }}>
             <div
               style={{
                 display: 'flex',
@@ -151,17 +153,18 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
                 fontSize: 12,
                 fontWeight: 600,
                 textTransform: 'uppercase',
+                flexShrink: 0,
               }}
             >
               <Activity size={13} />
               <span>{connectionState}</span>
             </div>
 
-            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-              Room: <strong style={{ color: 'var(--text-primary)' }}>{activeRoomId || 'None (Idle)'}</strong>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }} title={activeRoomId || undefined}>
+              Room: <strong style={{ color: 'var(--text-primary)' }}>{activeRoomId ? (activeRoomId.length > 20 ? `${activeRoomId.slice(0, 18)}…` : activeRoomId) : 'None (Idle)'}</strong>
             </span>
 
-            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)', flexShrink: 0 }}>
               Transport:{' '}
               <strong style={{ color: 'var(--accent-light)' }}>
                 {connectionStats.transportType ? connectionStats.transportType.toUpperCase() : 'AUTO (SFU/P2P)'}
@@ -169,7 +172,7 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <Button variant="secondary" size="sm" onClick={handleExportJSON} style={{ gap: 6 }}>
               <Download size={14} />
               <span>Export JSON</span>
@@ -178,7 +181,7 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
         </div>
 
         {/* Tab Navigation */}
-        <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 8 }}>
+        <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 8, overflowX: 'auto', flexWrap: 'wrap' }}>
           <button
             type="button"
             className={`btn btn-sm ${activeTab === 'metrics' ? 'btn-primary' : 'btn-ghost'}`}
@@ -240,7 +243,7 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
                 </span>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, fontSize: 12 }}>
+              <div className="telemetry-metrics-grid">
                 <div className="telemetry-metric-box">
                   <span className="telemetry-label">ROUND TRIP (RTT)</span>
                   <span className="telemetry-value">
@@ -362,7 +365,7 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({ isOpen, onCl
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, fontSize: 11 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(105px, 1fr))', gap: 8, fontSize: 11 }}>
                       <div>
                         <span style={{ color: 'var(--text-muted)' }}>RTT: </span>
                         <strong>{stats.rtt !== undefined ? `${stats.rtt}ms` : 'Measuring...'}</strong>

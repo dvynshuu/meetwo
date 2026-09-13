@@ -48,6 +48,7 @@ export class PeerConnectionManager implements ITransportAdapter {
   private remoteStreams: Map<string, MediaStream> = new Map();
   private remoteScreenStreams: Map<string, MediaStream> = new Map();
   private peerScreenSharingState: Map<string, boolean> = new Map();
+  private peerScreenStreamIds: Map<string, string> = new Map();
   private peerBitrateAdaptTimes: Map<string, number> = new Map();
 
   // Aggregate local connection stats
@@ -187,7 +188,7 @@ export class PeerConnectionManager implements ITransportAdapter {
       type: 'track-update',
       fromPeerId: this.localPeerId,
       roomId: this.roomId,
-      payload: { isScreenSharing: true },
+      payload: { isScreenSharing: true, screenStreamId: this.screenStream.id },
     });
   }
 
@@ -319,11 +320,15 @@ export class PeerConnectionManager implements ITransportAdapter {
 
     if (type === 'track-update') {
       this.peerScreenSharingState.set(fromPeerId, payload.isScreenSharing);
+      if (payload.screenStreamId) {
+        this.peerScreenStreamIds.set(fromPeerId, payload.screenStreamId);
+      }
       this.callbacks.onPeerStateChanged?.(fromPeerId, {
         isScreenSharing: payload.isScreenSharing,
       });
       if (!payload.isScreenSharing) {
         this.remoteScreenStreams.delete(fromPeerId);
+        this.peerScreenStreamIds.delete(fromPeerId);
         this.callbacks.onRemoteScreenStream?.(fromPeerId, null);
       }
       return;
@@ -460,15 +465,18 @@ export class PeerConnectionManager implements ITransportAdapter {
       const track = event.track;
       const [remoteStream] = event.streams;
       const isScreenSharing = this.peerScreenSharingState.get(peerId);
-
-      // If peer is actively screen sharing and already has camera stream, route second video to screen
+      const knownScreenStreamId = this.peerScreenStreamIds.get(peerId);
       const currentCamStream = this.remoteStreams.get(peerId);
-      if (
-        isScreenSharing &&
-        currentCamStream &&
-        currentCamStream.getVideoTracks().length > 0 &&
-        track.kind === 'video'
-      ) {
+
+      const isScreenTrack =
+        (knownScreenStreamId && remoteStream && remoteStream.id === knownScreenStreamId) ||
+        (isScreenSharing && (
+          track.label.toLowerCase().includes('screen') ||
+          track.label.toLowerCase().includes('display') ||
+          (currentCamStream && currentCamStream.getVideoTracks().length > 0)
+        ));
+
+      if (isScreenTrack && track.kind === 'video') {
         let scrStream = this.remoteScreenStreams.get(peerId);
         if (!scrStream) {
           scrStream = new MediaStream();
@@ -978,6 +986,7 @@ export class PeerConnectionManager implements ITransportAdapter {
     this.remoteStreams.delete(peerId);
     this.remoteScreenStreams.delete(peerId);
     this.peerScreenSharingState.delete(peerId);
+    this.peerScreenStreamIds.delete(peerId);
     this.callbacks.onPeerLeft(peerId);
     this.evaluateOverallLifecycle();
     this.collectGlobalStats().catch(() => {});
@@ -1006,6 +1015,7 @@ export class PeerConnectionManager implements ITransportAdapter {
     this.remoteStreams.clear();
     this.remoteScreenStreams.clear();
     this.peerScreenSharingState.clear();
+    this.peerScreenStreamIds.clear();
     this.screenStream = null;
     this.signaling.destroy();
     logger.log('call_left', { transport: 'p2p' });

@@ -19,7 +19,7 @@ import {
 interface PreJoinModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onJoin: (roomId: string) => void;
+  onJoin: (roomId: string, initialMicMuted?: boolean, initialCamMuted?: boolean) => void;
   roomId: string;
   roomName?: string;
 }
@@ -46,84 +46,146 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const animFrameRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const previewStreamRef = useRef<MediaStream | null>(null);
+  const activeCameraTrackRef = useRef<MediaStreamTrack | null>(null);
+  const activeAudioTrackRef = useRef<MediaStreamTrack | null>(null);
+  const previewRequestIdRef = useRef(0);
+  const previewCamMutedRef = useRef(previewCamMuted);
+  const previewMicMutedRef = useRef(previewMicMuted);
 
-  // Enumerate devices on open
   useEffect(() => {
-    if (isOpen) {
-      MediaSession.getAvailableDevices().then((devs) => {
-        setAudioInputs(devs.audioInputs);
-        setAudioOutputs(devs.audioOutputs);
-        setVideoInputs(devs.videoInputs);
-      });
-      startHardwarePreview();
-    } else {
-      stopHardwarePreview();
+    previewCamMutedRef.current = previewCamMuted;
+  }, [previewCamMuted]);
+
+  useEffect(() => {
+    previewMicMutedRef.current = previewMicMuted;
+  }, [previewMicMuted]);
+
+  // Synchronize video element whenever video track is available and unmuted
+  useEffect(() => {
+    if (!previewCamMuted && activeCameraTrackRef.current && videoRef.current) {
+      if (!previewStreamRef.current) {
+        previewStreamRef.current = new MediaStream([activeCameraTrackRef.current]);
+      }
+      if (videoRef.current.srcObject !== previewStreamRef.current) {
+        videoRef.current.srcObject = previewStreamRef.current;
+        videoRef.current.play().catch(() => {});
+      }
+    }
+  }, [previewCamMuted, previewStream]);
+
+  // Resolution map for target video qualities
+  const resolutionMap: Record<string, { width: number; height: number; fps: number }> = {
+    '4K': { width: 3840, height: 2160, fps: 30 },
+    '1440p': { width: 2560, height: 1440, fps: 30 },
+    '1080p': { width: 1920, height: 1080, fps: 60 },
+    '720p': { width: 1280, height: 720, fps: 60 },
+    '480p': { width: 640, height: 480, fps: 30 },
+    '360p': { width: 480, height: 360, fps: 24 },
+  };
+
+  const stopCameraHardware = () => {
+    // Invalidate in-flight camera requests
+    previewRequestIdRef.current++;
+
+    if (activeCameraTrackRef.current) {
+      try {
+        activeCameraTrackRef.current.stop();
+      } catch (e) {}
+      activeCameraTrackRef.current = null;
     }
 
-    return () => {
-      stopHardwarePreview();
-    };
-  }, [isOpen, deviceSettings.videoInputId, deviceSettings.audioInputId]);
-
-  const startHardwarePreview = async () => {
-    stopHardwarePreview();
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: !previewCamMuted
-          ? {
-              deviceId: deviceSettings.videoInputId ? { exact: deviceSettings.videoInputId } : undefined,
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            }
-          : false,
-        audio: !previewMicMuted
-          ? {
-              deviceId: deviceSettings.audioInputId ? { exact: deviceSettings.audioInputId } : undefined,
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-              channelCount: 1,
-            }
-          : false,
+    if (previewStreamRef.current) {
+      previewStreamRef.current.getVideoTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch (e) {}
+        previewStreamRef.current?.removeTrack(t);
       });
+    }
 
-      setPreviewStream(stream);
-      if (videoRef.current && stream.getVideoTracks().length > 0) {
-        videoRef.current.srcObject = stream;
+    if (videoRef.current) {
+      if (videoRef.current.srcObject instanceof MediaStream) {
+        videoRef.current.srcObject.getVideoTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch (e) {}
+        });
       }
-
-      // Mic volume metering
-      if (stream.getAudioTracks().length > 0) {
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioCtx) {
-          const ctx = new AudioCtx();
-          audioContextRef.current = ctx;
-          const source = ctx.createMediaStreamSource(stream);
-          const analyser = ctx.createAnalyser();
-          analyser.fftSize = 256;
-          source.connect(analyser);
-
-          const dataArray = new Uint8Array(analyser.frequencyBinCount);
-          const loop = () => {
-            analyser.getByteFrequencyData(dataArray);
-            let sum = 0;
-            for (let i = 0; i < dataArray.length; i++) {
-              sum += dataArray[i];
-            }
-            const avg = sum / dataArray.length;
-            setMicLevel(Math.min(100, Math.round((avg / 128) * 100)));
-            animFrameRef.current = requestAnimationFrame(loop);
-          };
-          animFrameRef.current = requestAnimationFrame(loop);
-        }
-      }
-    } catch (err) {
-      console.warn('[PreJoin] Camera or Mic preview blocked:', err);
+      videoRef.current.srcObject = null;
     }
   };
 
-  const stopHardwarePreview = () => {
+  const startCameraHardware = async () => {
+    stopCameraHardware();
+    const requestId = ++previewRequestIdRef.current;
+
+    try {
+      const res = resolutionMap[deviceSettings.videoQuality] || resolutionMap['720p'];
+      const videoConstraints: MediaTrackConstraints = {
+        deviceId: deviceSettings.videoInputId ? { exact: deviceSettings.videoInputId } : undefined,
+        width: { ideal: res.width, max: res.width },
+        height: { ideal: res.height, max: res.height },
+        frameRate: { ideal: res.fps, max: 60 },
+      };
+
+      let newStream: MediaStream;
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
+          audio: false,
+        });
+      } catch {
+        // Fallback constraint if exact deviceId or high resolution fails
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: deviceSettings.videoInputId ? { deviceId: deviceSettings.videoInputId } : true,
+          audio: false,
+        });
+      }
+
+      // Check if user turned off camera or closed modal while in flight
+      if (requestId !== previewRequestIdRef.current || previewCamMutedRef.current) {
+        newStream.getTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch (e) {}
+        });
+        return;
+      }
+
+      const videoTrack = newStream.getVideoTracks()[0];
+      if (videoTrack) {
+        activeCameraTrackRef.current = videoTrack;
+        videoTrack.onended = () => {
+          stopCameraHardware();
+        };
+
+        if (!previewStreamRef.current) {
+          previewStreamRef.current = new MediaStream();
+        }
+        // Remove any dead video tracks
+        previewStreamRef.current.getVideoTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch (e) {}
+          previewStreamRef.current?.removeTrack(t);
+        });
+        previewStreamRef.current.addTrack(videoTrack);
+
+        const updated = new MediaStream(previewStreamRef.current.getTracks());
+        setPreviewStream(updated);
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = updated;
+          videoRef.current.play().catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn('[PreJoin] Camera preview error:', err);
+    }
+  };
+
+  const stopMicrophoneHardware = () => {
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = null;
@@ -132,11 +194,178 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
       audioContextRef.current.close().catch(() => {});
       audioContextRef.current = null;
     }
-    if (previewStream) {
-      previewStream.getTracks().forEach((t) => t.stop());
-      setPreviewStream(null);
+    if (activeAudioTrackRef.current) {
+      try {
+        activeAudioTrackRef.current.stop();
+      } catch (e) {}
+      activeAudioTrackRef.current = null;
+    }
+    if (previewStreamRef.current) {
+      previewStreamRef.current.getAudioTracks().forEach((t) => {
+        try {
+          t.stop();
+        } catch (e) {}
+        previewStreamRef.current?.removeTrack(t);
+      });
     }
     setMicLevel(0);
+  };
+
+  const startMicMetering = (stream: MediaStream) => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx && stream.getAudioTracks().length > 0) {
+        const ctx = new AudioCtx();
+        audioContextRef.current = ctx;
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        const loop = () => {
+          if (previewMicMutedRef.current) {
+            setMicLevel(0);
+            animFrameRef.current = requestAnimationFrame(loop);
+            return;
+          }
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+          }
+          const avg = sum / dataArray.length;
+          setMicLevel(Math.min(100, Math.round((avg / 128) * 100)));
+          animFrameRef.current = requestAnimationFrame(loop);
+        };
+        animFrameRef.current = requestAnimationFrame(loop);
+      }
+    } catch (e) {
+      console.warn('[PreJoin] Mic metering error:', e);
+    }
+  };
+
+  const startMicrophoneHardware = async () => {
+    stopMicrophoneHardware();
+    const requestId = ++previewRequestIdRef.current;
+
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: deviceSettings.audioInputId ? { exact: deviceSettings.audioInputId } : undefined,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+        video: false,
+      });
+
+      if (requestId !== previewRequestIdRef.current || previewMicMutedRef.current) {
+        newStream.getTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch (e) {}
+        });
+        return;
+      }
+
+      const audioTrack = newStream.getAudioTracks()[0];
+      if (audioTrack) {
+        activeAudioTrackRef.current = audioTrack;
+        audioTrack.onended = () => {
+          stopMicrophoneHardware();
+        };
+
+        if (!previewStreamRef.current) {
+          previewStreamRef.current = new MediaStream();
+        }
+        previewStreamRef.current.getAudioTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch (e) {}
+          previewStreamRef.current?.removeTrack(t);
+        });
+        previewStreamRef.current.addTrack(audioTrack);
+
+        const updated = new MediaStream(previewStreamRef.current.getTracks());
+        setPreviewStream(updated);
+        startMicMetering(newStream);
+      }
+    } catch (err) {
+      console.warn('[PreJoin] Microphone preview error:', err);
+    }
+  };
+
+  const stopAllHardware = () => {
+    previewRequestIdRef.current++;
+    stopCameraHardware();
+    stopMicrophoneHardware();
+    previewStreamRef.current = null;
+    setPreviewStream(null);
+  };
+
+  // Enumerate devices on open and manage hardware streams
+  useEffect(() => {
+    if (isOpen) {
+      MediaSession.getAvailableDevices().then((devs) => {
+        setAudioInputs(devs.audioInputs);
+        setAudioOutputs(devs.audioOutputs);
+        setVideoInputs(devs.videoInputs);
+      });
+
+      if (!previewCamMutedRef.current) {
+        startCameraHardware();
+      } else {
+        stopCameraHardware();
+      }
+
+      if (!previewMicMutedRef.current) {
+        startMicrophoneHardware();
+      } else {
+        stopMicrophoneHardware();
+      }
+    } else {
+      stopAllHardware();
+    }
+
+    return () => {
+      stopAllHardware();
+    };
+  }, [isOpen, deviceSettings.videoInputId, deviceSettings.audioInputId, deviceSettings.videoQuality]);
+
+  const handleToggleCamera = () => {
+    if (!previewCamMuted) {
+      // Turn camera OFF: completely stop video track immediately
+      setPreviewCamMuted(true);
+      previewCamMutedRef.current = true;
+      stopCameraHardware();
+      if (previewStreamRef.current) {
+        setPreviewStream(new MediaStream(previewStreamRef.current.getTracks()));
+      }
+    } else {
+      // Turn camera ON
+      setPreviewCamMuted(false);
+      previewCamMutedRef.current = false;
+      startCameraHardware();
+    }
+  };
+
+  const handleToggleMicrophone = () => {
+    if (!previewMicMuted) {
+      // Mute Mic: completely stop audio track immediately to clear recording indicator
+      setPreviewMicMuted(true);
+      previewMicMutedRef.current = true;
+      stopMicrophoneHardware();
+      if (previewStreamRef.current) {
+        setPreviewStream(new MediaStream(previewStreamRef.current.getTracks()));
+      }
+    } else {
+      // Unmute Mic
+      setPreviewMicMuted(false);
+      previewMicMutedRef.current = false;
+      startMicrophoneHardware();
+    }
   };
 
   const handleTestSpeaker = async () => {
@@ -145,13 +374,18 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
     setIsChimePlaying(false);
   };
 
+  const handleClose = () => {
+    stopAllHardware();
+    onClose();
+  };
+
   const handleJoinConfirmed = () => {
-    stopHardwarePreview();
-    onJoin(roomId);
+    stopAllHardware();
+    onJoin(roomId, previewMicMuted, previewCamMuted);
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Ready to Join?" maxWidth="580px">
+    <Modal isOpen={isOpen} onClose={handleClose} title="Ready to Join?" maxWidth="580px">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
@@ -239,12 +473,7 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
               type="button"
               className={`video-control-btn ${previewMicMuted ? 'active-off' : ''}`}
               style={{ width: 38, height: 38 }}
-              onClick={() => {
-                setPreviewMicMuted(!previewMicMuted);
-                if (previewStream) {
-                  previewStream.getAudioTracks().forEach((t) => (t.enabled = previewMicMuted));
-                }
-              }}
+              onClick={handleToggleMicrophone}
               title={previewMicMuted ? 'Unmute Mic' : 'Mute Mic'}
             >
               {previewMicMuted ? <MicOff size={17} /> : <Mic size={17} />}
@@ -254,13 +483,7 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
               type="button"
               className={`video-control-btn ${previewCamMuted ? 'active-off' : ''}`}
               style={{ width: 38, height: 38 }}
-              onClick={() => {
-                const nextCam = !previewCamMuted;
-                setPreviewCamMuted(nextCam);
-                if (previewStream) {
-                  previewStream.getVideoTracks().forEach((t) => (t.enabled = !nextCam));
-                }
-              }}
+              onClick={handleToggleCamera}
               title={previewCamMuted ? 'Start Camera' : 'Stop Camera'}
             >
               {previewCamMuted ? <VideoOff size={17} /> : <VideoIcon size={17} />}
@@ -418,7 +641,7 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
 
         {/* Modal Actions */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={handleClose}>
             Cancel
           </Button>
           <Button

@@ -12,7 +12,6 @@ import {
   Eye,
   EyeOff,
   Tv,
-  AlertTriangle,
   RefreshCw,
 } from 'lucide-react';
 import { Participant } from '../../types';
@@ -39,7 +38,7 @@ export const VideoTile: React.FC<VideoTileProps> = ({
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showLocalMiniPreview, setShowLocalMiniPreview] = useState(true);
-  const [showFullLocalVideo, setShowFullLocalVideo] = useState(false);
+  const [showFullLocalVideo, setShowFullLocalVideo] = useState(true);
   const [showFsBar, setShowFsBar] = useState(true);
   const fsBarTimeoutRef = useRef<any>(null);
 
@@ -414,28 +413,6 @@ export const VideoTile: React.FC<VideoTileProps> = ({
         </div>
       ) : (
         <>
-          {/* Mirror Warning Banner */}
-          {isLocalScreenShare && showFullLocalVideo && (
-            <div className="mirror-warning-banner">
-              <AlertTriangle size={14} style={{ flexShrink: 0 }} />
-              <span>
-                To avoid an infinite mirror, switch to another window.
-              </span>
-              <button
-                type="button"
-                className="btn btn-secondary btn-xs"
-                onClick={() => setShowFullLocalVideo(false)}
-                style={{
-                  padding: '2px 8px',
-                  fontSize: 11,
-                  marginLeft: 4,
-                  flexShrink: 0,
-                }}
-              >
-                Studio
-              </button>
-            </div>
-          )}
 
           {/* Avatar Placeholder when video is off */}
           {!hasVideoTrack && !isScreenTile && (

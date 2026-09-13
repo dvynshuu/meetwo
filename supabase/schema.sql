@@ -40,8 +40,9 @@ CREATE TABLE IF NOT EXISTS public.server_members (
 CREATE TABLE IF NOT EXISTS public.channels (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   server_id UUID NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
+  category_id UUID DEFAULT NULL,
   name TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('text', 'voice')),
+  type TEXT NOT NULL CHECK (type IN ('text', 'voice', 'stage', 'forum', 'announcement')),
   topic TEXT DEFAULT '',
   position INT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()

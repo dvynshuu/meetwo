@@ -181,7 +181,7 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
         <PreJoinModal
           isOpen={isPreJoinOpen}
           onClose={closePreJoin}
-          onJoin={joinVoiceRoom}
+          onJoin={(id, micMuted, camMuted) => joinVoiceRoom(id, micMuted, camMuted)}
           roomId={pendingRoomId || activeChannel.id}
           roomName={activeChannel.name}
         />

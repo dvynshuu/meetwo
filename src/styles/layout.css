@@ -233,23 +233,11 @@
   color: var(--text-primary);
 }
 
-/* Restrained Active State: Subtle surface lift + accent marker + text emphasis */
+/* Restrained Active State: Clean surface lift + text emphasis */
 .channel-item.active {
   background-color: var(--bg-surface-active);
   color: var(--text-primary);
   font-weight: 600;
-}
-
-.channel-item.active::before {
-  content: '';
-  position: absolute;
-  left: 2px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 14px;
-  background-color: var(--accent);
-  border-radius: 2px;
 }
 
 .channel-icon {

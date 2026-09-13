@@ -60,7 +60,7 @@ export const ActiveCallBar: React.FC<ActiveCallBarProps> = ({ onReturnToCall }) 
 
       {/* Controls row */}
       <div className="active-call-controls">
-        <Tooltip content={isAudioMuted ? 'Unmute Mic' : 'Mute Mic'} position="top" shortcut="Ctrl+D">
+        <Tooltip content={isAudioMuted ? 'Unmute Mic' : 'Mute Mic'} position="top" shortcut="Ctrl+D" style={{ flex: 1, display: 'flex' }}>
           <button
             className={`active-call-btn ${isAudioMuted ? 'muted' : ''}`}
             onClick={(e) => {
@@ -73,7 +73,7 @@ export const ActiveCallBar: React.FC<ActiveCallBarProps> = ({ onReturnToCall }) 
           </button>
         </Tooltip>
 
-        <Tooltip content={isVideoMuted ? 'Start Video' : 'Stop Video'} position="top" shortcut="Ctrl+E">
+        <Tooltip content={isVideoMuted ? 'Start Video' : 'Stop Video'} position="top" shortcut="Ctrl+E" style={{ flex: 1, display: 'flex' }}>
           <button
             className={`active-call-btn ${isVideoMuted ? 'muted' : ''}`}
             onClick={(e) => {
@@ -86,7 +86,7 @@ export const ActiveCallBar: React.FC<ActiveCallBarProps> = ({ onReturnToCall }) 
           </button>
         </Tooltip>
 
-        <Tooltip content="Disconnect Call" position="top">
+        <Tooltip content="Disconnect Call" position="top" style={{ flex: 1, display: 'flex' }}>
           <button
             className="active-call-btn disconnect-btn"
             onClick={(e) => {

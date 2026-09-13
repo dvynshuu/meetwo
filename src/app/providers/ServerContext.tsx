@@ -20,6 +20,19 @@ interface ServerContextType {
 
 const ServerContext = createContext<ServerContextType | undefined>(undefined);
 
+const mapChannel = (c: any): Channel => ({
+  ...c,
+  id: c.id,
+  serverId: c.serverId || c.server_id,
+  name: c.name,
+  type: c.type,
+  topic: c.topic || '',
+  categoryId: c.categoryId || c.category_id || undefined,
+  position: c.position ?? 0,
+  unreadCount: c.unreadCount || 0,
+  createdAt: c.createdAt || c.created_at,
+});
+
 export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAuth();
   const [servers, setServers] = useState<Server[]>([]);
@@ -53,7 +66,7 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setActiveServer(initialServer);
 
           // Channels for initial server
-          const activeChannels = serverData[0].channels || [];
+          const activeChannels = (serverData[0].channels || []).map(mapChannel);
           setChannels(activeChannels);
           if (activeChannels.length > 0) {
             setActiveChannel(activeChannels[0]);
@@ -116,8 +129,9 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         .order('position', { ascending: true })
         .then(({ data }) => {
           if (data) {
-            setChannels(data);
-            if (data.length > 0) setActiveChannel(data[0]);
+            const mapped = data.map(mapChannel);
+            setChannels(mapped);
+            if (mapped.length > 0) setActiveChannel(mapped[0]);
           }
         });
     } else {
@@ -186,8 +200,9 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setServers((prev) => [...prev, newServerObj]);
       setActiveServer(newServerObj);
       if (generalChan) {
-        setChannels([generalChan]);
-        setActiveChannel(generalChan);
+        const mappedChan = mapChannel(generalChan);
+        setChannels([mappedChan]);
+        setActiveChannel(mappedChan);
       }
       return newServerObj;
     } else {
@@ -206,23 +221,43 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     categoryId?: string
   ): Promise<Channel> => {
     if (isSupabaseConfigured && supabase) {
-      const { data: channel, error } = await supabase
+      const insertPayload: Record<string, any> = {
+        server_id: serverId,
+        name: name.toLowerCase().replace(/\s+/g, '-'),
+        type,
+        topic: topic || '',
+        position: channels.length,
+      };
+
+      // Only include category_id if provided
+      if (categoryId) {
+        insertPayload.category_id = categoryId;
+      }
+
+      let { data: channel, error } = await supabase
         .from('channels')
-        .insert({
-          server_id: serverId,
-          category_id: categoryId || null,
-          name: name.toLowerCase().replace(/\s+/g, '-'),
-          type,
-          topic: topic || '',
-          position: channels.length,
-        })
+        .insert(insertPayload)
         .select()
         .single();
+
+      // If category_id column does not exist in schema cache, retry without it
+      if (error && (error.message?.includes('category_id') || error.code === 'PGRST204')) {
+        delete insertPayload.category_id;
+        const retryResult = await supabase
+          .from('channels')
+          .insert(insertPayload)
+          .select()
+          .single();
+        channel = retryResult.data;
+        error = retryResult.error;
+      }
+
       if (error) throw error;
 
-      setChannels((prev) => [...prev, channel]);
-      setActiveChannel(channel);
-      return channel;
+      const mappedChan = mapChannel(channel);
+      setChannels((prev) => [...prev, mappedChan]);
+      setActiveChannel(mappedChan);
+      return mappedChan;
     } else {
       const newChan = mockStore.createChannel(serverId, name, type, topic, categoryId);
       setChannels((prev) => [...prev, newChan]);

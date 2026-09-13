@@ -720,7 +720,7 @@
   position: relative;
   height: 100%;
   overflow: hidden;
-  background: #0A0C10;
+  background: #111214;
 }
 
 .video-in-call-chat {
@@ -764,17 +764,18 @@
   flex-direction: column;
 }
 
-/* Video Grid Layouts */
+/* Video Grid Layouts (Discord Inspired) */
 .video-grid {
   flex: 1;
   display: grid;
-  padding: 18px 24px;
-  gap: 14px;
+  padding: 16px 20px;
+  gap: 12px;
   width: 100%;
   height: 100%;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+  background: #111214;
 }
 
 /* Layout 1: Centered 16:9 Discord-style single participant */
@@ -784,34 +785,43 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  padding: 20px 24px;
+  padding: 16px 24px;
   box-sizing: border-box;
 }
 
 .video-grid.layout-1 .video-tile {
-  max-width: 1100px;
-  max-height: calc(100% - 24px);
+  max-width: 1080px;
+  max-height: 100%;
   aspect-ratio: 16 / 9;
   width: 100%;
-  margin: 0 auto;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  margin: auto;
+  border-radius: 12px;
+  background: #1e1f22;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
 }
 
 /* Layout 2: 2 equal 16:9 side-by-side */
 .video-grid.layout-2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   max-width: 1280px;
-  margin: 0 auto;
+  max-height: 100%;
+  margin: auto;
   width: 100%;
   height: 100%;
   align-items: center;
-  padding: 18px;
+  padding: 16px;
+  box-sizing: border-box;
 }
 
 .video-grid.layout-2 .video-tile {
   aspect-ratio: 16 / 9;
-  max-height: 85%;
+  max-height: 100%;
+  border-radius: 12px;
+  background: #1e1f22;
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* Layout 3 & 4: 2x2 Grid */
@@ -820,11 +830,24 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   width: 100%;
   height: 100%;
-  max-width: 1280px;
-  margin: 0 auto;
+  max-width: 1240px;
+  max-height: 100%;
+  margin: auto;
   padding: 16px;
+  box-sizing: border-box;
+  align-items: center;
+}
+
+.video-grid.layout-3 .video-tile,
+.video-grid.layout-4 .video-tile {
+  aspect-ratio: 16 / 9;
+  max-height: 100%;
+  border-radius: 12px;
+  background: #1e1f22;
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* Layout 6: 3x2 Grid */
@@ -832,37 +855,49 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   width: 100%;
   height: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
+  max-width: 1360px;
+  max-height: 100%;
+  margin: auto;
   padding: 16px;
+  box-sizing: border-box;
+  align-items: center;
+}
+
+.video-grid.layout-6 .video-tile {
+  aspect-ratio: 16 / 9;
+  max-height: 100%;
+  border-radius: 12px;
+  background: #1e1f22;
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* Video Tile Styling */
 .video-tile {
   position: relative;
-  background: #121620;
-  border-radius: 14px;
+  background: #1e1f22;
+  border-radius: 12px;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
   height: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
   transition: box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.18s ease;
 }
 
-/* Discord Speaking Border: Clean 2px outline */
+/* Discord Speaking Border: Clean 2px green outline */
 .video-tile.is-speaking {
-  box-shadow: 0 0 0 2px var(--accent);
-  border-color: transparent;
+  box-shadow: 0 0 0 2px #23a55a !important;
+  border-color: transparent !important;
 }
 
 .video-tile.is-speaking .video-avatar-placeholder .avatar-wrap {
-  box-shadow: 0 0 0 2px var(--accent);
+  box-shadow: 0 0 0 2px #23a55a !important;
   border-radius: 50%;
 }
 
@@ -945,19 +980,22 @@
   color: var(--text-primary);
 }
 
-/* Local Screen Share Presenter Card */
+/* Local Screen Share Presenter Card - Discord Compact Style */
 .local-screenshare-presenter-card {
   width: 100%;
-  height: 100%;
+  max-width: 440px;
+  margin: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 12px;
   padding: 24px;
   text-align: center;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
+  background: #1e1f22;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
   user-select: none;
 }
 
@@ -1113,20 +1151,21 @@
 
 .mirror-warning-banner {
   position: absolute;
-  top: 14px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: var(--bg-overlay);
-  border: 1px solid var(--border-medium);
-  color: var(--warning);
-  padding: 8px 14px;
-  border-radius: var(--radius-md);
+  gap: 8px;
+  background: rgba(18, 20, 26, 0.92);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(250, 166, 26, 0.35);
+  color: #faa61a;
+  padding: 6px 14px;
+  border-radius: 20px;
   font-size: 12px;
   font-weight: 600;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
   z-index: 30;
   max-width: 90%;
   pointer-events: auto;
@@ -1181,50 +1220,74 @@
   font-weight: 600;
 }
 
-/* Discord-Style Floating Video Controls Dock */
+/* Discord-Style Floating Video Controls Dock - Only visible on hover or when active */
 .video-controls-dock {
   position: absolute;
   bottom: 22px;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(14px);
+  opacity: 0;
+  pointer-events: auto;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 6px 14px;
   background: rgba(15, 19, 28, 0.92);
-  backdrop-filter: blur(24px);
+  backdrop-filter: blur(0px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 40px;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
   z-index: 30;
   user-select: none;
-  animation: controlsSlideUp 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1) 0.15s,
+              transform 0.22s cubic-bezier(0.16, 1, 0.3, 1) 0.15s,
+              backdrop-filter 0.22s ease 0.15s;
 }
 
-@keyframes controlsSlideUp {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 14px);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
+/* Hover trigger zone so hovering near the bottom center smoothly reveals controls */
+.video-controls-dock::before {
+  content: '';
+  position: absolute;
+  top: -20px;
+  bottom: -22px;
+  left: -28px;
+  right: -28px;
+  z-index: -1;
+}
+
+.video-controls-dock:hover,
+.video-controls-dock:focus-within,
+.video-controls-dock.dock-active {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  backdrop-filter: blur(24px);
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              backdrop-filter 0.2s ease;
+  transition-delay: 0s;
 }
 
 .dock-split-wrapper {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  height: 44px;
   background: rgba(255, 255, 255, 0.07);
-  border-radius: 24px;
+  border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   transition: all var(--transition-fast);
   position: relative;
+  box-sizing: border-box;
 }
 
 .dock-split-wrapper:hover {
   background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.14);
+  transform: translateY(-1px);
+}
+
+.dock-split-wrapper.menu-open {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .dock-btn {
@@ -1232,23 +1295,33 @@
   height: 44px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.07);
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.06);
   color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all var(--transition-fast);
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .dock-split-wrapper .dock-btn {
   background: transparent;
+  border: none;
+  width: 42px;
+  height: 42px;
 }
 
 .dock-btn:hover {
   background: rgba(255, 255, 255, 0.14);
   color: #FFFFFF;
   transform: translateY(-1px);
+}
+
+.dock-split-wrapper .dock-btn:hover {
+  background: transparent;
+  transform: none;
 }
 
 .dock-btn-off {
@@ -1262,13 +1335,32 @@
   box-shadow: 0 2px 10px rgba(218, 55, 60, 0.35);
 }
 
+.dock-split-wrapper.dock-split-danger,
 .dock-split-wrapper:has(.dock-btn-muted-danger) {
-  background: rgba(218, 55, 60, 0.2);
-  border-color: rgba(218, 55, 60, 0.4);
+  background: #da373c;
+  border-color: #da373c;
+  box-shadow: 0 2px 10px rgba(218, 55, 60, 0.35);
 }
 
-.dock-btn-muted-danger:hover {
-  background: #c03135 !important;
+.dock-split-wrapper.dock-split-danger:hover,
+.dock-split-wrapper:has(.dock-btn-muted-danger):hover {
+  background: #c03135;
+  border-color: #c03135;
+  box-shadow: 0 4px 14px rgba(218, 55, 60, 0.45);
+  transform: translateY(-1px);
+}
+
+.dock-split-wrapper.dock-split-danger.menu-open,
+.dock-split-wrapper:has(.dock-btn-muted-danger).menu-open {
+  background: #b02a2e;
+  border-color: #b02a2e;
+}
+
+.dock-split-wrapper.dock-split-danger .dock-btn,
+.dock-split-wrapper:has(.dock-btn-muted-danger) .dock-btn {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #FFFFFF !important;
 }
 
 /* Active Screen Share Button */
@@ -1278,25 +1370,83 @@
   box-shadow: 0 2px 12px rgba(16, 231, 178, 0.35);
 }
 
+/* Collapsible Arrow Tooltip Wrapper - Only visible on hover or menu open */
+.dock-arrow-tooltip {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition: width 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              min-width 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              max-width 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.14s ease;
+}
+
+.dock-split-wrapper:hover .dock-arrow-tooltip,
+.dock-split-wrapper:focus-within .dock-arrow-tooltip,
+.dock-split-wrapper.menu-open .dock-arrow-tooltip {
+  width: 20px !important;
+  min-width: 20px !important;
+  max-width: 20px !important;
+  opacity: 1;
+  pointer-events: auto;
+  overflow: visible;
+}
+
 .dock-arrow-btn {
   width: 20px;
-  height: 44px;
-  border-radius: 0 22px 22px 0;
+  min-width: 20px;
+  height: 42px;
+  border-radius: 0 21px 21px 0;
   background: transparent;
   border: none;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 1px solid transparent;
   color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all var(--transition-fast);
-  padding-right: 4px;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.dock-split-wrapper:hover .dock-arrow-btn,
+.dock-split-wrapper:focus-within .dock-arrow-btn,
+.dock-split-wrapper.menu-open .dock-arrow-btn {
+  border-left-color: rgba(255, 255, 255, 0.12);
 }
 
 .dock-arrow-btn:hover {
   color: #FFFFFF;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dock-split-wrapper.dock-split-danger .dock-arrow-btn,
+.dock-split-wrapper:has(.dock-btn-muted-danger) .dock-arrow-btn {
+  color: rgba(255, 255, 255, 0.85);
+  border-left-color: transparent;
+}
+
+.dock-split-wrapper.dock-split-danger:hover .dock-arrow-btn,
+.dock-split-wrapper.dock-split-danger:focus-within .dock-arrow-btn,
+.dock-split-wrapper.dock-split-danger.menu-open .dock-arrow-btn,
+.dock-split-wrapper:has(.dock-btn-muted-danger):hover .dock-arrow-btn,
+.dock-split-wrapper:has(.dock-btn-muted-danger):focus-within .dock-arrow-btn,
+.dock-split-wrapper:has(.dock-btn-muted-danger).menu-open .dock-arrow-btn {
+  border-left-color: rgba(0, 0, 0, 0.2);
+}
+
+.dock-split-wrapper.dock-split-danger .dock-arrow-btn:hover,
+.dock-split-wrapper:has(.dock-btn-muted-danger) .dock-arrow-btn:hover {
+  background: rgba(0, 0, 0, 0.15);
+  color: #FFFFFF;
+}
+
+.dock-split-wrapper.menu-open .dock-arrow-btn svg {
+  transform: rotate(180deg);
 }
 
 .dock-separator {
@@ -1846,41 +1996,152 @@
 }
 
 /* ====================================================================
-   VIDEO ROOM V2: STAGE FOCUS MODE & PARTICIPANT STRIP
+   VIDEO ROOM: DISCORD STAGE PRESENTATION & TOP PARTICIPANT STRIP
    ==================================================================== */
 .video-stage-container {
   flex: 1;
   display: flex;
   flex-direction: column;
-  height: calc(100% - 80px);
-  padding: 16px;
-  gap: 12px;
+  height: 100%;
+  width: 100%;
+  padding: 8px 16px 12px 16px;
+  gap: 8px;
+  box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
+  background: #111214;
 }
 
+/* Discord-Style Top Participant Strip */
+.video-stage-strip {
+  height: 92px;
+  min-height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: safe center;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 4px;
+  scrollbar-width: none;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.video-stage-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.video-stage-strip-item {
+  width: 156px;
+  min-width: 156px;
+  height: 94px;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
+  cursor: pointer;
+}
+
+.video-stage-strip-item:hover {
+  transform: translateY(-2px);
+}
+
+.video-stage-strip-item .video-tile {
+  border-radius: 8px;
+  background: #1e1f22;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  width: 100%;
+  height: 100%;
+}
+
+.video-stage-strip-item .video-avatar-placeholder {
+  gap: 0;
+}
+
+.video-stage-strip-item .video-avatar-placeholder .avatar-wrap,
+.video-stage-strip-item .video-avatar-placeholder .avatar-img,
+.video-stage-strip-item .video-avatar-placeholder .avatar-fallback {
+  width: 44px !important;
+  height: 44px !important;
+  font-size: 16px !important;
+}
+
+.video-stage-strip-item .video-avatar-placeholder span {
+  display: none; /* In top strip, username is in the bottom tag badge */
+}
+
+.video-stage-strip-item .video-tile-overlay {
+  bottom: 6px;
+  left: 6px;
+  right: 6px;
+}
+
+.video-stage-strip-item .video-tile-user-tag {
+  padding: 2px 6px;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.65);
+  border-radius: 4px;
+  max-width: 95%;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.video-stage-strip-item .video-tile-quick-actions {
+  top: 4px;
+  right: 4px;
+  gap: 3px;
+}
+
+.video-stage-strip-item .action-pill-btn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+}
+
+/* Main Presentation Viewport (Discord Centered 16:9 Theater) */
 .video-stage-viewport {
   flex: 1;
   min-height: 0;
   width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  padding: 4px 16px 68px 16px;
+  box-sizing: border-box;
+}
+
+.video-stage-viewport .video-tile {
+  width: auto;
+  height: 100%;
+  max-width: min(100%, 880px);
+  max-height: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  background: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: max-width 0.2s ease;
+}
+
+.video-stage-viewport .video-element {
+  width: 100%;
+  height: 100%;
+  object-fit: contain !important;
+  background: #000000;
 }
 
 .video-tile-featured {
   height: 100%;
-  border-color: var(--border-medium);
-}
-
-.video-stage-strip {
-  height: 140px;
-  min-height: 140px;
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-
-.video-stage-strip-item {
-  width: 200px;
-  min-width: 200px;
-  height: 100%;
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .video-tile-quick-actions {
@@ -2841,7 +3102,9 @@
 /* --- Channel Unread & Mention Indicators --- */
 .channel-unread-dot {
   position: absolute;
-  left: 2px;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 4px;
   height: 8px;
   border-radius: 0 4px 4px 0;
@@ -2863,6 +3126,7 @@
   padding: 1px 5px;
   border-radius: var(--radius-pill);
   border: 1px solid rgba(251, 113, 133, 0.3);
+  letter-spacing: 0.04em;
 }
 
 /* --- Active Call Controller Bar --- */
@@ -2943,18 +3207,26 @@
 .active-call-controls {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 6px;
   padding-top: 6px;
   border-top: 1px solid var(--border-subtle);
 }
 
+.active-call-controls .tooltip-wrapper {
+  flex: 1;
+  display: flex !important;
+  min-width: 0;
+  width: 100%;
+}
+
 .active-call-btn {
   flex: 1;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 26px;
+  height: 28px;
+  padding: 0;
   background: var(--bg-surface-hover);
   color: var(--text-secondary);
   border: 1px solid var(--border-subtle);
@@ -4871,4 +5143,525 @@
 .message-more-popover .dropdown-item.danger-item:hover {
   background: var(--danger-surface);
   color: var(--danger);
+}
+
+/* ====================================================================
+   COMPREHENSIVE RESPONSIVE BREAKPOINT SYSTEM
+   1. Ultrawide & 4K (min-width: 1600px)
+   2. Desktop & Compact Laptop (max-width: 1200px)
+   3. Tablet Landscape & Medium Screens (max-width: 1024px)
+   4. Tablet Portrait & Small Split-Screen (max-width: 768px)
+   5. Mobile Phones (max-width: 540px)
+   6. Ultra-Compact Mobile (max-width: 380px)
+   ==================================================================== */
+
+/* --------------------------------------------------------------------
+   1. Large & Ultrawide Screens (>= 1600px, 2K, 4K, 3840px)
+   -------------------------------------------------------------------- */
+@media (min-width: 1600px) {
+  .video-stage-viewport .video-tile {
+    max-width: 960px;
+    max-height: 100%;
+    aspect-ratio: 16 / 9;
+  }
+
+  .video-grid.layout-2 {
+    max-width: 1440px;
+  }
+
+  .video-grid.layout-4 {
+    max-width: 1380px;
+  }
+
+  .video-grid.layout-6 {
+    max-width: 1560px;
+  }
+}
+
+/* --------------------------------------------------------------------
+   2. Desktop & Compact Laptops (<= 1200px)
+   -------------------------------------------------------------------- */
+@media (max-width: 1200px) {
+  .video-grid.layout-6 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    max-width: 980px;
+    gap: 10px;
+  }
+
+  .video-stage-viewport .video-tile {
+    max-width: min(100%, 820px);
+    max-height: 100%;
+    aspect-ratio: 16 / 9;
+  }
+
+  .video-stage-container {
+    padding: 8px 12px 12px 12px;
+  }
+}
+
+/* --------------------------------------------------------------------
+   3. Tablet Landscape & Medium Screens (<= 1024px)
+   -------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .video-grid.layout-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 900px;
+    gap: 10px;
+  }
+
+  .video-grid.layout-2 {
+    max-width: 980px;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .video-stage-viewport {
+    padding: 4px 14px 60px 14px;
+  }
+
+  .video-stage-viewport .video-tile {
+    max-width: min(100%, 760px);
+    max-height: 100%;
+    aspect-ratio: 16 / 9;
+  }
+
+  .video-stage-strip {
+    height: 88px;
+    min-height: 88px;
+    gap: 8px;
+  }
+
+  .video-stage-strip-item {
+    width: 136px;
+    min-width: 136px;
+    height: 82px;
+  }
+
+  .video-stage-strip-item .video-avatar-placeholder .avatar-wrap,
+  .video-stage-strip-item .video-avatar-placeholder .avatar-img,
+  .video-stage-strip-item .video-avatar-placeholder .avatar-fallback {
+    width: 38px !important;
+    height: 38px !important;
+    font-size: 14px !important;
+  }
+
+  .control-quick-menu {
+    max-width: 90vw;
+  }
+
+  .webrtc-telemetry-popover {
+    max-width: 90vw;
+  }
+}
+
+/* --------------------------------------------------------------------
+   4. Tablet Portrait & Split-Screen (<= 768px)
+   -------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  /* In-Call Text Chat becomes an overlay side drawer instead of squishing video stage */
+  .video-in-call-chat {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 340px;
+    z-index: 40;
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.75);
+  }
+
+  .video-room-stage {
+    height: 100%;
+    width: 100%;
+  }
+
+  .video-stage-container {
+    padding: 6px 8px 10px 8px;
+    gap: 6px;
+  }
+
+  /* Compact Top Strip for Tablets */
+  .video-stage-strip {
+    height: 80px;
+    min-height: 80px;
+    gap: 6px;
+  }
+
+  .video-stage-strip-item {
+    width: 120px;
+    min-width: 120px;
+    height: 74px;
+    border-radius: 6px;
+  }
+
+  .video-stage-strip-item .video-avatar-placeholder .avatar-wrap,
+  .video-stage-strip-item .video-avatar-placeholder .avatar-img,
+  .video-stage-strip-item .video-avatar-placeholder .avatar-fallback {
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 13px !important;
+  }
+
+  /* Grid layouts responsive reorientation */
+  .video-grid {
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .video-grid.layout-2 {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    max-width: 580px;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .video-grid.layout-3 {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    max-width: 580px;
+    overflow-y: auto;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .video-grid.layout-4 {
+    gap: 8px;
+    padding: 8px;
+    max-width: 600px;
+  }
+
+  .video-grid.layout-6 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding: 8px;
+  }
+
+  /* Floating controls dock - tablet scale */
+  .video-controls-dock {
+    bottom: 14px;
+    padding: 4px 10px;
+    gap: 6px;
+  }
+
+  .video-controls-dock .dock-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .video-controls-dock .dock-split-wrapper {
+    height: 40px;
+  }
+
+  .video-controls-dock .dock-split-wrapper .dock-btn {
+    width: 38px;
+    height: 38px;
+  }
+
+  .video-controls-dock .dock-arrow-btn {
+    width: 18px;
+    height: 38px;
+  }
+
+  .video-controls-dock .dock-disconnect-btn {
+    height: 40px;
+    padding: 0 14px;
+    font-size: 12px;
+  }
+}
+
+/* --------------------------------------------------------------------
+   5. Mobile Phones (<= 540px)
+   -------------------------------------------------------------------- */
+@media (max-width: 540px) {
+  /* Header mobile optimization */
+  .video-room-header {
+    padding: 0 10px;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .voice-channel-header-name {
+    max-width: 110px;
+    font-size: 13px;
+  }
+
+  .video-header-ping-badge {
+    padding: 4px 6px;
+  }
+
+  .video-header-ping-badge .ping-label {
+    display: none;
+  }
+
+  .video-header-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  /* Mobile floating controls dock (fits within 240px) */
+  .video-controls-dock {
+    bottom: 10px;
+    padding: 4px 6px;
+    gap: 4px;
+    border-radius: 28px;
+  }
+
+  .video-controls-dock::before {
+    top: -12px;
+    bottom: -16px;
+    left: -12px;
+    right: -12px;
+  }
+
+  .video-controls-dock .dock-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .video-controls-dock .dock-split-wrapper {
+    height: 36px;
+    border-radius: 18px;
+  }
+
+  .video-controls-dock .dock-split-wrapper .dock-btn {
+    width: 34px;
+    height: 34px;
+  }
+
+  .video-controls-dock .dock-arrow-btn {
+    width: 16px;
+    min-width: 16px;
+    height: 34px;
+    border-radius: 0 17px 17px 0;
+  }
+
+  .dock-split-wrapper:hover .dock-arrow-tooltip,
+  .dock-split-wrapper:focus-within .dock-arrow-tooltip,
+  .dock-split-wrapper.menu-open .dock-arrow-tooltip {
+    width: 16px !important;
+    min-width: 16px !important;
+    max-width: 16px !important;
+  }
+
+  /* Discord Mobile: Phone icon circular disconnect button */
+  .dock-disconnect-text {
+    display: none;
+  }
+
+  .dock-disconnect-btn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
+    justify-content: center;
+    margin-left: 0;
+  }
+
+  .dock-separator {
+    height: 18px;
+    margin: 0 1px;
+  }
+
+  /* Mobile Top Participant Strip */
+  .video-stage-strip {
+    height: 68px;
+    min-height: 68px;
+    gap: 5px;
+    padding: 1px 2px;
+  }
+
+  .video-stage-strip-item {
+    width: 98px;
+    min-width: 98px;
+    height: 64px;
+    border-radius: 6px;
+  }
+
+  .video-stage-strip-item .video-avatar-placeholder .avatar-wrap,
+  .video-stage-strip-item .video-avatar-placeholder .avatar-img,
+  .video-stage-strip-item .video-avatar-placeholder .avatar-fallback {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 11px !important;
+  }
+
+  .video-stage-strip-item .video-tile-user-tag {
+    padding: 1px 4px;
+    font-size: 9px;
+    bottom: 3px;
+    left: 3px;
+    right: 3px;
+  }
+
+  /* Single & Multi-participant grid on mobile */
+  .video-grid.layout-1 {
+    padding: 8px;
+  }
+
+  .video-grid.layout-1 .video-tile {
+    border-radius: 8px;
+  }
+
+  .video-grid.layout-2,
+  .video-grid.layout-3,
+  .video-grid.layout-4,
+  .video-grid.layout-6 {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+    padding: 6px;
+    gap: 6px;
+    overflow-y: auto;
+  }
+
+  .video-tile {
+    border-radius: 8px;
+  }
+
+  .video-tile-user-tag {
+    padding: 2px 6px;
+    font-size: 11px;
+    bottom: 6px;
+    left: 6px;
+  }
+
+  /* Mobile Popovers & Menus */
+  .control-quick-menu {
+    min-width: 200px;
+    max-width: calc(100vw - 20px);
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .webrtc-telemetry-popover {
+    width: calc(100vw - 24px);
+    max-width: 320px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .header-popover {
+    right: -10px !important;
+    left: auto !important;
+    transform: none !important;
+  }
+
+  /* Mobile Modals */
+  .modal-overlay {
+    padding: 8px;
+  }
+
+  .modal-content {
+    border-radius: 12px;
+    max-height: 94vh;
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding: 14px 16px;
+  }
+
+  /* Mobile Local Screen Presenter Card */
+  .local-screenshare-presenter-card {
+    max-width: calc(100vw - 24px);
+    padding: 16px 12px;
+    gap: 8px;
+  }
+
+  .presenter-text h3 {
+    font-size: 14px;
+  }
+
+  .presenter-text p {
+    font-size: 11px;
+  }
+
+  .presenter-actions {
+    gap: 6px;
+  }
+
+  .presenter-actions .btn {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+}
+
+/* --------------------------------------------------------------------
+   6. Ultra-Compact Mobile (<= 380px)
+   -------------------------------------------------------------------- */
+@media (max-width: 380px) {
+  .video-controls-dock {
+    gap: 3px;
+    padding: 3px 5px;
+  }
+
+  .video-controls-dock .dock-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .video-controls-dock .dock-split-wrapper {
+    height: 32px;
+    border-radius: 16px;
+  }
+
+  .video-controls-dock .dock-split-wrapper .dock-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .video-controls-dock .dock-arrow-btn {
+    width: 14px;
+    min-width: 14px;
+    height: 30px;
+  }
+
+  .video-controls-dock .dock-disconnect-btn {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* WebRTC Telemetry & Diagnostics Modal Styling */
+.telemetry-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  gap: 10px;
+  font-size: 12px;
+}
+
+.telemetry-metric-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg-surface-active);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.telemetry-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.telemetry-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-mono, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

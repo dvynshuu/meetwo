@@ -49,7 +49,7 @@ interface MediaContextType {
   toggleDiagnostics: () => void;
   openPreJoin: (roomId: string) => void;
   closePreJoin: () => void;
-  joinVoiceRoom: (roomId: string) => Promise<void>;
+  joinVoiceRoom: (roomId: string, initialAudioMuted?: boolean, initialVideoMuted?: boolean) => Promise<void>;
   leaveVoiceRoom: () => Promise<void>;
   toggleAudio: () => void;
   toggleVideo: () => Promise<void>;
@@ -262,7 +262,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const joinVoiceRoom = useCallback(
-    async (roomId: string) => {
+    async (roomId: string, initialAudioMuted: boolean = false, initialVideoMuted: boolean = false) => {
       if (!currentUser) return;
       if (activeRoomId === roomId) return;
 
@@ -277,8 +277,8 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       setActiveRoomId(roomId);
       setConnectionState('initializing');
-      setIsAudioMuted(false);
-      setIsVideoMuted(false);
+      setIsAudioMuted(initialAudioMuted);
+      setIsVideoMuted(initialVideoMuted);
       setIsScreenSharing(false);
       setPinnedParticipantId(null);
       setMyHandRaised(false);
@@ -286,8 +286,8 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       try {
         // 1. Initialize separated audio and video hardware tracks
         const stream = await mediaSessionRef.current.startLocalMedia(
-          true,
-          true,
+          !initialAudioMuted,
+          !initialVideoMuted,
           deviceSettings.videoQuality
         );
         setLocalStream(stream);
@@ -366,6 +366,23 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   screenStream: remoteScreenStream || undefined,
                   isScreenSharing: Boolean(remoteScreenStream),
                 });
+              } else if (remoteScreenStream) {
+                next.set(peerId, {
+                  id: peerId,
+                  userId: peerId,
+                  username: `Friend ${peerId.slice(-4)}`,
+                  displayName: `User ${peerId.slice(-4)}`,
+                  screenStream: remoteScreenStream,
+                  isScreenSharing: true,
+                  isAudioMuted: false,
+                  isVideoMuted: true,
+                  isSpeaking: false,
+                  stageRole: 'listener',
+                  isStageSpeaker: false,
+                  isHandRaised: false,
+                  audioLevel: 0,
+                  connectionQuality: 'unknown',
+                });
               }
               return next;
             });
@@ -388,6 +405,22 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   updated.isStageSpeaker = state.stageRole === 'host' || state.stageRole === 'speaker';
                 }
                 next.set(peerId, updated);
+              } else {
+                next.set(peerId, {
+                  id: peerId,
+                  userId: peerId,
+                  username: `Friend ${peerId.slice(-4)}`,
+                  displayName: `User ${peerId.slice(-4)}`,
+                  isAudioMuted: false,
+                  isVideoMuted: true,
+                  isSpeaking: false,
+                  stageRole: 'listener',
+                  isStageSpeaker: false,
+                  isHandRaised: false,
+                  audioLevel: 0,
+                  connectionQuality: 'unknown',
+                  ...state,
+                });
               }
               return next;
             });
@@ -515,6 +548,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     mediaSessionRef.current.setMicrophoneMute(nextMuted);
     setIsAudioMuted(nextMuted);
     if (transportRef.current) {
+      transportRef.current.setTrackEnabled('audio', !nextMuted).catch(() => {});
       transportRef.current.sendMuteState(nextMuted, isVideoMuted).catch(() => {});
     }
   }, [isAudioMuted, isVideoMuted]);
@@ -524,6 +558,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     mediaSessionRef.current.setCameraMute(nextMuted);
     setIsVideoMuted(nextMuted);
     if (transportRef.current) {
+      transportRef.current.setTrackEnabled('video', !nextMuted).catch(() => {});
       transportRef.current.sendMuteState(isAudioMuted, nextMuted).catch(() => {});
     }
   }, [isAudioMuted, isVideoMuted]);

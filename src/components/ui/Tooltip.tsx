@@ -6,6 +6,8 @@ interface TooltipProps {
   delay?: number;
   children: React.ReactElement;
   shortcut?: string;
+  className?: string;
+  style?: React.CSSProperties;
 }
 
 export const Tooltip: React.FC<TooltipProps> = ({
@@ -14,6 +16,8 @@ export const Tooltip: React.FC<TooltipProps> = ({
   delay = 180,
   children,
   shortcut,
+  className,
+  style,
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const timeoutRef = useRef<number | null>(null);
@@ -39,12 +43,12 @@ export const Tooltip: React.FC<TooltipProps> = ({
 
   return (
     <div
-      className="tooltip-wrapper"
+      className={`tooltip-wrapper ${className || ''}`}
       onMouseEnter={show}
       onMouseLeave={hide}
       onFocus={show}
       onBlur={hide}
-      style={{ display: 'inline-flex', position: 'relative' }}
+      style={{ display: 'inline-flex', position: 'relative', ...style }}
     >
       {children}
       {isVisible && (

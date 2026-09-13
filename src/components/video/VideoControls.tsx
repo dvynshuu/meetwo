@@ -64,10 +64,17 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const isAnyMenuOpen = showVideoMenu || showAudioMenu || isDiagnosticsOpen;
+
   return (
-    <div className="video-controls-dock" id="video-controls" role="toolbar" aria-label="Call controls">
+    <div
+      className={`video-controls-dock ${isAnyMenuOpen ? 'dock-active' : ''}`}
+      id="video-controls"
+      role="toolbar"
+      aria-label="Call controls"
+    >
       {/* 1. Camera Toggle with integrated split picker */}
-      <div className="dock-split-wrapper" ref={videoMenuRef}>
+      <div className={`dock-split-wrapper ${showVideoMenu ? 'menu-open' : ''}`} ref={videoMenuRef}>
         <Tooltip content={isVideoMuted ? 'Turn on Camera (Ctrl+E)' : 'Turn off Camera (Ctrl+E)'} position="top">
           <button
             className={`dock-btn ${isVideoMuted ? 'dock-btn-off' : 'dock-btn-active'}`}
@@ -77,7 +84,7 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
             {isVideoMuted ? <VideoOff size={19} /> : <VideoIcon size={19} />}
           </button>
         </Tooltip>
-        <Tooltip content="Camera Settings" position="top">
+        <Tooltip content="Camera Settings" position="top" className="dock-arrow-tooltip">
           <button
             type="button"
             className="dock-arrow-btn"
@@ -129,7 +136,10 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
       </Tooltip>
 
       {/* 3. Microphone Toggle with Discord red-muted pill style */}
-      <div className="dock-split-wrapper" ref={audioMenuRef}>
+      <div
+        className={`dock-split-wrapper ${isAudioMuted ? 'dock-split-danger' : ''} ${showAudioMenu ? 'menu-open' : ''}`}
+        ref={audioMenuRef}
+      >
         <Tooltip content={isAudioMuted ? 'Unmute Mic (Ctrl+D)' : 'Mute Mic (Ctrl+D)'} position="top">
           <button
             className={`dock-btn ${isAudioMuted ? 'dock-btn-muted-danger' : 'dock-btn-active'}`}
@@ -139,7 +149,7 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
             {isAudioMuted ? <MicOff size={19} /> : <Mic size={19} />}
           </button>
         </Tooltip>
-        <Tooltip content="Microphone Settings" position="top">
+        <Tooltip content="Microphone Settings" position="top" className="dock-arrow-tooltip">
           <button
             type="button"
             className="dock-arrow-btn"

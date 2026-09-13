@@ -17,13 +17,40 @@ export const VideoGrid: React.FC<VideoGridProps> = ({ participants, viewLayout =
   const screenSharer = participants.find((p) => p.isScreenSharing && (p.screenStream || p.stream));
   const pinnedParticipant = participants.find((p) => p.id === pinnedParticipantId);
 
-  // Case A: Screen Share (Presentation Stage + Thumbnail Strip)
+  // Case A: Screen Share (Discord Style: Top Participant Strip + Main Presentation Stage)
   if (screenSharer) {
     const isLocalScreen = screenSharer.userId === currentUser?.id;
     const presentationStream = screenSharer.screenStream || screenSharer.stream;
 
     return (
-      <div className="video-stage-container" id="video-grid">
+      <div className="video-stage-container presentation-mode" id="video-grid">
+        {/* Top Participant Strip (Discord Style - always visible when participants exist) */}
+        {participants.length > 0 && (
+          <div className="video-stage-strip">
+            {participants.map((p) => {
+              const isSharer = p.id === screenSharer.id;
+              // If participant is the screen sharer, their strip tile displays their webcam or avatar,
+              // rather than duplicating the screen presentation stream.
+              const participantForStrip =
+                isSharer && p.screenStream
+                  ? { ...p, stream: p.stream !== p.screenStream ? p.stream : undefined }
+                  : isSharer && !p.screenStream
+                  ? { ...p, stream: undefined }
+                  : p;
+
+              return (
+                <div key={`strip-${p.id}`} className="video-stage-strip-item">
+                  <VideoTile
+                    participant={participantForStrip}
+                    isLocal={p.userId === currentUser?.id}
+                    isFeatured={false}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Main Presentation Stage */}
         <div className="video-stage-viewport">
           <VideoTile
@@ -39,19 +66,6 @@ export const VideoGrid: React.FC<VideoGridProps> = ({ participants, viewLayout =
             isScreenTile={true}
           />
         </div>
-
-        {/* Secondary Participant Strip */}
-        <div className="video-stage-strip">
-          {participants.map((p) => (
-            <div key={`strip-${p.id}`} className="video-stage-strip-item">
-              <VideoTile
-                participant={p}
-                isLocal={p.userId === currentUser?.id}
-                isFeatured={false}
-              />
-            </div>
-          ))}
-        </div>
       </div>
     );
   }
@@ -64,17 +78,8 @@ export const VideoGrid: React.FC<VideoGridProps> = ({ participants, viewLayout =
     const remainingParticipants = participants.filter((p) => p.id !== featuredTarget.id);
 
     return (
-      <div className="video-stage-container" id="video-grid">
-        {/* Main Focus Stage */}
-        <div className="video-stage-viewport">
-          <VideoTile
-            participant={featuredTarget}
-            isLocal={featuredTarget.userId === currentUser?.id}
-            isFeatured={true}
-          />
-        </div>
-
-        {/* Secondary Participant Strip */}
+      <div className="video-stage-container focus-mode" id="video-grid">
+        {/* Top Participant Strip (Discord Style) */}
         <div className="video-stage-strip">
           {remainingParticipants.map((p) => (
             <div key={`strip-${p.id}`} className="video-stage-strip-item">
@@ -85,6 +90,15 @@ export const VideoGrid: React.FC<VideoGridProps> = ({ participants, viewLayout =
               />
             </div>
           ))}
+        </div>
+
+        {/* Main Focus Stage */}
+        <div className="video-stage-viewport">
+          <VideoTile
+            participant={featuredTarget}
+            isLocal={featuredTarget.userId === currentUser?.id}
+            isFeatured={true}
+          />
         </div>
       </div>
     );
