@@ -1,11 +1,20 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, ArrowUpRight, Radio, Volume2 } from 'lucide-react';
 import { useMedia } from '../../app/providers/MediaContext';
 import { useServer } from '../../app/providers/ServerContext';
 import { Tooltip } from '../ui/Tooltip';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
+import { mockStore } from '../../lib/supabase/mockStore';
 
 interface ActiveCallBarProps {
   onReturnToCall?: () => void;
+}
+
+interface ActiveCallMetadata {
+  channelId: string;
+  serverId?: string;
+  channelName: string;
+  isStage: boolean;
 }
 
 export const ActiveCallBar: React.FC<ActiveCallBarProps> = ({ onReturnToCall }) => {
@@ -20,24 +29,83 @@ export const ActiveCallBar: React.FC<ActiveCallBarProps> = ({ onReturnToCall }) 
     leaveVoiceRoom,
   } = useMedia();
 
-  const { channels, selectChannel, selectServer } = useServer();
+  const { channels, allChannels, selectChannel, selectServer } = useServer();
+  const [callMeta, setCallMeta] = useState<ActiveCallMetadata | null>(null);
+
+  // Synchronize and resolve channel & server metadata globally
+  useEffect(() => {
+    if (!activeRoomId) {
+      setCallMeta(null);
+      return;
+    }
+
+    // 1. Check in all accessible channels or current channels list
+    const combinedChannels = allChannels && allChannels.length > 0 ? allChannels : channels;
+    const currentChannel = combinedChannels.find((c) => c.id === activeRoomId);
+    if (currentChannel) {
+      setCallMeta({
+        channelId: currentChannel.id,
+        serverId: currentChannel.serverId,
+        channelName: currentChannel.name,
+        isStage: currentChannel.type === 'stage',
+      });
+      return;
+    }
+
+    // 2. Check in mockStore
+    const localChannel = mockStore.getChannels().find((c) => c.id === activeRoomId);
+    if (localChannel) {
+      setCallMeta({
+        channelId: localChannel.id,
+        serverId: localChannel.serverId,
+        channelName: localChannel.name,
+        isStage: localChannel.type === 'stage',
+      });
+      return;
+    }
+
+    // 3. Check via Supabase if configured
+    const client = supabase;
+    if (isSupabaseConfigured && client) {
+      const fetchChannel = async () => {
+        try {
+          const { data } = await client
+            .from('channels')
+            .select('id, name, type, server_id')
+            .eq('id', activeRoomId)
+            .maybeSingle();
+
+          if (data) {
+            setCallMeta({
+              channelId: data.id,
+              serverId: data.server_id,
+              channelName: data.name,
+              isStage: data.type === 'stage',
+            });
+          }
+        } catch {}
+      };
+      fetchChannel();
+    }
+  }, [activeRoomId, channels, allChannels]);
 
   if (!activeRoomId) return null;
 
-  // Find channel and server metadata
-  const channel = channels.find((c) => c.id === activeRoomId);
-  const channelName = channel?.name || 'Voice Channel';
-  const isStage = channel?.type === 'stage';
+  const channelName = callMeta?.channelName || 'Voice Channel';
+  const isStage = Boolean(callMeta?.isStage);
 
   const handleReturn = () => {
-    if (channel) {
-      selectServer(channel.serverId);
-      selectChannel(channel.id);
+    if (callMeta?.serverId) {
+      selectServer(callMeta.serverId);
+    }
+    if (activeRoomId) {
+      selectChannel(activeRoomId);
     }
     if (onReturnToCall) {
       onReturnToCall();
     }
   };
+
 
   return (
     <div className="active-call-bar" role="region" aria-label="Active Call Controller">

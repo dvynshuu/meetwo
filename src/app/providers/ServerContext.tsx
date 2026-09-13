@@ -16,6 +16,7 @@ interface ServerContextType {
   servers: Server[];
   activeServer: Server | null;
   channels: Channel[];
+  allChannels: Channel[];
   activeChannel: Channel | null;
   members: ServerMember[];
   isLoading: boolean;
@@ -50,6 +51,7 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [servers, setServers] = useState<Server[]>([]);
   const [activeServer, setActiveServer] = useState<Server | null>(null);
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [allChannels, setAllChannels] = useState<Channel[]>([]);
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [members, setMembers] = useState<ServerMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,6 +79,10 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const initialServer = loadedServers[0];
           setActiveServer(initialServer);
 
+          // All accessible channels across all servers
+          const globalChannels = serverData.flatMap((s: any) => (s.channels || []).map(mapChannel));
+          setAllChannels(globalChannels);
+
           // Channels for initial server
           const activeChannels = (serverData[0].channels || []).map(mapChannel);
           setChannels(activeChannels);
@@ -93,8 +99,10 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const initial = allServers[0];
           setActiveServer(initial);
 
-          const allChannels = mockStore.getChannels();
-          const serverChannels = allChannels.filter((c) => c.serverId === initial.id);
+          const globalChannels = mockStore.getChannels();
+          setAllChannels(globalChannels);
+
+          const serverChannels = globalChannels.filter((c) => c.serverId === initial.id);
           setChannels(serverChannels);
           if (serverChannels.length > 0) {
             setActiveChannel(serverChannels[0]);
@@ -327,11 +335,13 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       const mappedChan = mapChannel(channel);
       setChannels((prev) => [...prev, mappedChan]);
+      setAllChannels((prev) => (prev.some((c) => c.id === mappedChan.id) ? prev : [...prev, mappedChan]));
       setActiveChannel(mappedChan);
       return mappedChan;
     } else {
       const newChan = mockStore.createChannel(serverId, name, type, topic, categoryId);
       setChannels((prev) => [...prev, newChan]);
+      setAllChannels((prev) => (prev.some((c) => c.id === newChan.id) ? prev : [...prev, newChan]));
       setActiveChannel(newChan);
       return newChan;
     }
@@ -635,7 +645,7 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           .from('servers')
           .select('*')
           .eq('id', serverId)
-          .single();
+          .maybeSingle();
         if (sData) {
           target = {
             id: sData.id,
@@ -648,15 +658,26 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       }
 
-      await supabase.from('server_members').upsert({
-        server_id: serverId,
-        user_id: currentUser.id,
-        role: 'member',
-        joined_at: new Date().toISOString(),
-      });
+      // Authoritative security check: user must be existing member or owner
+      const { data: memData } = await supabase
+        .from('server_members')
+        .select('user_id')
+        .eq('server_id', serverId)
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+
+      const isOwner = target?.ownerId === currentUser.id;
+
+      if (!memData && !isOwner) {
+        throw new Error('Joining a workspace requires a valid invite code.');
+      }
     } else {
       const uId = currentUser?.id || mockStore.getCurrentUser()?.id || 'demo-user';
-      mockStore.addServerMember(serverId, uId, 'member');
+      const localMembers = mockStore.getServerMembers(serverId);
+      const isLocalMember = localMembers.some((m) => m.userId === uId);
+      if (!isLocalMember && target?.ownerId !== uId) {
+        throw new Error('Joining a workspace requires a valid invite link.');
+      }
     }
 
     if (target) {
@@ -677,6 +698,7 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         servers,
         activeServer,
         channels,
+        allChannels,
         activeChannel,
         members,
         isLoading,

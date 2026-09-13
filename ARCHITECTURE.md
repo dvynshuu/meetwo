@@ -30,6 +30,13 @@ Meetwo V4 is architected as a truthful, reliable, studio-grade real-time communi
 
 ---
 
+- **[DATABASE.md](DATABASE.md)**: Database schema, Supabase Postgres tables, RLS policies, Realtime CDC subscriptions, and modular service layer.
+- **[SECURITY.md](SECURITY.md)**: LiveKit token JWT verification, authentication lifecycle, workspace invite protection, and track privacy.
+- **[MEDIA.md](MEDIA.md)**: Opus audio DSP, adaptive VAD, per-peer video adaptation, 4-track presentation mode, and truthful telemetry.
+- **[REALTIME.md](REALTIME.md)**: Perfect Negotiation signaling, Stage state machine, 5-state ReconnectionManager, and observability logging.
+
+---
+
 ## 2. Core Subsystems
 
 ### A. Media Layer (`src/lib/webrtc/`)
@@ -42,20 +49,32 @@ Meetwo V4 is architected as a truthful, reliable, studio-grade real-time communi
 - **`reconnectionManager.ts`**: Dedicated 5-state connection lifecycle state machine (`connected`, `degraded`, `reconnecting`, `recovering`, `failed`) with exponential backoff, jitter, consecutive metric evaluation, and ICE restart triggers.
 - **`observability.ts`**: Structured event logger recording lifecycle transitions (`call_started`, `transport_connected`, `device_disconnected`, etc.) with in-memory ring buffer, dev subscription, and JSON export.
 - **`testHarness.ts`**: Automated verification test harness validating scenarios A through H (adaptation thresholds, per-peer isolation, truthful telemetry, stage authorization, reconnect backoff, device resilience).
-- **`livekitToken.ts`**: Server-side token negotiation service preventing client exposure of server API secrets.
+- **`livekitToken.ts`**: Authenticated token negotiation service attaching the user's active Supabase session JWT to request scoped LiveKit tokens from Cloudflare Pages Function `/api/livekit-token`.
 
-### B. State Management Layer (`src/app/providers/`)
+### B. Service Layer (`src/lib/services/`)
+- **`storageService.ts`**: File upload handler with 25MB validation, Supabase Storage bucket integration, and data URL fallback.
+- **`messageService.ts`**: Real Supabase message CRUD, attachment linking, and reaction handling.
+- **`threadService.ts`**: Thread creation and message persistence with real-time sync.
+- **`bookmarkService.ts`**: Saved messages persistence and bookmark toggling.
+- **`forumService.ts`**: Forum post creation, reply management, and solution marking.
+- **`dmService.ts`**: 1:1 and small-group direct chat persistence and real-time listeners.
+- **`friendService.ts`**: Friend management, user search, and request handling.
+- **`searchService.ts`**: Global multi-entity search across channels, messages, and forums.
+- **`readStateService.ts`**: Attention tracking and unread message counters.
+
+### C. State Management Layer (`src/app/providers/`)
 - **`MediaContext.tsx`**: Central orchestrator managing call lifecycle states, truthful connection metrics (`quality: 'unknown'` initially), Stage state machine synchronization, device change notifications, diagnostics toggle (`Ctrl+Shift+D`), and simultaneous camera + screen sharing.
 - **`AuthContext.tsx`**: Manages authentication sessions, profile state, and clean production logout (destroying session and resetting user to `null`).
-- **`ServerContext.tsx` & `ChatContext.tsx`**: Channel categories, threads, bookmarked messages, and realtime text chat.
+- **`ServerContext.tsx` & `ChatContext.tsx`**: Workspaces, channels, all accessible channels (`allChannels`), categories, and realtime text chat.
+- **`DMContext.tsx` & `InboxContext.tsx`**: Real Direct Messages, friends list, and mention notifications.
 
-### C. Server-Authoritative Stage Layer (`src/lib/supabase/mockStore.ts`)
+### D. Server-Authoritative Stage Layer (`src/lib/supabase/mockStore.ts`)
 - Implements strict server-authoritative role verification:
   - `LISTENER -> REQUEST_SPEAK -> PENDING -> APPROVED -> SPEAKER`.
   - Host or moderator credentials verified before `approveSpeaker`, `denySpeaker`, or `demoteSpeaker` can execute.
   - Listener cannot spoof or elevate their own stage role.
 
-### D. Video Presentation UI (`src/components/video/`)
+### E. Video Presentation UI (`src/components/video/`)
 - **`VideoGrid.tsx`**: Dynamic responsive grid with intelligent layouts for 1, 2, 3, 4, 5–6 friends. Supports presentation stage mode where screen share dominates the stage while the presenter's camera tile remains visible in the strip.
 - **`VideoTile.tsx`**: Hardware-accelerated `<video>` tile with persistent DOM mounting, picture-in-picture, fullscreen, audio sink routing (`setSinkId`), active-speaker halo, and measured connection quality indicator.
 - **`VideoControls.tsx`**: Split control buttons with quick-switch device menus, screen sharing toggle, realtime measured telemetry popover, and stream diagnostics toggle.

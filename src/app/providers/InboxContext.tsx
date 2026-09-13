@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { InboxItem, Message } from '../../types';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { mockStore } from '../../lib/supabase/mockStore';
+import { ReadStateService } from '../../lib/services/readStateService';
 import { useAuth } from './AuthContext';
 
 const INBOX_STORAGE_KEY = 'mw:inbox:items';
 
-interface ChannelUnreadState {
+export interface ChannelUnreadState {
   count: number;
   hasMention: boolean;
 }
@@ -45,17 +47,23 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [inboxItems]);
 
-  // Real-time listener for incoming messages
+  // Real-time listener for incoming messages (Supabase + Dev mockStore)
   useEffect(() => {
-    const unsubscribe = mockStore.on('NEW_MESSAGE', (msg: Message) => {
-      const channels = mockStore.getChannels();
-      const channel = channels.find((c) => c.id === msg.channelId);
-      const servers = mockStore.getServers();
-      const server = channel ? servers.find((s) => s.id === channel.serverId) : undefined;
+    if (!currentUser) return;
 
-      const username = currentUser?.username || '';
-      const displayName = currentUser?.displayName || '';
-      const content = msg.content || '';
+    const username = currentUser.username || '';
+    const displayName = currentUser.displayName || '';
+
+    const handleIncomingMessage = async (
+      channelId: string,
+      messageId: string,
+      content: string,
+      authorId: string,
+      authorName: string,
+      authorAvatar?: string,
+      replyToAuthorId?: string
+    ) => {
+      if (authorId === currentUser.id) return;
 
       const isMention =
         Boolean(username && content.includes(`@${username}`)) ||
@@ -63,42 +71,123 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         content.includes('@everyone') ||
         content.includes('@here');
 
-      const isReply = Boolean(currentUser && msg.replyTo && msg.replyTo.authorName === currentUser.displayName);
+      const isReply = Boolean(replyToAuthorId && replyToAuthorId === currentUser.id);
+
+      // Check channel info
+      let serverId = '';
+      let serverName = 'Workspace';
+      let channelName = 'general';
+
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const { data: chanData } = await supabase
+            .from('channels')
+            .select('id, name, server_id, server:servers(id, name)')
+            .eq('id', channelId)
+            .maybeSingle();
+
+          if (chanData) {
+            channelName = chanData.name || 'general';
+            serverId = chanData.server_id || '';
+            serverName = (chanData.server as any)?.name || 'Workspace';
+          }
+        } catch {}
+      } else {
+        const chan = mockStore.getChannels().find((c) => c.id === channelId);
+        const server = chan ? mockStore.getServers().find((s) => s.id === chan.serverId) : undefined;
+        channelName = chan?.name || 'chat';
+        serverId = chan?.serverId || '';
+        serverName = server?.name || 'Workspace';
+      }
 
       if (isMention || isReply) {
         const newItem: InboxItem = {
-          id: `inbox-${Date.now()}`,
+          id: `inbox-${messageId}`,
           type: isMention ? 'mention' : 'reply',
-          channelId: msg.channelId,
-          serverId: channel?.serverId || '',
-          messageId: msg.id,
-          content: msg.content,
-          authorName: msg.author?.displayName || msg.author?.username || 'User',
-          authorAvatar: msg.author?.avatarUrl,
-          channelName: channel?.name || 'chat',
-          serverName: server?.name || 'Workspace',
-          timestamp: msg.createdAt,
+          channelId,
+          serverId,
+          messageId,
+          content,
+          authorName,
+          authorAvatar,
+          channelName,
+          serverName,
+          timestamp: new Date().toISOString(),
           isRead: false,
         };
 
-        setInboxItems((prev) => [newItem, ...prev]);
+        setInboxItems((prev) => {
+          if (prev.some((i) => i.id === newItem.id)) return prev;
+          return [newItem, ...prev];
+        });
       }
 
-      // Update channel unread badge
+      // Update channel unread state
       setChannelUnreadMap((prev) => {
-        const existing = prev[msg.channelId] || { count: 0, hasMention: false };
+        const existing = prev[channelId] || { count: 0, hasMention: false };
         return {
           ...prev,
-          [msg.channelId]: {
+          [channelId]: {
             count: existing.count + 1,
             hasMention: existing.hasMention || isMention,
           },
         };
       });
+    };
+
+    // 1. Supabase Realtime Listener
+    let globalMsgChannel: any = null;
+    if (isSupabaseConfigured && supabase) {
+      globalMsgChannel = supabase
+        .channel('global_inbox_messages')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+          },
+          async (payload) => {
+            const row = payload.new as any;
+            if (!row || row.author_id === currentUser.id) return;
+
+            const { data: authorProf } = await supabase!
+              .from('profiles')
+              .select('*')
+              .eq('id', row.author_id)
+              .maybeSingle();
+
+            handleIncomingMessage(
+              row.channel_id,
+              row.id,
+              row.content,
+              row.author_id,
+              authorProf?.display_name || authorProf?.username || 'Member',
+              authorProf?.avatar_url,
+              row.reply_to_id
+            );
+          }
+        )
+        .subscribe();
+    }
+
+    // 2. Dev MockStore Listener
+    const unsubscribeMock = mockStore.on('NEW_MESSAGE', (msg: Message) => {
+      handleIncomingMessage(
+        msg.channelId,
+        msg.id,
+        msg.content,
+        msg.authorId,
+        msg.author?.displayName || msg.author?.username || 'User',
+        msg.author?.avatarUrl
+      );
     });
 
     return () => {
-      unsubscribe();
+      if (globalMsgChannel && supabase) {
+        supabase.removeChannel(globalMsgChannel);
+      }
+      unsubscribeMock();
     };
   }, [currentUser]);
 
@@ -121,17 +210,24 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setChannelUnreadMap({});
   }, []);
 
-  const markChannelRead = useCallback((channelId: string) => {
-    setChannelUnreadMap((prev) => {
-      const next = { ...prev };
-      delete next[channelId];
-      return next;
-    });
+  const markChannelRead = useCallback(
+    (channelId: string) => {
+      setChannelUnreadMap((prev) => {
+        const next = { ...prev };
+        delete next[channelId];
+        return next;
+      });
 
-    setInboxItems((prev) =>
-      prev.map((item) => (item.channelId === channelId ? { ...item, isRead: true } : item))
-    );
-  }, []);
+      setInboxItems((prev) =>
+        prev.map((item) => (item.channelId === channelId ? { ...item, isRead: true } : item))
+      );
+
+      if (currentUser) {
+        ReadStateService.markAsRead(currentUser.id, { channelId });
+      }
+    },
+    [currentUser]
+  );
 
   return (
     <InboxContext.Provider

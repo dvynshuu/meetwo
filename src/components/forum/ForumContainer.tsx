@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useServer } from '../../app/providers/ServerContext';
 import { useAuth } from '../../app/providers/AuthContext';
+import { ForumService, ForumReply } from '../../lib/services/forumService';
 import { mockStore } from '../../lib/supabase/mockStore';
 import { ForumPost } from '../../types';
 import { Avatar } from '../ui/Avatar';
@@ -18,15 +19,6 @@ import {
   ArrowLeft,
   Send,
 } from 'lucide-react';
-
-interface ForumReply {
-  id: string;
-  authorName: string;
-  avatarUrl: string;
-  content: string;
-  createdAt: string;
-  likes: number;
-}
 
 export const ForumContainer: React.FC = () => {
   const { activeChannel } = useServer();
@@ -47,10 +39,14 @@ export const ForumContainer: React.FC = () => {
   const [replies, setReplies] = useState<ForumReply[]>([]);
   const [newReplyText, setNewReplyText] = useState('');
 
-  const loadPosts = () => {
+  const loadPosts = async () => {
     if (!activeChannel) return;
-    const forumPosts = mockStore.getForumPosts(activeChannel.id);
-    setPosts(forumPosts);
+    try {
+      const forumPosts = await ForumService.getPosts(activeChannel.id);
+      setPosts(forumPosts);
+    } catch (err) {
+      console.error('[ForumContainer] Error loading forum posts:', err);
+    }
   };
 
   useEffect(() => {
@@ -63,27 +59,12 @@ export const ForumContainer: React.FC = () => {
     return () => unsub();
   }, [activeChannel?.id]);
 
-  // When opening a post, initialize sample replies
+  // When opening a post, fetch real replies
   useEffect(() => {
     if (selectedPost) {
-      setReplies([
-        {
-          id: 'rep-1',
-          authorName: 'Alex Rivera',
-          avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-          content: 'Strongly agree with this direction. We can implement standard adaptive bitrates with VP9 scalable video coding (SVC).',
-          createdAt: '2 hours ago',
-          likes: 4,
-        },
-        {
-          id: 'rep-2',
-          authorName: 'Elena Rostova',
-          avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-          content: 'Benchmark tests on 4K monitors showed latency stayed under 28ms when capping screen share at 15fps. Huge win for CPU.',
-          createdAt: '45 mins ago',
-          likes: 2,
-        },
-      ]);
+      ForumService.getReplies(selectedPost.id).then((fetched) => {
+        setReplies(fetched);
+      });
     }
   }, [selectedPost?.id]);
 
@@ -102,60 +83,65 @@ export const ForumContainer: React.FC = () => {
     return matchesQuery && matchesTag;
   });
 
-  const handleCreatePost = (e: React.FormEvent) => {
+  const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeChannel || !newTitle.trim() || !newContent.trim()) return;
+    if (!activeChannel || !newTitle.trim() || !newContent.trim() || !currentUser) return;
 
     const tags = newTagsInput
       .split(',')
       .map((t) => t.trim().toLowerCase())
       .filter(Boolean);
 
-    mockStore.createForumPost(
-      activeChannel.id,
-      currentUser?.id || 'anonymous',
-      newTitle.trim(),
-      newContent.trim(),
-      tags
-    );
+    try {
+      const created = await ForumService.createPost(
+        activeChannel.id,
+        currentUser,
+        newTitle.trim(),
+        newContent.trim(),
+        tags
+      );
+      setPosts((prev) => [created, ...prev]);
+    } catch (err) {
+      console.error('[ForumContainer] Create post error:', err);
+    }
+
     setNewTitle('');
     setNewContent('');
     setNewTagsInput('');
     setIsCreatingPost(false);
-    loadPosts();
   };
 
-  const handleSendReply = (e: React.FormEvent) => {
+  const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newReplyText.trim() || !currentUser || !selectedPost) return;
 
-    const newRep: ForumReply = {
-      id: `rep-${Date.now()}`,
-      authorName: currentUser.displayName || currentUser.username,
-      avatarUrl: currentUser.avatarUrl || '',
-      content: newReplyText.trim(),
-      createdAt: 'Just now',
-      likes: 0,
-    };
-
-    setReplies((prev) => [...prev, newRep]);
+    const replyText = newReplyText.trim();
     setNewReplyText('');
 
-    // Update reply count in local post
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === selectedPost.id ? { ...p, repliesCount: p.repliesCount + 1 } : p
-      )
-    );
+    try {
+      const savedReply = await ForumService.addReply(selectedPost.id, currentUser, replyText);
+      setReplies((prev) => [...prev, savedReply]);
+
+      // Update reply count in local post
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === selectedPost.id ? { ...p, repliesCount: p.repliesCount + 1 } : p
+        )
+      );
+    } catch (err) {
+      console.error('[ForumContainer] Send reply error:', err);
+    }
   };
 
-  const handleToggleSolved = (postId: string, e: React.MouseEvent) => {
+  const handleToggleSolved = async (postId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const nextSolved = !selectedPost?.isSolved;
+    await ForumService.markSolved(postId, nextSolved);
     setPosts((prev) =>
-      prev.map((p) => (p.id === postId ? { ...p, isSolved: !p.isSolved } : p))
+      prev.map((p) => (p.id === postId ? { ...p, isSolved: nextSolved } : p))
     );
     if (selectedPost && selectedPost.id === postId) {
-      setSelectedPost((prev) => prev ? { ...prev, isSolved: !prev.isSolved } : null);
+      setSelectedPost((prev) => prev ? { ...prev, isSolved: nextSolved } : null);
     }
   };
 

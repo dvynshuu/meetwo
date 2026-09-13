@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Bookmark as BookmarkType } from '../../types';
-import { mockStore } from '../../lib/supabase/mockStore';
+import { BookmarkService } from '../../lib/services/bookmarkService';
+import { useAuth } from '../../app/providers/AuthContext';
 import { Avatar } from '../ui/Avatar';
-import { Bookmark, Star, X, Trash2, ArrowUpRight, MessageSquare } from 'lucide-react';
+import { Bookmark, Star, X, Trash2, ArrowUpRight } from 'lucide-react';
 import { useServer } from '../../app/providers/ServerContext';
 
 interface SavedMessagesDrawerProps {
@@ -16,33 +17,44 @@ export const SavedMessagesDrawer: React.FC<SavedMessagesDrawerProps> = ({
   onClose,
   onJumpToMessage,
 }) => {
-  const { selectChannel } = useServer();
+  const { selectChannel, selectServer, channels } = useServer();
+  const { currentUser } = useAuth();
   const [bookmarks, setBookmarks] = useState<BookmarkType[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const loadBookmarks = () => {
-    setBookmarks(mockStore.getBookmarks());
+  const loadBookmarks = async () => {
+    if (!currentUser) return;
+    setIsLoading(true);
+    try {
+      const data = await BookmarkService.getBookmarks(currentUser.id);
+      setBookmarks(data);
+    } catch (err) {
+      console.error('[SavedMessagesDrawer] Error loading bookmarks:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
     if (isOpen) {
       loadBookmarks();
     }
-
-    const unsub = mockStore.subscribe('BOOKMARKS_UPDATED', (updated: BookmarkType[]) => {
-      setBookmarks(updated);
-    });
-    return () => unsub();
-  }, [isOpen]);
+  }, [isOpen, currentUser?.id]);
 
   if (!isOpen) return null;
 
-  const handleRemove = (b: BookmarkType) => {
-    mockStore.toggleBookmark(b.message, b.channelName);
-    loadBookmarks();
+  const handleRemove = async (b: BookmarkType) => {
+    if (!currentUser) return;
+    await BookmarkService.toggleBookmark(currentUser.id, b.message, b.channelName);
+    setBookmarks((prev) => prev.filter((item) => item.id !== b.id));
   };
 
   const handleJump = (b: BookmarkType) => {
     if (b.message.channelId) {
+      const targetChan = channels.find((c) => c.id === b.message.channelId);
+      if (targetChan) {
+        selectServer(targetChan.serverId);
+      }
       selectChannel(b.message.channelId);
     }
     if (onJumpToMessage && b.message.channelId) {
@@ -65,7 +77,11 @@ export const SavedMessagesDrawer: React.FC<SavedMessagesDrawerProps> = ({
       </div>
 
       <div className="side-drawer-content">
-        {bookmarks.length === 0 ? (
+        {isLoading && bookmarks.length === 0 ? (
+          <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
+            Loading saved messages...
+          </div>
+        ) : bookmarks.length === 0 ? (
           <div className="side-drawer-empty">
             <Bookmark size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
             <h4>No saved messages</h4>

@@ -218,24 +218,54 @@ export const PreJoinModal: React.FC<PreJoinModalProps> = ({
         const ctx = new AudioCtx();
         audioContextRef.current = ctx;
         const source = ctx.createMediaStreamSource(stream);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        source.connect(analyser);
 
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        // Highpass filter to strip fan rumble and AC hum
+        const hp = ctx.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.setValueAtTime(100, ctx.currentTime);
+
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 512;
+        source.connect(hp);
+        hp.connect(analyser);
+
+        const timeData = new Float32Array(analyser.fftSize);
+        let smoothed = 0;
+        let noiseFloor = -65;
+
         const loop = () => {
           if (previewMicMutedRef.current) {
             setMicLevel(0);
             animFrameRef.current = requestAnimationFrame(loop);
             return;
           }
-          analyser.getByteFrequencyData(dataArray);
-          let sum = 0;
-          for (let i = 0; i < dataArray.length; i++) {
-            sum += dataArray[i];
+
+          analyser.getFloatTimeDomainData(timeData);
+          let sumSq = 0;
+          for (let i = 0; i < timeData.length; i++) {
+            const v = timeData[i];
+            sumSq += v * v;
           }
-          const avg = sum / dataArray.length;
-          setMicLevel(Math.min(100, Math.round((avg / 128) * 100)));
+          const rms = Math.sqrt(sumSq / timeData.length);
+          const db = rms > 0.00001 ? 20 * Math.log10(rms) : -100;
+
+          // Stationary noise floor tracking for fans / ambient room noise
+          if (db < noiseFloor) {
+            noiseFloor = noiseFloor * 0.85 + db * 0.15;
+          } else {
+            noiseFloor = noiseFloor * 0.992 + db * 0.008;
+          }
+          noiseFloor = Math.max(-85, Math.min(-35, noiseFloor));
+
+          const threshold = Math.max(-50, noiseFloor + 10);
+          let target = 0;
+          if (db >= threshold) {
+            const normalized = (db + 50) / 40;
+            target = Math.max(0, Math.min(100, Math.round(normalized * 100)));
+          }
+
+          smoothed = smoothed * 0.6 + target * 0.4;
+          setMicLevel(Math.round(smoothed));
           animFrameRef.current = requestAnimationFrame(loop);
         };
         animFrameRef.current = requestAnimationFrame(loop);

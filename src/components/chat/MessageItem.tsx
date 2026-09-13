@@ -3,6 +3,7 @@ import { Message, Poll } from '../../types';
 import { Avatar } from '../ui/Avatar';
 import { useAuth } from '../../app/providers/AuthContext';
 import { useChat } from '../../app/providers/ChatContext';
+import { BookmarkService } from '../../lib/services/bookmarkService';
 import { mockStore } from '../../lib/supabase/mockStore';
 import {
   Smile,
@@ -41,9 +42,13 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   const { currentUser } = useAuth();
   const { toggleReaction, editMessage, deleteMessage, setReplyingTo } = useChat();
 
-  const [isBookmarked, setIsBookmarked] = useState(
-    mockStore.getBookmarks().some((b) => b.messageId === message.id)
-  );
+  const [isBookmarked, setIsBookmarked] = useState(false);
+
+  useEffect(() => {
+    if (currentUser?.id && message.id) {
+      BookmarkService.isBookmarked(currentUser.id, message.id).then(setIsBookmarked);
+    }
+  }, [currentUser?.id, message.id]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
@@ -102,8 +107,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     setShowMoreMenu(false);
   };
 
-  const handleToggleBookmark = () => {
-    const added = mockStore.toggleBookmark(message, channelName);
+  const handleToggleBookmark = async () => {
+    if (!currentUser) return;
+    const added = await BookmarkService.toggleBookmark(currentUser.id, message, channelName);
     setIsBookmarked(added);
     setShowMoreMenu(false);
   };

@@ -23,23 +23,23 @@ export const FriendsView: React.FC<FriendsViewProps> = ({ onOpenDM }) => {
   const allFriends = friends.filter((f) => f.status === 'accepted');
   const pendingFriends = friends.filter((f) => f.status === 'pending_received' || f.status === 'pending_sent');
 
-  const handleAddFriendSubmit = (e: React.FormEvent) => {
+  const handleAddFriendSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAddSuccess(null);
     setAddError(null);
 
     if (!addFriendInput.trim()) return;
-    const ok = addFriend(addFriendInput);
-    if (ok) {
+    const res = await addFriend(addFriendInput);
+    if (res.success) {
       setAddSuccess(`Added @${addFriendInput} to your friends!`);
       setAddFriendInput('');
     } else {
-      setAddError(`Please enter a valid username.`);
+      setAddError(res.error || `Please enter a valid username.`);
     }
   };
 
-  const handleMessageFriend = (user: User) => {
-    const convoId = startConversationWithUser(user);
+  const handleMessageFriend = async (user: User) => {
+    const convoId = await startConversationWithUser(user);
     onOpenDM(convoId);
   };
 

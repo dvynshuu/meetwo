@@ -6,6 +6,8 @@
  * - Multi-tiered endpoint fallback (Cloudflare Pages Function -> Supabase Edge Function -> Dev static)
  */
 
+import { supabase, isSupabaseConfigured } from '../supabase/client';
+
 export interface TokenRequestParams {
   roomId: string;
   userId: string;
@@ -59,6 +61,22 @@ export async function getLiveKitToken(params: TokenRequestParams): Promise<strin
     candidateEndpoints.push(`${supabaseUrl}/functions/v1/livekit-token`);
   }
 
+  // Get current Supabase session token for authenticated authorization
+  let authToken: string | null = null;
+  try {
+    if (isSupabaseConfigured && supabase) {
+      const { data } = await supabase.auth.getSession();
+      if (data?.session?.access_token) {
+        authToken = data.session.access_token;
+      }
+    }
+  } catch {}
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
   for (const endpoint of candidateEndpoints) {
     // 2.5s timeout controller to prevent connection hangs on slow networks
     const controller = new AbortController();
@@ -67,7 +85,7 @@ export async function getLiveKitToken(params: TokenRequestParams): Promise<strin
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           room: params.roomId,
           identity: params.userId,

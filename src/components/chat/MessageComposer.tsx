@@ -1,17 +1,22 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Paperclip, X, CornerDownRight, File } from 'lucide-react';
+import { Send, Paperclip, X, CornerDownRight, File, Loader2 } from 'lucide-react';
 import { useChat } from '../../app/providers/ChatContext';
 import { usePresence } from '../../app/providers/PresenceContext';
 import { useServer } from '../../app/providers/ServerContext';
+import { useAuth } from '../../app/providers/AuthContext';
+import { StorageService } from '../../lib/services/storageService';
 import { Attachment } from '../../types';
 
 export const MessageComposer: React.FC = () => {
   const { sendMessage, replyingTo, setReplyingTo } = useChat();
   const { sendTyping } = usePresence();
   const { activeChannel } = useServer();
+  const { currentUser } = useAuth();
 
   const [content, setContent] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastTypingTimeRef = useRef<number>(0);
@@ -25,6 +30,7 @@ export const MessageComposer: React.FC = () => {
 
   const handleSend = useCallback(() => {
     if (!content.trim() && attachments.length === 0) return;
+    if (isUploading) return;
 
     sendMessage(
       content,
@@ -34,10 +40,11 @@ export const MessageComposer: React.FC = () => {
 
     setContent('');
     setAttachments([]);
+    setUploadError(null);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [content, attachments, replyingTo, sendMessage]);
+  }, [content, attachments, replyingTo, sendMessage, isUploading]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -61,25 +68,28 @@ export const MessageComposer: React.FC = () => {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const newAttachments: Attachment[] = [];
-    Array.from(files).forEach((file) => {
-      const fileUrl = URL.createObjectURL(file);
+    setIsUploading(true);
+    setUploadError(null);
+    const uId = currentUser?.id || 'demo-user';
 
-      newAttachments.push({
-        id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        fileName: file.name,
-        fileUrl: fileUrl,
-        fileSize: file.size,
-        contentType: file.type || 'application/octet-stream',
-      });
-    });
-
-    setAttachments((prev) => [...prev, ...newAttachments]);
-    if (fileInputRef.current) fileInputRef.current.value = '';
+    try {
+      const uploadedList: Attachment[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const uploaded = await StorageService.uploadAttachment(file, uId);
+        uploadedList.push(uploaded);
+      }
+      setAttachments((prev) => [...prev, ...uploadedList]);
+    } catch (err: any) {
+      setUploadError(err.message || 'Failed to upload attachment');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const removeAttachment = (id: string) => {
@@ -140,6 +150,19 @@ export const MessageComposer: React.FC = () => {
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {isUploading && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', fontSize: 12, color: 'var(--accent)' }}>
+          <Loader2 size={13} className="animate-spin" />
+          <span>Uploading attachment to secure storage...</span>
+        </div>
+      )}
+
+      {uploadError && (
+        <div style={{ padding: '4px 12px', fontSize: 12, color: 'var(--danger)' }}>
+          {uploadError}
         </div>
       )}
 

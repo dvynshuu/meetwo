@@ -19,6 +19,7 @@ import { CreateServerModal } from '../servers/CreateServerModal';
 import { CreateChannelModal } from '../servers/CreateChannelModal';
 import { SettingsModal } from '../settings/SettingsModal';
 import { AuthModal } from '../../features/auth/AuthModal';
+import { AuthScreen } from '../../features/auth/AuthScreen';
 import { CommandPalette } from '../navigation/CommandPalette';
 import { QuickSwitcher } from '../navigation/QuickSwitcher';
 import { GlobalSearchModal } from '../navigation/GlobalSearchModal';
@@ -32,9 +33,9 @@ import { NavigationEntry } from '../../types';
 export const AppLayout: React.FC = () => {
   const { activeServer, activeChannel, channels, selectServer, selectChannel } = useServer();
   const { activeRoomId, toggleAudio, toggleVideo } = useMedia();
-  const { currentUser } = useAuth();
+  const { currentUser, isLoading: isAuthLoading, isDemoMode } = useAuth();
   const { pushNavigation, goBack, goForward } = useNavigation();
-  const { selectConversation } = useDM();
+  const { selectConversation, activeConversationId } = useDM();
 
   // Primary view mode: 'home' (DMs, friends, inbox) or 'server' (workspaces & channels)
   const [viewMode, setViewMode] = useState<'home' | 'server'>('home');
@@ -60,7 +61,7 @@ export const AppLayout: React.FC = () => {
   const [serverOnboardingOpen, setServerOnboardingOpen] = useState(false);
   const [pendingInvite, setPendingInvite] = useState<{ code: string; encodedData?: string | null } | null>(null);
 
-  // URL Routing detection for invites (/invite/:code, ?invite=:code, #/invite/:code) and channel links (/channels/:serverId/:channelId)
+  // URL Routing detection for invites, channels (/channels/:serverId/:channelId), and DMs (/dm/:conversationId)
   useEffect(() => {
     const handleUrlRoute = () => {
       const pathname = window.location.pathname;
@@ -88,14 +89,49 @@ export const AppLayout: React.FC = () => {
         return;
       }
 
-      // 2. Check for channel link: /channels/:serverId/:channelId
-      const chanMatch = pathname.match(/\/channels\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)/i);
+      // 2. Check for DM link: /dm/:conversationId or #/dm/:conversationId
+      const dmMatch = pathname.match(/\/dm\/([a-zA-Z0-9_-]+)/i) || hash.match(/#\/dm\/([a-zA-Z0-9_-]+)/i);
+      if (dmMatch && dmMatch[1]) {
+        const convoId = dmMatch[1];
+        setViewMode('home');
+        setHomeTab('dms');
+        selectConversation(convoId);
+        return;
+      }
+
+      // 3. Check for channel link: /channels/:serverId/:channelId or /channels/:serverId/:channelId/:messageId
+      const chanMatch =
+        pathname.match(/\/channels\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)(?:\/([a-zA-Z0-9_-]+))?/i) ||
+        hash.match(/#\/channels\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)(?:\/([a-zA-Z0-9_-]+))?/i);
       if (chanMatch && chanMatch[1] && chanMatch[2]) {
         const sId = chanMatch[1];
         const cId = chanMatch[2];
+        const mId = chanMatch[3];
         selectServer(sId);
         selectChannel(cId);
         setViewMode('server');
+
+        if (mId) {
+          setTimeout(() => {
+            const el = document.getElementById(`message-${mId}`) || document.getElementById(`msg-${mId}`);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              el.style.transition = 'background-color 0.4s ease';
+              el.style.backgroundColor = 'rgba(16, 231, 178, 0.18)';
+              setTimeout(() => {
+                el.style.backgroundColor = '';
+              }, 3000);
+            }
+          }, 800);
+        }
+        return;
+      }
+
+      // 4. Check for forum post link: /forum/:postId or #/forum/:postId
+      const forumMatch = pathname.match(/\/forum\/([a-zA-Z0-9_-]+)/i) || hash.match(/#\/forum\/([a-zA-Z0-9_-]+)/i);
+      if (forumMatch && forumMatch[1]) {
+        const postId = forumMatch[1];
+        window.dispatchEvent(new CustomEvent('meetwo:open-forum-post', { detail: { postId } }));
       }
     };
 
@@ -119,7 +155,7 @@ export const AppLayout: React.FC = () => {
     };
   }, []);
 
-  // Push navigation entry on channel selection
+  // Push navigation entry and synchronize URL on channel selection
   useEffect(() => {
     if (activeChannel && viewMode === 'server') {
       pushNavigation({
@@ -129,8 +165,27 @@ export const AppLayout: React.FC = () => {
         serverId: activeChannel.serverId,
         channelId: activeChannel.id,
       });
+
+      try {
+        const targetPath = `/channels/${activeChannel.serverId}/${activeChannel.id}`;
+        if (window.location.pathname !== targetPath && !window.location.pathname.startsWith('/invite')) {
+          window.history.replaceState({}, '', targetPath);
+        }
+      } catch {}
     }
   }, [activeChannel?.id, viewMode]);
+
+  // Synchronize URL on DM selection
+  useEffect(() => {
+    if (viewMode === 'home' && homeTab === 'dms' && activeConversationId) {
+      try {
+        const targetPath = `/dm/${activeConversationId}`;
+        if (window.location.pathname !== targetPath && !window.location.pathname.startsWith('/invite')) {
+          window.history.replaceState({}, '', targetPath);
+        }
+      } catch {}
+    }
+  }, [viewMode, homeTab, activeConversationId]);
 
   // Check server onboarding status when activeServer changes
   useEffect(() => {
@@ -221,6 +276,45 @@ export const AppLayout: React.FC = () => {
   const isVoiceView =
     activeChannel?.type === 'voice' ||
     (activeRoomId && activeChannel && activeRoomId === activeChannel.id);
+
+  if (isAuthLoading) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          minHeight: '100vh',
+          width: '100vw',
+          background: 'var(--bg-app)',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--accent-subtle)',
+              border: '1px solid rgba(16, 231, 178, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <img src="/favicon.svg" alt="Meetwo" style={{ width: 30, height: 30 }} />
+          </div>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
+            Starting Meetwo...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser && !isDemoMode) {
+    return <AuthScreen />;
+  }
 
   return (
     <div className={`app-container ${mobileNavOpen ? 'sidebar-open' : ''}`}>

@@ -129,15 +129,24 @@ export class MediaSession {
     }
 
     const targetDeviceId = deviceId !== undefined ? deviceId : this.settings.audioInputId;
+    const isStereo = Boolean(this.settings.stereoAudio);
 
     const audioConstraints: MediaTrackConstraints = {
       deviceId: targetDeviceId ? { exact: targetDeviceId } : undefined,
       echoCancellation: this.settings.echoCancellation,
       noiseSuppression: this.settings.noiseSuppression,
       autoGainControl: this.settings.autoGainControl,
-      channelCount: { ideal: 2 },
+      channelCount: isStereo ? { ideal: 2 } : { ideal: 1 },
       sampleRate: { ideal: 48000 },
       sampleSize: { ideal: 16 },
+      // Advanced vendor hardware DSP constraints
+      // @ts-ignore
+      googEchoCancellation: this.settings.echoCancellation,
+      googAutoGainControl: this.settings.autoGainControl,
+      googNoiseSuppression: this.settings.noiseSuppression,
+      googHighpassFilter: this.settings.highPassFilter,
+      googTypingNoiseDetection: this.settings.noiseSuppression,
+      googNoiseReduction: this.settings.noiseSuppression,
     };
 
     try {
@@ -180,12 +189,13 @@ export class MediaSession {
       return rawTrack;
     } catch (err) {
       console.warn('[MediaSession] Microphone with constraints failed, falling back:', err);
+      const isStereo = Boolean(this.settings.stereoAudio);
       const fallbackStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          channelCount: { ideal: 2 },
+          channelCount: isStereo ? { ideal: 2 } : { ideal: 1 },
           sampleRate: { ideal: 48000 },
         },
       });
@@ -274,12 +284,20 @@ export class MediaSession {
     const activeTrack = this.microphoneTrack || this.rawMicrophoneTrack;
     if (activeTrack && typeof activeTrack.applyConstraints === 'function') {
       try {
+        const isStereo = Boolean(this.settings.stereoAudio);
         await activeTrack.applyConstraints({
           echoCancellation: this.settings.echoCancellation,
           noiseSuppression: this.settings.noiseSuppression,
           autoGainControl: this.settings.autoGainControl,
-          channelCount: { ideal: 2 },
+          channelCount: isStereo ? { ideal: 2 } : { ideal: 1 },
           sampleRate: { ideal: 48000 },
+          // @ts-ignore
+          googEchoCancellation: this.settings.echoCancellation,
+          googAutoGainControl: this.settings.autoGainControl,
+          googNoiseSuppression: this.settings.noiseSuppression,
+          googHighpassFilter: this.settings.highPassFilter,
+          googTypingNoiseDetection: this.settings.noiseSuppression,
+          googNoiseReduction: this.settings.noiseSuppression,
         });
       } catch (e) {
         console.warn('[MediaSession] Hardware constraint update warning:', e);

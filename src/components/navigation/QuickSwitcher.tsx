@@ -32,7 +32,7 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
   onNavigateToServerChannel,
   onNavigateToServer,
 }) => {
-  const { servers, channels, selectServer, selectChannel } = useServer();
+  const { servers, channels, allChannels, selectServer, selectChannel } = useServer();
   const { recentDestinations, pushNavigation } = useNavigation();
   const { conversations, friends, startConversationWithUser } = useDM();
   const { openPreJoin } = useMedia();
@@ -53,8 +53,9 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
   // Build all searchable switcher items
   const allItems: SwitcherItem[] = [];
 
-  // Channels
-  channels.forEach((c) => {
+  // Channels across all user workspaces
+  const channelList = (allChannels && allChannels.length > 0) ? allChannels : channels;
+  channelList.forEach((c) => {
     const server = servers.find((s) => s.id === c.serverId);
     const serverName = server?.name || 'Workspace';
     const isVoice = c.type === 'voice';
@@ -132,8 +133,8 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
           type: 'dm',
           name: f.user.displayName,
         },
-        action: () => {
-          const convoId = startConversationWithUser(f.user);
+        action: async () => {
+          const convoId = await startConversationWithUser(f.user);
           pushNavigation({
             id: convoId,
             type: 'dm',

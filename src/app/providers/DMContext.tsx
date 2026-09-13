@@ -1,11 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { User, DMConversation, DMMessage, Friend } from '../../types';
-import { mockStore } from '../../lib/supabase/mockStore';
+import { DMService } from '../../lib/services/dmService';
+import { FriendService } from '../../lib/services/friendService';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { useAuth } from './AuthContext';
-
-const DM_CONVOS_KEY = 'mw:dm:conversations';
-const DM_MESSAGES_KEY = 'mw:dm:messages';
-const FRIENDS_KEY = 'mw:dm:friends';
 
 interface DMContextType {
   conversations: DMConversation[];
@@ -15,12 +13,12 @@ interface DMContextType {
   friends: Friend[];
   totalUnreadDMs: number;
   selectConversation: (conversationId: string | null) => void;
-  sendDM: (conversationId: string, content: string) => void;
-  startConversationWithUser: (user: User) => string;
+  sendDM: (conversationId: string, content: string) => Promise<void>;
+  startConversationWithUser: (user: User) => Promise<string>;
   markConversationRead: (conversationId: string) => void;
-  addFriend: (username: string) => boolean;
-  removeFriend: (friendId: string) => void;
-  acceptFriendRequest: (friendId: string) => void;
+  acceptFriendRequest: (friendId: string) => Promise<void>;
+  addFriend: (username: string) => Promise<{ success: boolean; error?: string }>;
+  removeFriend: (friendId: string) => Promise<void>;
 }
 
 const DMContext = createContext<DMContextType | undefined>(undefined);
@@ -28,60 +26,117 @@ const DMContext = createContext<DMContextType | undefined>(undefined);
 export const DMProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAuth();
 
-  // State initialization with localStorage fallback (empty arrays by default, no mock seed data)
-  const [conversations, setConversations] = useState<DMConversation[]>(() => {
-    try {
-      const saved = localStorage.getItem(DM_CONVOS_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [dmMessages, setDmMessages] = useState<Record<string, DMMessage[]>>(() => {
-    try {
-      const saved = localStorage.getItem(DM_MESSAGES_KEY);
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
-
-  const [friends, setFriends] = useState<Friend[]>(() => {
-    try {
-      const saved = localStorage.getItem(FRIENDS_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
+  const [conversations, setConversations] = useState<DMConversation[]>([]);
+  const [dmMessages, setDmMessages] = useState<Record<string, DMMessage[]>>({});
+  const [friends, setFriends] = useState<Friend[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
 
-  // Sync to localStorage
+  // Load conversations and friends on auth change
   useEffect(() => {
-    try {
-      localStorage.setItem(DM_CONVOS_KEY, JSON.stringify(conversations));
-    } catch (e) {
-      console.warn('Failed to save DM conversations:', e);
+    if (!currentUser) {
+      setConversations([]);
+      setFriends([]);
+      return;
     }
-  }, [conversations]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(DM_MESSAGES_KEY, JSON.stringify(dmMessages));
-    } catch (e) {
-      console.warn('Failed to save DM messages:', e);
-    }
-  }, [dmMessages]);
+    let isMounted = true;
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(FRIENDS_KEY, JSON.stringify(friends));
-    } catch (e) {
-      console.warn('Failed to save friends list:', e);
+    DMService.getConversations(currentUser.id).then((convos) => {
+      if (isMounted) setConversations(convos);
+    });
+
+    FriendService.getFriends(currentUser.id).then((fr) => {
+      if (isMounted) setFriends(fr);
+    });
+
+    // Realtime subscription for incoming direct messages
+    let channel: any = null;
+    if (isSupabaseConfigured && supabase) {
+      channel = supabase
+        .channel(`user_dms:${currentUser.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'dm_messages',
+          },
+          async (payload) => {
+            const newRow = payload.new as any;
+            if (!newRow || newRow.author_id === currentUser.id) return;
+
+            const { data: authorProf } = await supabase!
+              .from('profiles')
+              .select('*')
+              .eq('id', newRow.author_id)
+              .maybeSingle();
+
+            const incomingMsg: DMMessage = {
+              id: newRow.id,
+              conversationId: newRow.conversation_id,
+              authorId: newRow.author_id,
+              content: newRow.content,
+              createdAt: newRow.created_at,
+              author: authorProf
+                ? {
+                    id: authorProf.id,
+                    username: authorProf.username,
+                    displayName: authorProf.display_name,
+                    avatarUrl: authorProf.avatar_url,
+                    status: authorProf.status || 'online',
+                    createdAt: authorProf.created_at,
+                  }
+                : undefined,
+            };
+
+            setDmMessages((prev) => ({
+              ...prev,
+              [newRow.conversation_id]: [...(prev[newRow.conversation_id] || []), incomingMsg],
+            }));
+
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.id === newRow.conversation_id
+                  ? {
+                      ...c,
+                      lastMessage: incomingMsg,
+                      unreadCount:
+                        activeConversationId === c.id ? 0 : (c.unreadCount || 0) + 1,
+                    }
+                  : c
+              )
+            );
+          }
+        )
+        .subscribe();
     }
-  }, [friends]);
+
+    return () => {
+      isMounted = false;
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [currentUser?.id, activeConversationId]);
+
+  // Load messages whenever active conversation changes
+  useEffect(() => {
+    if (!activeConversationId) return;
+
+    let isMounted = true;
+    DMService.getMessages(activeConversationId).then((messages) => {
+      if (isMounted) {
+        setDmMessages((prev) => ({
+          ...prev,
+          [activeConversationId]: messages,
+        }));
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeConversationId]);
 
   const activeConversation = useMemo(() => {
     if (!activeConversationId) return null;
@@ -98,122 +153,104 @@ export const DMProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     );
   }, []);
 
-  const selectConversation = useCallback((conversationId: string | null) => {
-    setActiveConversationId(conversationId);
-    if (conversationId) {
-      markConversationRead(conversationId);
-    }
-  }, [markConversationRead]);
+  const selectConversation = useCallback(
+    (conversationId: string | null) => {
+      setActiveConversationId(conversationId);
+      if (conversationId) {
+        markConversationRead(conversationId);
+      }
+    },
+    [markConversationRead]
+  );
 
-  const sendDM = useCallback((conversationId: string, content: string) => {
-    if (!content.trim()) return;
-    const author: User = currentUser || {
-      id: `user-${Date.now()}`,
-      username: 'me',
-      displayName: 'Me',
-      status: 'online',
-      createdAt: new Date().toISOString(),
-    };
+  const sendDM = useCallback(
+    async (conversationId: string, content: string) => {
+      if (!content.trim() || !currentUser) return;
 
-    const newMsg: DMMessage = {
-      id: `dm-msg-${Date.now()}`,
-      conversationId,
-      authorId: author.id,
-      content: content.trim(),
-      createdAt: new Date().toISOString(),
-      author,
-    };
+      const sent = await DMService.sendMessage(conversationId, currentUser, content);
 
-    setDmMessages((prev) => ({
-      ...prev,
-      [conversationId]: [...(prev[conversationId] || []), newMsg],
-    }));
+      setDmMessages((prev) => ({
+        ...prev,
+        [conversationId]: [...(prev[conversationId] || []), sent],
+      }));
 
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === conversationId
-          ? { ...c, lastMessage: newMsg, updatedAt: new Date().toISOString() }
-          : c
-      )
-    );
-  }, [currentUser]);
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? { ...c, lastMessage: sent }
+            : c
+        )
+      );
+    },
+    [currentUser]
+  );
 
-  const startConversationWithUser = useCallback((user: User): string => {
-    const author: User = currentUser || {
-      id: `user-${Date.now()}`,
-      username: 'me',
-      displayName: 'Me',
-      status: 'online',
-      createdAt: new Date().toISOString(),
-    };
+  const startConversationWithUser = useCallback(
+    async (targetUser: User): Promise<string> => {
+      if (!currentUser) return '';
 
-    // Check if conversation already exists with this user
-    const existing = conversations.find((c) =>
-      c.participants.some((p) => p.id === user.id)
-    );
+      const convoId = await DMService.startConversation(currentUser, targetUser);
 
-    if (existing) {
-      selectConversation(existing.id);
-      return existing.id;
-    }
+      setConversations((prev) => {
+        if (prev.some((c) => c.id === convoId)) return prev;
+        return [
+          {
+            id: convoId,
+            participants: [targetUser],
+            unreadCount: 0,
+            createdAt: new Date().toISOString(),
+          },
+          ...prev,
+        ];
+      });
 
-    const newConvoId = `dm-${user.id}`;
-    const newConvo: DMConversation = {
-      id: newConvoId,
-      participants: [author, user],
-      unreadCount: 0,
-      createdAt: new Date().toISOString(),
-    };
+      selectConversation(convoId);
+      return convoId;
+    },
+    [currentUser, selectConversation]
+  );
 
-    setConversations((prev) => [newConvo, ...prev]);
-    selectConversation(newConvoId);
-    return newConvoId;
-  }, [currentUser, conversations, selectConversation]);
+  const addFriend = useCallback(
+    async (username: string): Promise<{ success: boolean; error?: string }> => {
+      if (!currentUser) return { success: false, error: 'Sign in required' };
 
-  const addFriend = useCallback((username: string): boolean => {
-    const trimmed = username.trim().toLowerCase().replace(/^@/, '');
-    if (!trimmed) return false;
+      const res = await FriendService.addFriendByUsername(currentUser.id, username);
+      if (res.success && res.user) {
+        const newFriend: Friend = {
+          id: res.user.id,
+          user: res.user,
+          status: 'accepted',
+          createdAt: new Date().toISOString(),
+        };
+        setFriends((prev) => {
+          if (prev.some((f) => f.id === newFriend.id)) return prev;
+          return [...prev, newFriend];
+        });
+      }
+      return { success: res.success, error: res.error };
+    },
+    [currentUser]
+  );
 
-    const allUsers = mockStore.getAllUsers();
-    let user = allUsers.find(
-      (u) => u.username.toLowerCase() === trimmed || u.displayName.toLowerCase() === trimmed
-    );
+  const acceptFriendRequest = useCallback(
+    async (friendId: string) => {
+      if (!currentUser) return;
+      await FriendService.acceptFriendRequest(currentUser.id, friendId);
+      setFriends((prev) =>
+        prev.map((f) => (f.id === friendId ? { ...f, status: 'accepted' as const } : f))
+      );
+    },
+    [currentUser]
+  );
 
-    // If user not in local registry yet, register them dynamically
-    if (!user) {
-      user = {
-        id: `user-${trimmed}`,
-        username: trimmed,
-        displayName: trimmed.charAt(0).toUpperCase() + trimmed.slice(1),
-        avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${trimmed}`,
-        status: 'online',
-        createdAt: new Date().toISOString(),
-      };
-      mockStore.addUser(user);
-    }
-
-    if (friends.some((f) => f.user.id === user!.id)) return true;
-
-    const newFriend: Friend = {
-      id: `friend-${Date.now()}`,
-      user,
-      status: 'accepted',
-      createdAt: new Date().toISOString(),
-    };
-
-    setFriends((prev) => [newFriend, ...prev]);
-    return true;
-  }, [friends]);
-
-  const removeFriend = useCallback((friendId: string) => {
-    setFriends((prev) => prev.filter((f) => f.id !== friendId && f.user.id !== friendId));
-  }, []);
-
-  const acceptFriendRequest = useCallback((friendId: string) => {
-    setFriends((prev) =>
-      prev.map((f) => (f.id === friendId ? { ...f, status: 'accepted' } : f))
-    );
-  }, []);
+  const removeFriend = useCallback(
+    async (friendId: string) => {
+      if (!currentUser) return;
+      await FriendService.removeFriend(currentUser.id, friendId);
+      setFriends((prev) => prev.filter((f) => f.id !== friendId));
+    },
+    [currentUser]
+  );
 
   return (
     <DMContext.Provider
@@ -228,9 +265,9 @@ export const DMProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         sendDM,
         startConversationWithUser,
         markConversationRead,
+        acceptFriendRequest,
         addFriend,
         removeFriend,
-        acceptFriendRequest,
       }}
     >
       {children}
@@ -238,10 +275,8 @@ export const DMProvider: React.FC<{ children: React.ReactNode }> = ({ children }
   );
 };
 
-export const useDM = (): DMContextType => {
+export const useDM = () => {
   const context = useContext(DMContext);
-  if (!context) {
-    throw new Error('useDM must be used within a DMProvider');
-  }
+  if (!context) throw new Error('useDM must be used within a DMProvider');
   return context;
 };

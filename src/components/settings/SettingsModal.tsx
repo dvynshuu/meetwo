@@ -442,7 +442,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             letterSpacing: '0.04em',
                           }}
                         >
-                          {gateState === 'open' ? '● Gate: Open' : '✦ Gate: Muffled'}
+                          {gateState === 'open' ? '● Gate: Open' : '✦ Gate: Quiet'}
                         </span>
                       )}
                     </div>

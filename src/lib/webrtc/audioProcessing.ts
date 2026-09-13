@@ -174,6 +174,7 @@ export type GateState = 'open' | 'attenuated';
 export class AudioDSPManager {
   private audioContext: AudioContext | null = null;
   private sourceNode: MediaStreamAudioSourceNode | null = null;
+  private highPassNode: BiquadFilterNode | null = null;
   private gainNode: GainNode | null = null;
   private analyserNode: AnalyserNode | null = null;
   private rawTrack: MediaStreamTrack | null = null;
@@ -185,17 +186,20 @@ export class AudioDSPManager {
   private isMuted: boolean = false;
 
   // Real-time Voice Telemetry & VAD Parameters
-  private gateState: GateState = 'open';
-  private readonly baseSpeakThreshold: number = 14;
-  private readonly baseSilenceThreshold: number = 8;
+  private gateState: GateState = 'attenuated';
   private readonly hangoverTimeMs: number = 380;
-  private noiseFloor: number = 4;
+  private noiseFloorDb: number = -65;
   private lastAboveThresholdTime: number = 0;
   private isCurrentlySpeaking: boolean = false;
   private lastEmitTime: number = 0;
   private lastEmittedLevel: number = -1;
   private lastEmittedSpeaking: boolean = false;
-  private lastEmittedGateState: GateState = 'open';
+  private lastEmittedGateState: GateState = 'attenuated';
+
+  // DSP Configuration
+  private isGateEnabled: boolean = true;
+  private noiseGateMode: NoiseGateMode = 'balanced';
+  private isHighPassEnabled: boolean = true;
 
   constructor() {}
 
@@ -231,18 +235,30 @@ export class AudioDSPManager {
 
       const now = this.audioContext.currentTime;
 
-      // Passive metering pipeline: source -> gain -> analyser
+      this.isHighPassEnabled = settings?.highPassFilter !== false;
+      this.isGateEnabled = settings?.noiseGate !== false;
+      this.noiseGateMode = settings?.noiseGateMode || 'balanced';
+
+      // Passive metering pipeline: source -> highpass (rumble/fan filter) -> gain -> analyser
       // Strictly do NOT connect to destination to avoid self-echo or altering broadcast audio!
       this.sourceNode = this.audioContext.createMediaStreamSource(stream);
+
+      // 100Hz 12dB/octave Butterworth highpass filter to strip fan motor hum, AC buzz, and rumble
+      this.highPassNode = this.audioContext.createBiquadFilter();
+      this.highPassNode.type = 'highpass';
+      this.highPassNode.frequency.setValueAtTime(this.isHighPassEnabled ? 100 : 20, now);
+      this.highPassNode.Q.setValueAtTime(0.707, now);
+
       this.gainNode = this.audioContext.createGain();
       const initialVol = settings?.inputVolume !== undefined ? settings.inputVolume / 100 : initialGain;
       this.gainNode.gain.setValueAtTime(initialVol, now);
 
       this.analyserNode = this.audioContext.createAnalyser();
       this.analyserNode.fftSize = 512;
-      this.analyserNode.smoothingTimeConstant = 0.35;
+      this.analyserNode.smoothingTimeConstant = 0.3;
 
-      this.sourceNode.connect(this.gainNode);
+      this.sourceNode.connect(this.highPassNode);
+      this.highPassNode.connect(this.gainNode);
       this.gainNode.connect(this.analyserNode);
 
       this.isProcessing = true;
@@ -266,6 +282,20 @@ export class AudioDSPManager {
     if (settings.inputVolume !== undefined && this.gainNode) {
       const normalizedGain = Math.max(0, Math.min(2.0, settings.inputVolume / 100));
       this.gainNode.gain.setTargetAtTime(normalizedGain, now, 0.03);
+    }
+
+    // Highpass rumble filter
+    if (settings.highPassFilter !== undefined && this.highPassNode) {
+      this.isHighPassEnabled = settings.highPassFilter;
+      this.highPassNode.frequency.setTargetAtTime(this.isHighPassEnabled ? 100 : 20, now, 0.03);
+    }
+
+    // Noise gate enablement & mode
+    if (settings.noiseGate !== undefined) {
+      this.isGateEnabled = settings.noiseGate;
+    }
+    if (settings.noiseGateMode !== undefined) {
+      this.noiseGateMode = settings.noiseGateMode;
     }
   }
 
@@ -300,57 +330,98 @@ export class AudioDSPManager {
   private startMeteringLoop(): void {
     if (!this.analyserNode) return;
 
-    const dataArray = new Uint8Array(this.analyserNode.frequencyBinCount);
+    const timeData = new Float32Array(this.analyserNode.fftSize);
+    const freqData = new Uint8Array(this.analyserNode.frequencyBinCount);
 
     const step = () => {
       if (!this.analyserNode || !this.isProcessing) return;
 
-      this.analyserNode.getByteFrequencyData(dataArray);
-
-      // Focus on human speech band (85Hz - 3500Hz)
-      let sum = 0;
-      const count = Math.min(dataArray.length, 38);
-      for (let i = 1; i < count; i++) {
-        sum += dataArray[i];
+      // 1. Calculate time-domain RMS (sound pressure)
+      this.analyserNode.getFloatTimeDomainData(timeData);
+      let sumSquares = 0;
+      for (let i = 0; i < timeData.length; i++) {
+        const v = timeData[i];
+        sumSquares += v * v;
       }
+      const rms = Math.sqrt(sumSquares / timeData.length);
+      const currentDb = rms > 0.00001 ? 20 * Math.log10(rms) : -100;
 
-      const avg = count > 1 ? sum / (count - 1) : 0;
-      const instantLevel = Math.min(100, Math.round((avg / 128) * 100));
+      // 2. Calculate spectral vocal presence energy (180 Hz - 3500 Hz, bins 2 to 36)
+      // Ignores low frequency bin 1 (~93Hz) where fan motor rumble resides
+      this.analyserNode.getByteFrequencyData(freqData);
+      let speechSum = 0;
+      const binStart = 2;
+      const binEnd = Math.min(freqData.length, 36);
+      for (let i = binStart; i < binEnd; i++) {
+        speechSum += freqData[i];
+      }
+      const speechAvg = binEnd > binStart ? speechSum / (binEnd - binStart) : 0;
 
-      // Low-pass smoothing filter
-      this.smoothedLevel = this.smoothedLevel * 0.65 + instantLevel * 0.35;
-      const roundedLevel = Math.round(this.smoothedLevel);
+      // 3. Continuous Asymmetric Noise Floor Tracker (Minimum-energy tracking)
+      // Non-blocking: continuously learns steady background noise (fans, AC) without deadlocking
+      if (currentDb < this.noiseFloorDb) {
+        // Ambient sound is quieter than current floor -> adapt downwards quickly (~200ms)
+        this.noiseFloorDb = this.noiseFloorDb * 0.82 + currentDb * 0.18;
+      } else {
+        // Continuous steady fan noise gently pulls the noise floor up (~500ms)
+        // while transient speech bursts do not inflate the floor
+        this.noiseFloorDb = this.noiseFloorDb * 0.992 + currentDb * 0.008;
+      }
+      // Bound floor within realistic boundaries (-85 dBFS to -35 dBFS)
+      this.noiseFloorDb = Math.max(-85, Math.min(-35, this.noiseFloorDb));
+
+      // 4. Gate Threshold calculation based on user sensitivity mode
+      // gentle: +7 dB margin; balanced: +11 dB margin; aggressive: +16 dB margin
+      let gateMargin = 11;
+      if (this.noiseGateMode === 'gentle') {
+        gateMargin = 7;
+      } else if (this.noiseGateMode === 'aggressive') {
+        gateMargin = 16;
+      }
+      const gateThresholdDb = Math.max(-50, this.noiseFloorDb + gateMargin);
+
+      // 5. Voice Activity Detection (VAD)
       const now = performance.now();
+      const isVoiceDetected = currentDb >= gateThresholdDb && speechAvg >= 25;
 
-      // Adapt ambient noise floor during silence
-      if (!this.isCurrentlySpeaking) {
-        this.noiseFloor = this.noiseFloor * 0.96 + roundedLevel * 0.04;
-      }
-
-      const speakThreshold = Math.max(this.baseSpeakThreshold, Math.round(this.noiseFloor + 8));
-      const silenceThreshold = Math.max(this.baseSilenceThreshold, Math.round(this.noiseFloor + 3));
-
-      // VAD with speech hangover hysteresis
-      if (roundedLevel >= speakThreshold) {
+      if (isVoiceDetected) {
         this.lastAboveThresholdTime = now;
         this.isCurrentlySpeaking = true;
       } else if (this.isCurrentlySpeaking) {
-        if (now - this.lastAboveThresholdTime > this.hangoverTimeMs && roundedLevel <= silenceThreshold) {
+        if (now - this.lastAboveThresholdTime > this.hangoverTimeMs) {
           this.isCurrentlySpeaking = false;
         }
       }
 
-      // Telemetry gate state (informative for UI badge, zero audio destruction)
-      this.gateState = this.isCurrentlySpeaking ? 'open' : 'attenuated';
+      // 6. Gate state determination
+      this.gateState = (!this.isGateEnabled || this.isCurrentlySpeaking) ? 'open' : 'attenuated';
 
-      // Throttle UI notification: emit immediately on speaking or gate change,
-      // or every ~35ms if level changed by >= 2% to protect React performance
+      // 7. Human perceptual meter level mapping (0% to 100%)
+      let targetInstantLevel = 0;
+      if (this.isCurrentlySpeaking || !this.isGateEnabled) {
+        // Map dBFS [-50dB, -10dB] to [0%, 100%]
+        const normalized = (currentDb + 50) / 40;
+        targetInstantLevel = Math.max(0, Math.min(100, Math.round(normalized * 100)));
+      } else {
+        // Gated: completely suppress ambient fan noise from the meter bar
+        targetInstantLevel = 0;
+      }
+
+      // Smooth meter transitions (attack fast, release smoothly)
+      if (targetInstantLevel > this.smoothedLevel) {
+        this.smoothedLevel = this.smoothedLevel * 0.4 + targetInstantLevel * 0.6;
+      } else {
+        this.smoothedLevel = this.smoothedLevel * 0.75 + targetInstantLevel * 0.25;
+      }
+      const roundedLevel = Math.round(this.smoothedLevel);
+
+      // Throttle UI updates to 35ms or immediate on state transition
       const speakingChanged = this.isCurrentlySpeaking !== this.lastEmittedSpeaking;
       const gateChanged = this.gateState !== this.lastEmittedGateState;
       const levelDiff = Math.abs(roundedLevel - this.lastEmittedLevel);
       const timeElapsed = now - this.lastEmitTime >= 35;
 
-      if (this.onLevelCallback && (speakingChanged || gateChanged || (timeElapsed && levelDiff >= 2))) {
+      if (this.onLevelCallback && (speakingChanged || gateChanged || (timeElapsed && levelDiff >= 1))) {
         this.lastEmitTime = now;
         this.lastEmittedLevel = roundedLevel;
         this.lastEmittedSpeaking = this.isCurrentlySpeaking;
@@ -377,6 +448,10 @@ export class AudioDSPManager {
       try { this.sourceNode.disconnect(); } catch {}
       this.sourceNode = null;
     }
+    if (this.highPassNode) {
+      try { this.highPassNode.disconnect(); } catch {}
+      this.highPassNode = null;
+    }
     if (this.gainNode) {
       try { this.gainNode.disconnect(); } catch {}
       this.gainNode = null;
@@ -392,7 +467,7 @@ export class AudioDSPManager {
     }
 
     this.smoothedLevel = 0;
-    this.gateState = 'open';
+    this.gateState = 'attenuated';
   }
 }
 

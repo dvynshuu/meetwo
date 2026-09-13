@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { Message, Attachment, MessageReaction } from '../../types';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { mockStore } from '../../lib/supabase/mockStore';
+import { MessageService, formatReactions } from '../../lib/services/messageService';
+import { ReadStateService } from '../../lib/services/readStateService';
 import { useAuth } from './AuthContext';
 import { useServer } from './ServerContext';
 
@@ -15,54 +17,6 @@ interface ChatContextType {
   deleteMessage: (messageId: string) => Promise<void>;
   toggleReaction: (messageId: string, emoji: string) => Promise<void>;
 }
-
-const formatReactions = (rawReactions: any[]): MessageReaction[] => {
-  if (!rawReactions || !Array.isArray(rawReactions)) return [];
-
-  const map = new Map<string, { emoji: string; count: number; userIds: string[] }>();
-
-  for (const r of rawReactions) {
-    if (!r || !r.emoji) continue;
-
-    // If it's already an aggregated reaction object: { emoji, count, userIds }
-    if (Array.isArray(r.userIds)) {
-      const existing = map.get(r.emoji);
-      if (existing) {
-        for (const uid of r.userIds) {
-          if (uid && !existing.userIds.includes(uid)) {
-            existing.userIds.push(uid);
-          }
-        }
-        existing.count = existing.userIds.length;
-      } else {
-        map.set(r.emoji, {
-          emoji: r.emoji,
-          count: r.count || r.userIds.length,
-          userIds: [...r.userIds],
-        });
-      }
-      continue;
-    }
-
-    // It's a raw Supabase relational row: { id, message_id, user_id, emoji }
-    const uid = r.user_id || r.userId;
-    const existing = map.get(r.emoji);
-    if (existing) {
-      if (uid && !existing.userIds.includes(uid)) {
-        existing.userIds.push(uid);
-        existing.count += 1;
-      }
-    } else {
-      map.set(r.emoji, {
-        emoji: r.emoji,
-        count: 1,
-        userIds: uid ? [uid] : [],
-      });
-    }
-  }
-
-  return Array.from(map.values());
-};
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
@@ -85,50 +39,20 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const fetchMessages = async () => {
       try {
-        if (isSupabaseConfigured && supabase) {
-          const { data, error } = await supabase
-            .from('messages')
-            .select('*, author:profiles(*), reactions:message_reactions(*), attachments(*)')
-            .eq('channel_id', activeChannel.id)
-            .order('created_at', { ascending: true });
-
-          if (error) throw error;
-          if (isMounted && data) {
-            setMessages(
-              data.map((m: any) => ({
-                id: m.id,
-                channelId: m.channel_id,
-                authorId: m.author_id,
-                content: m.content,
-                createdAt: m.created_at,
-                updatedAt: m.updated_at,
-                isEdited: m.is_edited,
-                replyToId: m.reply_to_id,
-                author: m.author
-                  ? {
-                      id: m.author.id,
-                      username: m.author.username,
-                      displayName: m.author.display_name,
-                      avatarUrl: m.author.avatar_url,
-                      bio: m.author.bio,
-                      status: m.author.status || 'online',
-                      createdAt: m.author.created_at,
-                    }
-                  : undefined,
-                reactions: formatReactions(m.reactions),
-                attachments: m.attachments || [],
-              }))
-            );
-          }
-        } else {
-          // Demo mode
-          const localMessages = mockStore.getMessages(activeChannel.id);
-          if (isMounted) {
-            setMessages(localMessages);
+        const loaded = await MessageService.getMessages(activeChannel.id);
+        if (isMounted) {
+          setMessages(loaded);
+          // Update read marker for active channel
+          if (currentUser && loaded.length > 0) {
+            const latest = loaded[loaded.length - 1];
+            ReadStateService.markAsRead(currentUser.id, {
+              channelId: activeChannel.id,
+              messageId: latest.id,
+            });
           }
         }
       } catch (err) {
-        console.error('Error fetching messages:', err);
+        console.error('[ChatContext] Error fetching messages:', err);
       } finally {
         if (isMounted) setIsLoadingMessages(false);
       }
@@ -136,7 +60,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     fetchMessages();
 
-    // Setup Realtime listener
+    // Setup Realtime listener for messages & reactions
     if (isSupabaseConfigured && supabase) {
       const channelSub = supabase
         .channel(`chat:${activeChannel.id}`)
@@ -152,11 +76,19 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (payload.eventType === 'INSERT') {
               const newMsg = payload.new as any;
               if (!supabase) return;
+
+              // Query author profile
               const { data: authorProfile } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', newMsg.author_id)
-                .single();
+                .maybeSingle();
+
+              // Fetch any attachments
+              const { data: attData } = await supabase
+                .from('attachments')
+                .select('*')
+                .eq('message_id', newMsg.id);
 
               const formattedMsg: Message = {
                 id: newMsg.id,
@@ -167,7 +99,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 isEdited: newMsg.is_edited,
                 replyToId: newMsg.reply_to_id,
                 reactions: [],
-                attachments: [],
+                attachments: (attData || []).map((a: any) => ({
+                  id: a.id,
+                  fileName: a.file_name,
+                  fileUrl: a.file_url,
+                  fileSize: Number(a.file_size || 0),
+                  contentType: a.content_type,
+                })),
                 author: authorProfile
                   ? {
                       id: authorProfile.id,
@@ -182,21 +120,48 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
               };
 
               setMessages((prev) => {
+                // Idempotent deduplication: replace any matching optimistic message
+                const optimisticMatch = prev.find(
+                  (m) =>
+                    m.isOptimistic &&
+                    m.authorId === formattedMsg.authorId &&
+                    m.content === formattedMsg.content
+                );
+
+                if (optimisticMatch) {
+                  return prev.map((m) => (m.id === optimisticMatch.id ? formattedMsg : m));
+                }
+
                 if (prev.some((m) => m.id === formattedMsg.id)) return prev;
                 return [...prev, formattedMsg];
               });
+
+              // Mark read if channel is active
+              if (currentUser) {
+                ReadStateService.markAsRead(currentUser.id, {
+                  channelId: activeChannel.id,
+                  messageId: newMsg.id,
+                });
+              }
             } else if (payload.eventType === 'UPDATE') {
               const updated = payload.new as any;
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === updated.id
-                    ? { ...m, content: updated.content, isEdited: true, updatedAt: updated.updated_at }
+                    ? {
+                        ...m,
+                        content: updated.content,
+                        isEdited: true,
+                        updatedAt: updated.updated_at,
+                      }
                     : m
                 )
               );
             } else if (payload.eventType === 'DELETE') {
-              const deletedId = (payload.old as any).id;
-              setMessages((prev) => prev.filter((m) => m.id !== deletedId));
+              const deletedId = (payload.old as any)?.id;
+              if (deletedId) {
+                setMessages((prev) => prev.filter((m) => m.id !== deletedId));
+              }
             }
           }
         )
@@ -214,7 +179,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           (payload) => {
             if (payload.eventType === 'INSERT') {
               const newRec = payload.new as any;
-              if (!newRec || newRec.user_id === currentUser?.id) return;
+              if (!newRec) return;
+
               setMessages((prev) =>
                 prev.map((msg) => {
                   if (msg.id !== newRec.message_id) return msg;
@@ -246,7 +212,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } else if (payload.eventType === 'DELETE') {
               const oldRec = payload.old as any;
               if (oldRec && oldRec.message_id && oldRec.emoji && oldRec.user_id) {
-                if (oldRec.user_id === currentUser?.id) return;
                 setMessages((prev) =>
                   prev.map((msg) => {
                     if (msg.id !== oldRec.message_id) return msg;
@@ -300,8 +265,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             prev.map((m) => (m.id === editedMsg.id ? { ...m, ...editedMsg } : m))
           );
         }),
-        mockStore.subscribe('MESSAGE_DELETED', ({ messageId }: { messageId: string }) => {
-          setMessages((prev) => prev.filter((m) => m.id !== messageId));
+        mockStore.subscribe('MESSAGE_DELETED', (deletedId: string) => {
+          setMessages((prev) => prev.filter((m) => m.id !== deletedId));
         }),
         mockStore.subscribe('REACTION_TOGGLED', ({ messageId, reactions }: any) => {
           setMessages((prev) =>
@@ -315,16 +280,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         unsubs.forEach((u) => u());
       };
     }
-  }, [activeChannel?.id, activeChannel?.type]);
+  }, [activeChannel?.id, currentUser?.id]);
 
   const sendMessage = useCallback(
     async (content: string, replyToId?: string | null, attachments?: Attachment[]) => {
-      if (!activeChannel || !currentUser || (!content.trim() && (!attachments || attachments.length === 0))) {
-        return;
-      }
-
+      if (!activeChannel || !currentUser) return;
       const trimmed = content.trim();
-      const optimisticId = `temp-${Date.now()}`;
+      if (!trimmed && (!attachments || attachments.length === 0)) return;
+
+      const optimisticId = `optimistic-${Date.now()}`;
       const optimisticMsg: Message = {
         id: optimisticId,
         channelId: activeChannel.id,
@@ -349,103 +313,62 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setReplyingTo(null);
 
       try {
-        if (isSupabaseConfigured && supabase) {
-          const { data, error } = await supabase
-            .from('messages')
-            .insert({
-              channel_id: activeChannel.id,
-              author_id: currentUser.id,
-              content: trimmed,
-              reply_to_id: replyToId || null,
-            })
-            .select('*, author:profiles(*)')
-            .single();
+        const saved = await MessageService.sendMessage(
+          activeChannel.id,
+          currentUser,
+          trimmed,
+          replyToId,
+          attachments
+        );
 
-          if (error) throw error;
-          if (data) {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === optimisticId
-                  ? {
-                      id: data.id,
-                      channelId: data.channel_id,
-                      authorId: data.author_id,
-                      content: data.content,
-                      createdAt: data.created_at,
-                      author: currentUser,
-                      replyToId: data.reply_to_id,
-                      isOptimistic: false,
-                    }
-                  : m
-              )
-            );
-          }
-        } else {
-          // Demo mode send
-          const actualMsg = mockStore.sendMessage(activeChannel.id, trimmed, currentUser.id, replyingTo, attachments);
-          setMessages((prev) =>
-            prev.map((m) => (m.id === optimisticId ? actualMsg : m))
-          );
-        }
+        setMessages((prev) =>
+          prev.map((m) => (m.id === optimisticId ? saved : m))
+        );
       } catch (err) {
-        console.error('Failed to send message:', err);
+        console.error('[ChatContext] Failed to send message:', err);
+        // Rollback optimistic message on failure
         setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
       }
     },
     [activeChannel, currentUser, replyingTo]
   );
 
-  const editMessage = useCallback(async (messageId: string, content: string) => {
-    if (isSupabaseConfigured && supabase) {
-      await supabase
-        .from('messages')
-        .update({ content, is_edited: true, updated_at: new Date().toISOString() })
-        .eq('id', messageId);
-    } else {
-      mockStore.editMessage(messageId, content);
-    }
-    setMessages((prev) =>
-      prev.map((m) => (m.id === messageId ? { ...m, content, isEdited: true } : m))
-    );
-  }, []);
+  const editMessage = useCallback(
+    async (messageId: string, content: string) => {
+      if (!currentUser) return;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, content, isEdited: true } : m))
+      );
+      await MessageService.editMessage(messageId, currentUser.id, content);
+    },
+    [currentUser]
+  );
 
   const deleteMessage = useCallback(async (messageId: string) => {
-    if (isSupabaseConfigured && supabase) {
-      await supabase.from('messages').delete().eq('id', messageId);
-    } else {
-      mockStore.deleteMessage(messageId);
-    }
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    await MessageService.deleteMessage(messageId);
   }, []);
 
   const toggleReaction = useCallback(
     async (messageId: string, emoji: string) => {
       if (!currentUser) return;
-      if (isSupabaseConfigured && supabase) {
-        // Optimistic UI update
-        setMessages((prev) =>
-          prev.map((msg) => {
-            if (msg.id !== messageId) return msg;
-            const curReactions = msg.reactions || [];
-            const existing = curReactions.find((r) => r.emoji === emoji);
-            let nextReactions: MessageReaction[];
 
-            if (existing) {
-              const userIds = Array.isArray(existing.userIds) ? existing.userIds : [];
-              const hasReacted = userIds.includes(currentUser.id);
-              if (hasReacted) {
-                const nextUserIds = userIds.filter((id) => id !== currentUser.id);
-                if (nextUserIds.length === 0) {
-                  nextReactions = curReactions.filter((r) => r.emoji !== emoji);
-                } else {
-                  nextReactions = curReactions.map((r) =>
-                    r.emoji === emoji
-                      ? { ...r, count: nextUserIds.length, userIds: nextUserIds }
-                      : r
-                  );
-                }
+      // Optimistic reaction update
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id !== messageId) return msg;
+          const curReactions = msg.reactions || [];
+          const existing = curReactions.find((r) => r.emoji === emoji);
+          let nextReactions: MessageReaction[];
+
+          if (existing) {
+            const userIds = Array.isArray(existing.userIds) ? existing.userIds : [];
+            const hasReacted = userIds.includes(currentUser.id);
+            if (hasReacted) {
+              const nextUserIds = userIds.filter((id) => id !== currentUser.id);
+              if (nextUserIds.length === 0) {
+                nextReactions = curReactions.filter((r) => r.emoji !== emoji);
               } else {
-                const nextUserIds = [...userIds, currentUser.id];
                 nextReactions = curReactions.map((r) =>
                   r.emoji === emoji
                     ? { ...r, count: nextUserIds.length, userIds: nextUserIds }
@@ -453,45 +376,25 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 );
               }
             } else {
-              nextReactions = [
-                ...curReactions,
-                { emoji, count: 1, userIds: [currentUser.id] },
-              ];
+              const nextUserIds = [...userIds, currentUser.id];
+              nextReactions = curReactions.map((r) =>
+                r.emoji === emoji
+                  ? { ...r, count: nextUserIds.length, userIds: nextUserIds }
+                  : r
+              );
             }
-            return { ...msg, reactions: nextReactions };
-          })
-        );
-
-        try {
-          // Toggle reaction in DB
-          const { data: existing } = await supabase
-            .from('message_reactions')
-            .select('id')
-            .eq('message_id', messageId)
-            .eq('user_id', currentUser.id)
-            .eq('emoji', emoji)
-            .maybeSingle();
-
-          if (existing) {
-            await supabase.from('message_reactions').delete().eq('id', existing.id);
           } else {
-            await supabase.from('message_reactions').insert({
-              message_id: messageId,
-              user_id: currentUser.id,
-              emoji,
-            });
+            nextReactions = [
+              ...curReactions,
+              { emoji, count: 1, userIds: [currentUser.id] },
+            ];
           }
-        } catch (err) {
-          console.error('Error toggling reaction in database:', err);
-        }
-      } else {
-        const updated = mockStore.toggleReaction(messageId, emoji, currentUser.id);
-        if (updated) {
-          setMessages((prev) =>
-            prev.map((m) => (m.id === messageId ? { ...m, reactions: updated.reactions } : m))
-          );
-        }
-      }
+
+          return { ...msg, reactions: nextReactions };
+        })
+      );
+
+      await MessageService.toggleReaction(messageId, currentUser.id, emoji);
     },
     [currentUser]
   );
