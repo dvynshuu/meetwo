@@ -14,7 +14,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({ participants, viewLayout =
   const { pinnedParticipantId } = useMedia();
 
   // 1. Identify screen sharer and pinned participant
-  const screenSharer = participants.find((p) => p.isScreenSharing && (p.screenStream || p.stream));
+  const screenSharer = participants.find((p) => p.isScreenSharing);
   const pinnedParticipant = participants.find((p) => p.id === pinnedParticipantId);
 
   // Case A: Screen Share (Discord Style: Top Participant Strip + Main Presentation Stage)

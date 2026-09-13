@@ -67,14 +67,34 @@ export const VideoTile: React.FC<VideoTileProps> = ({
 
   // Attach stream to primary video element safely and efficiently
   useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
     if (participant.stream) {
-      if (videoRef.current && videoRef.current.srcObject !== participant.stream) {
-        videoRef.current.srcObject = participant.stream;
+      if (video.srcObject !== participant.stream) {
+        video.srcObject = participant.stream;
       }
+      video.muted = isLocal;
+      video.defaultMuted = isLocal;
+      video.playsInline = true;
+
+      const attemptPlay = () => {
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            if (err.name !== 'AbortError') {
+              console.warn('[VideoTile] Video play suspended:', err.name);
+            }
+          });
+        }
+      };
+
+      video.addEventListener('loadedmetadata', attemptPlay, { once: true });
+      attemptPlay();
     } else {
-      if (videoRef.current) videoRef.current.srcObject = null;
+      video.srcObject = null;
     }
-  }, [participant.stream]);
+  }, [participant.stream, isLocal]);
 
   // Audio sink routing for remote participants
   useEffect(() => {
@@ -320,7 +340,7 @@ export const VideoTile: React.FC<VideoTileProps> = ({
                 height: 180,
                 zIndex: -10,
               }
-            : { display: hasVideoTrack ? 'block' : 'none' }
+            : { display: isScreenTile || hasVideoTrack ? 'block' : 'none' }
         }
       />
 
@@ -426,6 +446,18 @@ export const VideoTile: React.FC<VideoTileProps> = ({
               />
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
                 {participant.displayName || participant.username}
+              </span>
+            </div>
+          )}
+
+          {/* Connecting indicator for Screen Tile when track is arriving */}
+          {!hasVideoTrack && isScreenTile && !isPresenterCardActive && (
+            <div className="video-avatar-placeholder" style={{ gap: 12 }}>
+              <div className="animate-spin" style={{ color: 'var(--accent)' }}>
+                <RefreshCw size={36} />
+              </div>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                Connecting to {screenTitle}…
               </span>
             </div>
           )}

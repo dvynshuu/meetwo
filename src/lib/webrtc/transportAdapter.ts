@@ -26,6 +26,9 @@ export interface TransportCallbacks {
       stageRole?: 'host' | 'speaker' | 'listener';
       isHandRaised?: boolean;
       audioLevel?: number;
+      displayName?: string;
+      username?: string;
+      avatarUrl?: string;
     }
   ) => void;
   onConnectionQualityChanged?: (peerId: string, quality: ConnectionQuality, stats?: ConnectionStats) => void;
@@ -34,7 +37,11 @@ export interface TransportCallbacks {
 }
 
 export interface ITransportAdapter {
-  join(roomId: string, localStream: MediaStream | null): Promise<void>;
+  join(
+    roomId: string,
+    localStream: MediaStream | null,
+    profile?: { username?: string; displayName?: string; avatarUrl?: string }
+  ): Promise<void>;
   leave(): Promise<void>;
   replaceTrack(kind: 'audio' | 'video', newTrack: MediaStreamTrack | null): Promise<void>;
   updateLocalStream(stream: MediaStream | null): Promise<void>;

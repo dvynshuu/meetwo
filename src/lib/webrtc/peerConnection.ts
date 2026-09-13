@@ -67,6 +67,10 @@ export class PeerConnectionManager implements ITransportAdapter {
     packetsLost: number;
   } | null = null;
 
+  private userProfile?: { username?: string; displayName?: string; avatarUrl?: string };
+  private peerLastSeen: Map<string, number> = new Map();
+  private livenessInterval: number | null = null;
+
   // Event handlers for auto-recovery
   private handleOnline = () => this.recoverConnections('online');
   private handleVisibilityChange = () => {
@@ -87,13 +91,19 @@ export class PeerConnectionManager implements ITransportAdapter {
     }
   }
 
-  public async join(roomId: string, localStream: MediaStream | null): Promise<void> {
+  public async join(
+    roomId: string,
+    localStream: MediaStream | null,
+    profile?: { username?: string; displayName?: string; avatarUrl?: string }
+  ): Promise<void> {
     this.roomId = roomId;
     this.localStream = localStream;
+    this.userProfile = profile;
     this.setLifecycleState('connecting');
 
     logger.log('call_joined', { roomId, transport: 'p2p' });
     this.startGlobalStatsPolling();
+    this.startLivenessPolling();
 
     this.unsubSignal = this.signaling.onSignal(async (signal: PeerSignalMessage) => {
       if (signal.fromPeerId === this.localPeerId || signal.roomId !== this.roomId) return;
@@ -102,7 +112,7 @@ export class PeerConnectionManager implements ITransportAdapter {
       await this.handleSignal(signal);
     });
 
-    await this.signaling.join(roomId, this.localPeerId);
+    await this.signaling.join(roomId, this.localPeerId, profile);
   }
 
   // ==========================================
@@ -155,8 +165,36 @@ export class PeerConnectionManager implements ITransportAdapter {
   }
 
   // ==========================================
-  // SCREEN SHARING TRACK MANAGEMENT
+  // SCREEN SHARING TRACK MANAGEMENT & RENEGOTIATION
   // ==========================================
+
+  private async renegotiatePeer(peerId: string, session: PeerSession): Promise<void> {
+    const pc = session.pc;
+    if (pc.signalingState !== 'stable') {
+      console.warn(`[WebRTC] Peer ${peerId} signalingState not stable (${pc.signalingState}), waiting for stable before renegotiation`);
+      return;
+    }
+
+    try {
+      session.makingOffer = true;
+      const offer = await pc.createOffer();
+      offer.sdp = mungeOpusSDP(offer.sdp || '');
+      await pc.setLocalDescription(offer);
+
+      await this.signaling.sendSignal({
+        type: 'offer',
+        fromPeerId: this.localPeerId,
+        toPeerId: peerId,
+        roomId: this.roomId,
+        payload: offer,
+        userProfile: this.userProfile,
+      });
+    } catch (err) {
+      console.warn(`[WebRTC] SDP renegotiation error for peer ${peerId}:`, err);
+    } finally {
+      session.makingOffer = false;
+    }
+  }
 
   public async publishScreenTrack(
     videoTrack: MediaStreamTrack | null,
@@ -170,15 +208,16 @@ export class PeerConnectionManager implements ITransportAdapter {
       this.screenStream.addTrack(audioTrack);
     }
 
-    // Add screen tracks to all peer sessions
+    // Add screen tracks to all peer sessions & immediately renegotiate
     for (const [peerId, session] of this.peerSessions.entries()) {
       try {
         session.pc.addTrack(videoTrack, this.screenStream);
         if (audioTrack) {
           session.pc.addTrack(audioTrack, this.screenStream);
         }
+        await this.renegotiatePeer(peerId, session);
       } catch (err) {
-        console.warn(`[WebRTC] Failed to add screen track to peer ${peerId}:`, err);
+        console.warn(`[WebRTC] Failed to add screen track / renegotiate with peer ${peerId}:`, err);
       }
     }
 
@@ -189,20 +228,26 @@ export class PeerConnectionManager implements ITransportAdapter {
       fromPeerId: this.localPeerId,
       roomId: this.roomId,
       payload: { isScreenSharing: true, screenStreamId: this.screenStream.id },
+      userProfile: this.userProfile,
     });
   }
 
   public async unpublishScreenTrack(): Promise<void> {
     if (this.screenStream) {
       const screenTracks = this.screenStream.getTracks();
-      for (const [, session] of this.peerSessions.entries()) {
+      for (const [peerId, session] of this.peerSessions.entries()) {
         const senders = session.pc.getSenders();
+        let changed = false;
         for (const sender of senders) {
           if (sender.track && screenTracks.includes(sender.track)) {
             try {
               session.pc.removeTrack(sender);
+              changed = true;
             } catch {}
           }
+        }
+        if (changed) {
+          await this.renegotiatePeer(peerId, session);
         }
       }
       this.screenStream = null;
@@ -215,6 +260,7 @@ export class PeerConnectionManager implements ITransportAdapter {
       fromPeerId: this.localPeerId,
       roomId: this.roomId,
       payload: { isScreenSharing: false },
+      userProfile: this.userProfile,
     });
   }
 
@@ -278,6 +324,17 @@ export class PeerConnectionManager implements ITransportAdapter {
   private async handleSignal(signal: PeerSignalMessage): Promise<void> {
     const { fromPeerId, type, payload } = signal;
 
+    this.peerLastSeen.set(fromPeerId, Date.now());
+
+    // Update remote participant profile metadata whenever provided
+    if (signal.userProfile) {
+      this.callbacks.onPeerStateChanged?.(fromPeerId, {
+        displayName: signal.userProfile.displayName,
+        username: signal.userProfile.username,
+        avatarUrl: signal.userProfile.avatarUrl,
+      });
+    }
+
     // Handle participant state updates
     if (type === 'mute-state') {
       this.callbacks.onPeerStateChanged?.(fromPeerId, {
@@ -334,6 +391,12 @@ export class PeerConnectionManager implements ITransportAdapter {
       return;
     }
 
+    // If existing session is failed or closed, close it before creating new one
+    const existing = this.peerSessions.get(fromPeerId);
+    if (existing && (existing.pc.connectionState === 'failed' || existing.pc.connectionState === 'closed')) {
+      this.closePeer(fromPeerId);
+    }
+
     const session = this.getOrCreatePeerSession(fromPeerId);
     const pc = session.pc;
 
@@ -353,6 +416,7 @@ export class PeerConnectionManager implements ITransportAdapter {
             toPeerId: fromPeerId,
             roomId: this.roomId,
             payload: offer,
+            userProfile: this.userProfile,
           });
           session.makingOffer = false;
           break;
@@ -381,6 +445,7 @@ export class PeerConnectionManager implements ITransportAdapter {
             toPeerId: fromPeerId,
             roomId: this.roomId,
             payload: answer,
+            userProfile: this.userProfile,
           });
           break;
         }
@@ -443,7 +508,18 @@ export class PeerConnectionManager implements ITransportAdapter {
     // Publish local media tracks
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => {
-        pc.addTrack(track, this.localStream!);
+        try {
+          pc.addTrack(track, this.localStream!);
+        } catch {}
+      });
+    }
+
+    // Publish local screen share tracks if active
+    if (this.screenStream) {
+      this.screenStream.getTracks().forEach((track) => {
+        try {
+          pc.addTrack(track, this.screenStream!);
+        } catch {}
       });
     }
 
@@ -456,6 +532,7 @@ export class PeerConnectionManager implements ITransportAdapter {
           toPeerId: peerId,
           roomId: this.roomId,
           payload: event.candidate.toJSON(),
+          userProfile: this.userProfile,
         });
       }
     };
@@ -467,16 +544,14 @@ export class PeerConnectionManager implements ITransportAdapter {
       const isScreenSharing = this.peerScreenSharingState.get(peerId);
       const knownScreenStreamId = this.peerScreenStreamIds.get(peerId);
       const currentCamStream = this.remoteStreams.get(peerId);
+      const camVideoTracks = currentCamStream?.getVideoTracks() ?? [];
 
       const isScreenTrack =
-        (knownScreenStreamId && remoteStream && remoteStream.id === knownScreenStreamId) ||
-        (isScreenSharing && (
-          track.label.toLowerCase().includes('screen') ||
-          track.label.toLowerCase().includes('display') ||
-          (currentCamStream && currentCamStream.getVideoTracks().length > 0)
-        ));
+        (Boolean(knownScreenStreamId) && Boolean(remoteStream) && remoteStream.id === knownScreenStreamId) ||
+        (track.kind === 'video' && camVideoTracks.length > 0 && !camVideoTracks.includes(track)) ||
+        (Boolean(isScreenSharing) && track.kind === 'video' && camVideoTracks.length === 0);
 
-      if (isScreenTrack && track.kind === 'video') {
+      if (isScreenTrack) {
         let scrStream = this.remoteScreenStreams.get(peerId);
         if (!scrStream) {
           scrStream = new MediaStream();
@@ -497,6 +572,24 @@ export class PeerConnectionManager implements ITransportAdapter {
         }
         this.callbacks.onRemoteStream(peerId, camStream);
       }
+
+      track.onended = () => {
+        if (isScreenTrack) {
+          const scrStream = this.remoteScreenStreams.get(peerId);
+          if (scrStream) {
+            scrStream.removeTrack(track);
+            if (scrStream.getTracks().length === 0) {
+              this.remoteScreenStreams.delete(peerId);
+              this.callbacks.onRemoteScreenStream?.(peerId, null);
+            }
+          }
+        } else {
+          const camStream = this.remoteStreams.get(peerId);
+          if (camStream) {
+            camStream.removeTrack(track);
+          }
+        }
+      };
     };
 
     // Connection Lifecycle State Handling
@@ -513,14 +606,10 @@ export class PeerConnectionManager implements ITransportAdapter {
         logger.log('quality_changed', { peerId, state: 'degraded' });
         this.updateQuality(peerId, 'poor');
         this.setLifecycleState('degraded');
-        // Graceful ICE restart
         this.restartPeerIce(session, peerId);
-      } else if (state === 'failed') {
-        logger.log('transport_failed', { peerId, state: 'failed' });
+      } else if (state === 'failed' || state === 'closed') {
+        logger.log('transport_failed', { peerId, state });
         this.updateQuality(peerId, 'poor');
-        this.setLifecycleState('reconnecting');
-        this.restartPeerIce(session, peerId);
-      } else if (state === 'closed') {
         this.closePeer(peerId);
       }
     };
@@ -976,6 +1065,36 @@ export class PeerConnectionManager implements ITransportAdapter {
     }
   }
 
+  private startLivenessPolling(): void {
+    this.stopLivenessPolling();
+    this.livenessInterval = window.setInterval(() => {
+      const now = Date.now();
+      for (const [peerId, session] of this.peerSessions.entries()) {
+        const state = session.pc.connectionState;
+        const iceState = session.pc.iceConnectionState;
+
+        if (state === 'failed' || state === 'closed' || iceState === 'failed' || iceState === 'closed') {
+          console.warn(`[WebRTC] Evicting dead peer ${peerId} (state: ${state}, ice: ${iceState})`);
+          this.closePeer(peerId);
+          continue;
+        }
+
+        const lastSeen = this.peerLastSeen.get(peerId) || now;
+        if (state === 'disconnected' && now - lastSeen > 12000) {
+          console.warn(`[WebRTC] Peer ${peerId} disconnected for >12s, evicting`);
+          this.closePeer(peerId);
+        }
+      }
+    }, 4000);
+  }
+
+  private stopLivenessPolling(): void {
+    if (this.livenessInterval !== null) {
+      clearInterval(this.livenessInterval);
+      this.livenessInterval = null;
+    }
+  }
+
   private closePeer(peerId: string) {
     const session = this.peerSessions.get(peerId);
     if (session) {
@@ -987,6 +1106,7 @@ export class PeerConnectionManager implements ITransportAdapter {
     this.remoteScreenStreams.delete(peerId);
     this.peerScreenSharingState.delete(peerId);
     this.peerScreenStreamIds.delete(peerId);
+    this.peerLastSeen.delete(peerId);
     this.callbacks.onPeerLeft(peerId);
     this.evaluateOverallLifecycle();
     this.collectGlobalStats().catch(() => {});
@@ -994,6 +1114,8 @@ export class PeerConnectionManager implements ITransportAdapter {
 
   public async leave(): Promise<void> {
     this.stopGlobalStatsPolling();
+    this.stopLivenessPolling();
+    this.peerLastSeen.clear();
 
     if (this.unsubSignal) {
       this.unsubSignal();

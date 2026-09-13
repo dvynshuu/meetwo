@@ -21,6 +21,7 @@ import { getLiveKitToken } from '../../lib/webrtc/livekitToken';
 import { ReconnectionManager } from '../../lib/webrtc/reconnectionManager';
 import { logger } from '../../lib/webrtc/observability';
 import { mockStore } from '../../lib/supabase/mockStore';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { useAuth } from './AuthContext';
 
 interface MediaContextType {
@@ -330,16 +331,46 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           },
         });
 
+        const resolvePeerProfile = async (peerId: string) => {
+          if (!isSupabaseConfigured || !supabase || !peerId) return;
+          try {
+            const { data } = await supabase
+              .from('profiles')
+              .select('id, username, display_name, avatar_url')
+              .eq('id', peerId)
+              .maybeSingle();
+
+            if (data) {
+              setRemoteParticipants((prev) => {
+                const target = prev.get(peerId);
+                if (target) {
+                  const next = new Map(prev);
+                  next.set(peerId, {
+                    ...target,
+                    username: (data as any).username || target.username,
+                    displayName: (data as any).display_name || (data as any).username || target.displayName,
+                    avatarUrl: (data as any).avatar_url || target.avatarUrl,
+                  });
+                  return next;
+                }
+                return prev;
+              });
+            }
+          } catch {}
+        };
+
         const callbacks = {
           onRemoteStream: (peerId: string, remoteStream: MediaStream) => {
+            if (peerId === currentUser.id) return;
+            resolvePeerProfile(peerId);
             setRemoteParticipants((prev) => {
               const next = new Map(prev);
               const existing = next.get(peerId);
               next.set(peerId, {
                 id: peerId,
                 userId: peerId,
-                username: existing?.username || `Friend ${peerId.slice(-4)}`,
-                displayName: existing?.displayName || `User ${peerId.slice(-4)}`,
+                username: existing?.username || `User`,
+                displayName: existing?.displayName || `User`,
                 avatarUrl: existing?.avatarUrl,
                 stream: remoteStream,
                 screenStream: existing?.screenStream,
@@ -357,6 +388,8 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
           },
           onRemoteScreenStream: (peerId: string, remoteScreenStream: MediaStream | null) => {
+            if (peerId === currentUser.id) return;
+            resolvePeerProfile(peerId);
             setRemoteParticipants((prev) => {
               const next = new Map(prev);
               const existing = next.get(peerId);
@@ -370,8 +403,8 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 next.set(peerId, {
                   id: peerId,
                   userId: peerId,
-                  username: `Friend ${peerId.slice(-4)}`,
-                  displayName: `User ${peerId.slice(-4)}`,
+                  username: `User`,
+                  displayName: `User`,
                   screenStream: remoteScreenStream,
                   isScreenSharing: true,
                   isAudioMuted: false,
@@ -396,6 +429,10 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             setPinnedParticipantId((curr) => (curr === peerId ? null : curr));
           },
           onPeerStateChanged: (peerId: string, state: any) => {
+            if (peerId === currentUser.id) return;
+            if (!state.displayName && !state.username) {
+              resolvePeerProfile(peerId);
+            }
             setRemoteParticipants((prev) => {
               const next = new Map(prev);
               const target = next.get(peerId);
@@ -405,12 +442,14 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   updated.isStageSpeaker = state.stageRole === 'host' || state.stageRole === 'speaker';
                 }
                 next.set(peerId, updated);
-              } else {
+              } else if (state.isScreenSharing || state.stream || state.displayName || state.username) {
+                // Only spawn new remote participant for real presence/media/identity signals, not arbitrary noise
                 next.set(peerId, {
                   id: peerId,
                   userId: peerId,
-                  username: `Friend ${peerId.slice(-4)}`,
-                  displayName: `User ${peerId.slice(-4)}`,
+                  username: state.username || `User`,
+                  displayName: state.displayName || state.username || `User`,
+                  avatarUrl: state.avatarUrl,
                   isAudioMuted: false,
                   isVideoMuted: true,
                   isSpeaking: false,
@@ -430,6 +469,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             quality: ConnectionQuality,
             stats?: ConnectionStats
           ) => {
+            if (peerId === currentUser.id) return;
             if (stats) {
               setConnectionStats(stats);
               reconnectionManagerRef.current?.evaluateMetrics(stats.rtt, stats.packetLoss);
@@ -506,7 +546,11 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         transportRef.current = transport;
-        await transport.join(roomId, stream);
+        await transport.join(roomId, stream, {
+          username: currentUser.username,
+          displayName: currentUser.displayName,
+          avatarUrl: currentUser.avatarUrl,
+        });
       } catch (err) {
         console.error('[MediaEngine] Failed to connect to room:', err);
         setConnectionState('failed');
@@ -541,6 +585,21 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setProductionConfigError(null);
     setRemoteParticipants(new Map());
   }, []);
+
+  // Clean room disconnect when user closes tab or refreshes
+  useEffect(() => {
+    const handleUnload = () => {
+      if (activeRoomId) {
+        leaveVoiceRoom();
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('pagehide', handleUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
+    };
+  }, [activeRoomId, leaveVoiceRoom]);
 
   // In-call Track Muting
   const toggleAudio = useCallback(() => {
@@ -589,33 +648,41 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   // Screen Sharing (Independent presentation track — camera is NOT replaced!)
+  const stopScreenSharing = useCallback(async () => {
+    mediaSessionRef.current.stopScreenShare();
+    setScreenStream(null);
+    setIsScreenSharing(false);
+    if (transportRef.current) {
+      await transportRef.current.unpublishScreenTrack();
+    }
+  }, []);
+
+  const startScreenSharing = useCallback(async () => {
+    try {
+      const { videoTrack, audioTrack } = await mediaSessionRef.current.startScreenShare(true);
+      const scrStream = mediaSessionRef.current.getScreenStream();
+      setScreenStream(scrStream);
+      setIsScreenSharing(true);
+
+      videoTrack.onended = () => {
+        stopScreenSharing();
+      };
+
+      if (transportRef.current) {
+        await transportRef.current.publishScreenTrack(videoTrack, audioTrack);
+      }
+    } catch (err) {
+      console.warn('[MediaEngine] Screen share cancelled or denied:', err);
+    }
+  }, [stopScreenSharing]);
+
   const toggleScreenShare = useCallback(async () => {
     if (isScreenSharing) {
-      mediaSessionRef.current.stopScreenShare();
-      setScreenStream(null);
-      setIsScreenSharing(false);
-      if (transportRef.current) {
-        await transportRef.current.unpublishScreenTrack();
-      }
+      await stopScreenSharing();
     } else {
-      try {
-        const { videoTrack, audioTrack } = await mediaSessionRef.current.startScreenShare(true);
-        const scrStream = mediaSessionRef.current.getScreenStream();
-        setScreenStream(scrStream);
-        setIsScreenSharing(true);
-
-        videoTrack.onended = () => {
-          toggleScreenShare();
-        };
-
-        if (transportRef.current) {
-          await transportRef.current.publishScreenTrack(videoTrack, audioTrack);
-        }
-      } catch (err) {
-        console.warn('[MediaEngine] Screen share cancelled or denied:', err);
-      }
+      await startScreenSharing();
     }
-  }, [isScreenSharing]);
+  }, [isScreenSharing, stopScreenSharing, startScreenSharing]);
 
   // Server-Authoritative Stage Hand-Raising (Phases 11 & 12)
   const raiseHand = useCallback(async () => {

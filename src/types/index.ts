@@ -284,6 +284,11 @@ export interface PeerSignalMessage {
   roomId: string;
   payload: any;
   polite?: boolean;
+  userProfile?: {
+    username?: string;
+    displayName?: string;
+    avatarUrl?: string;
+  };
 }
 
 export interface CommandItem {
