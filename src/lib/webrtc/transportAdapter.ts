@@ -120,11 +120,11 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
           },
           backupCodec: true,
           audioPreset: {
-            maxBitrate: 64_000,
+            maxBitrate: 320_000,
           },
           dtx: true,
           red: true,
-          forceStereo: false,
+          forceStereo: true,
           degradationPreference: 'maintain-framerate',
           screenShareEncoding: {
             maxBitrate: 6_000_000,
@@ -281,10 +281,10 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
             simulcast: isVideo,
             videoSimulcastLayers: isVideo ? [VideoPresets.h360, VideoPresets.h720] : undefined,
             videoEncoding: isVideo ? { maxBitrate: 6_000_000, maxFramerate: 60 } : undefined,
-            audioPreset: !isVideo ? { maxBitrate: 64_000 } : undefined,
+            audioPreset: !isVideo ? { maxBitrate: 320_000 } : undefined,
             dtx: !isVideo,
             red: !isVideo,
-            forceStereo: false,
+            forceStereo: !isVideo,
           });
         }
       }
@@ -339,22 +339,22 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
         simulcast: isVideo,
         videoSimulcastLayers: isVideo ? [VideoPresets.h360, VideoPresets.h720] : undefined,
         videoEncoding: isVideo ? { maxBitrate: 6_000_000, maxFramerate: 60 } : undefined,
-        audioPreset: !isVideo ? { maxBitrate: 64_000 } : undefined,
+        audioPreset: !isVideo ? { maxBitrate: 320_000 } : undefined,
         dtx: !isVideo,
         red: !isVideo,
-        forceStereo: false,
+        forceStereo: !isVideo,
       });
     }
   }
 
-  setAudioProfile(profile: AudioCompressionProfile, stereo: boolean = false): void {
+  setAudioProfile(profile: AudioCompressionProfile, stereo: boolean = true): void {
     if (!this.room) return;
     const bitrateMap: Record<AudioCompressionProfile, number> = {
-      high_compression: 28_000,
-      balanced: 64_000,
-      studio_hd: 128_000,
+      high_compression: 64_000,
+      balanced: 320_000,
+      studio_hd: 510_000,
     };
-    const targetBitrate = bitrateMap[profile] || 64_000;
+    const targetBitrate = bitrateMap[profile] || 320_000;
     const audioPubs = Array.from(this.room.localParticipant.audioTrackPublications.values());
     for (const pub of audioPubs) {
       if (pub.track) {

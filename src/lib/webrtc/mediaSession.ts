@@ -45,7 +45,7 @@ export class MediaSession {
     highPassFilter: true,
     dynamicsCompressor: true,
     audioCompressionProfile: 'balanced',
-    stereoAudio: false,
+    stereoAudio: true,
     inputVolume: 100,
     outputVolume: 100,
   };
@@ -129,25 +129,15 @@ export class MediaSession {
     }
 
     const targetDeviceId = deviceId !== undefined ? deviceId : this.settings.audioInputId;
-    const isStereo = Boolean(this.settings.stereoAudio);
 
     const audioConstraints: MediaTrackConstraints = {
       deviceId: targetDeviceId ? { exact: targetDeviceId } : undefined,
       echoCancellation: this.settings.echoCancellation,
       noiseSuppression: this.settings.noiseSuppression,
       autoGainControl: this.settings.autoGainControl,
-      channelCount: isStereo ? { ideal: 2 } : { ideal: 1 },
+      channelCount: { ideal: 2 },
       sampleRate: { ideal: 48000 },
       sampleSize: { ideal: 16 },
-      // Advanced vendor audio processing
-      // @ts-ignore
-      googEchoCancellation: this.settings.echoCancellation,
-      googAutoGainControl: this.settings.autoGainControl,
-      googNoiseSuppression: this.settings.noiseSuppression,
-      googHighpassFilter: this.settings.highPassFilter,
-      googTypingNoiseDetection: this.settings.noiseSuppression,
-      googNoiseReduction: this.settings.noiseSuppression,
-      voiceIsolation: this.settings.voiceIsolation ? { ideal: true } : undefined,
     };
 
     try {
@@ -158,18 +148,18 @@ export class MediaSession {
 
       const rawTrack = micStream.getAudioTracks()[0];
       this.rawMicrophoneTrack = rawTrack;
+      this.microphoneTrack = rawTrack; // DIRECT HARDWARE TRACK for 100% native AEC and zero latency
 
-      // Active Web Audio DSP Pipeline: highpass, voice formant peak EQ, de-hiss, noise gate, dynamics compressor, limiter
-      const processedTrack = this.dspManager.attachStream(
+      // Update local composite stream
+      this.localStream.getAudioTracks().forEach((t) => this.localStream.removeTrack(t));
+      this.localStream.addTrack(rawTrack);
+
+      // Passively tap into DSP for accurate VAD and audio level telemetry without altering broadcast audio
+      this.dspManager.attachStream(
         micStream,
         this.settings.inputVolume / 100,
         this.settings
       );
-      this.microphoneTrack = processedTrack;
-
-      // Update local composite stream
-      this.localStream.getAudioTracks().forEach((t) => this.localStream.removeTrack(t));
-      this.localStream.addTrack(processedTrack);
 
       // Handle external unplug / mute
       rawTrack.onended = () => {
@@ -183,11 +173,11 @@ export class MediaSession {
       };
 
       if (this.events.onTrackChanged) {
-        this.events.onTrackChanged('audio', processedTrack);
+        this.events.onTrackChanged('audio', rawTrack);
       }
 
       logger.log('device_changed', { kind: 'audio', deviceId: targetDeviceId });
-      return processedTrack;
+      return rawTrack;
     } catch (err) {
       console.warn('[MediaSession] Microphone with constraints failed, falling back:', err);
       const fallbackStream = await navigator.mediaDevices.getUserMedia({
@@ -195,22 +185,22 @@ export class MediaSession {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          channelCount: 1,
-          sampleRate: 48000,
+          channelCount: { ideal: 2 },
+          sampleRate: { ideal: 48000 },
         },
       });
       const fallbackRawTrack = fallbackStream.getAudioTracks()[0];
       this.rawMicrophoneTrack = fallbackRawTrack;
+      this.microphoneTrack = fallbackRawTrack;
 
-      const processedTrack = this.dspManager.attachStream(
+      this.localStream.getAudioTracks().forEach((t) => this.localStream.removeTrack(t));
+      this.localStream.addTrack(fallbackRawTrack);
+
+      this.dspManager.attachStream(
         fallbackStream,
         this.settings.inputVolume / 100,
         this.settings
       );
-      this.microphoneTrack = processedTrack;
-
-      this.localStream.getAudioTracks().forEach((t) => this.localStream.removeTrack(t));
-      this.localStream.addTrack(processedTrack);
 
       fallbackRawTrack.onended = () => {
         console.warn('[MediaSession] Fallback microphone track ended');
@@ -223,20 +213,14 @@ export class MediaSession {
       };
 
       if (this.events.onTrackChanged) {
-        this.events.onTrackChanged('audio', processedTrack);
+        this.events.onTrackChanged('audio', fallbackRawTrack);
       }
 
-      return processedTrack;
+      return fallbackRawTrack;
     }
   }
 
   public stopMicrophone() {
-    if (this.rawMicrophoneTrack) {
-      try {
-        this.rawMicrophoneTrack.stop();
-      } catch {}
-      this.rawMicrophoneTrack = null;
-    }
     if (this.microphoneTrack) {
       try {
         this.microphoneTrack.stop();
@@ -244,6 +228,13 @@ export class MediaSession {
       this.localStream.removeTrack(this.microphoneTrack);
       this.microphoneTrack = null;
     }
+    if (this.rawMicrophoneTrack && this.rawMicrophoneTrack !== this.microphoneTrack) {
+      try {
+        this.rawMicrophoneTrack.stop();
+      } catch {}
+    }
+    this.rawMicrophoneTrack = null;
+
     this.dspManager.cleanup();
     if (this.events.onTrackChanged) {
       this.events.onTrackChanged('audio', null);
@@ -257,11 +248,11 @@ export class MediaSession {
   }
 
   public setMicrophoneMute(muted: boolean) {
-    if (this.rawMicrophoneTrack) {
-      this.rawMicrophoneTrack.enabled = !muted;
-    }
     if (this.microphoneTrack) {
       this.microphoneTrack.enabled = !muted;
+    }
+    if (this.rawMicrophoneTrack && this.rawMicrophoneTrack !== this.microphoneTrack) {
+      this.rawMicrophoneTrack.enabled = !muted;
     }
     this.dspManager.setMuted(muted);
   }
@@ -276,26 +267,19 @@ export class MediaSession {
     this.settings = { ...this.settings, ...newSettings };
     this.savePreferences();
 
-    // 1. Update active Web Audio DSP nodes in real time
+    // 1. Update passive telemetry DSP parameters in real time
     this.dspManager.updateDSPParameters(this.settings);
 
     // 2. If raw hardware track is active, update hardware constraints seamlessly
-    if (this.rawMicrophoneTrack && typeof this.rawMicrophoneTrack.applyConstraints === 'function') {
+    const activeTrack = this.microphoneTrack || this.rawMicrophoneTrack;
+    if (activeTrack && typeof activeTrack.applyConstraints === 'function') {
       try {
-        const isStereo = Boolean(this.settings.stereoAudio);
-        await this.rawMicrophoneTrack.applyConstraints({
+        await activeTrack.applyConstraints({
           echoCancellation: this.settings.echoCancellation,
           noiseSuppression: this.settings.noiseSuppression,
           autoGainControl: this.settings.autoGainControl,
-          channelCount: isStereo ? 2 : 1,
-          // @ts-ignore
-          googEchoCancellation: this.settings.echoCancellation,
-          googAutoGainControl: this.settings.autoGainControl,
-          googNoiseSuppression: this.settings.noiseSuppression,
-          googHighpassFilter: this.settings.highPassFilter,
-          googTypingNoiseDetection: this.settings.noiseSuppression,
-          googNoiseReduction: this.settings.noiseSuppression,
-          voiceIsolation: this.settings.voiceIsolation ? true : false,
+          channelCount: { ideal: 2 },
+          sampleRate: { ideal: 48000 },
         });
       } catch (e) {
         console.warn('[MediaSession] Hardware constraint update warning:', e);

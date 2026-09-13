@@ -33,33 +33,10 @@ export interface OpusSDPOptions {
  */
 export function getOpusOptionsForProfile(
   profile: AudioCompressionProfile = 'balanced',
-  stereo: boolean = false
+  stereo: boolean = true
 ): OpusSDPOptions {
   switch (profile) {
     case 'high_compression':
-      return {
-        maxBitrate: 28000,
-        stereo: false,
-        inbandFec: true,
-        dtx: true,
-        minPtime: 20,
-        ptime: 20,
-        maxPtime: 40,
-        cbr: false,
-      };
-    case 'studio_hd':
-      return {
-        maxBitrate: 128000,
-        stereo: stereo,
-        inbandFec: true,
-        dtx: true,
-        minPtime: 10,
-        ptime: 20,
-        maxPtime: 20,
-        cbr: false,
-      };
-    case 'balanced':
-    default:
       return {
         maxBitrate: 64000,
         stereo: false,
@@ -68,6 +45,29 @@ export function getOpusOptionsForProfile(
         minPtime: 10,
         ptime: 20,
         maxPtime: 40,
+        cbr: false,
+      };
+    case 'studio_hd':
+      return {
+        maxBitrate: 510000,
+        stereo: true,
+        inbandFec: true,
+        dtx: true,
+        minPtime: 5,
+        ptime: 20,
+        maxPtime: 20,
+        cbr: false,
+      };
+    case 'balanced':
+    default:
+      return {
+        maxBitrate: 320000,
+        stereo: stereo !== false,
+        inbandFec: true,
+        dtx: true,
+        minPtime: 5,
+        ptime: 20,
+        maxPtime: 20,
         cbr: false,
       };
   }
@@ -79,13 +79,13 @@ export function getOpusOptionsForProfile(
  */
 export function mungeOpusSDP(sdp: string, options: OpusSDPOptions = {}): string {
   const {
-    maxBitrate = 64000,
-    stereo = false,
+    maxBitrate = 510000,
+    stereo = true,
     inbandFec = true,
     dtx = true,
-    minPtime = 10,
+    minPtime = 5,
     ptime = 20,
-    maxPtime = 40,
+    maxPtime = 20,
     cbr = false,
   } = options;
 
@@ -166,22 +166,16 @@ export async function applyRtpSenderAudioBitrate(
 export type GateState = 'open' | 'attenuated';
 
 /**
- * Web Audio DSP Manager for Real-Time Vocal Processing, Noise Gating, Dynamics Compression, and Metering.
- * Implements an active zero-latency processing pipeline that produces a pristine MediaStreamTrack for WebRTC.
+ * Web Audio DSP Manager for Real-Time Vocal Analysis, Metering, and Telemetry.
+ * Uses a zero-interference, passive tap into the audio stream so native hardware
+ * Acoustic Echo Cancellation (AEC), noise suppression, and full 48kHz audio fidelity
+ * are 100% preserved without any Web Audio buffer latency or resampling artifacts.
  */
 export class AudioDSPManager {
   private audioContext: AudioContext | null = null;
   private sourceNode: MediaStreamAudioSourceNode | null = null;
-  private highPassNode: BiquadFilterNode | null = null;
-  private voiceFormantNode: BiquadFilterNode | null = null;
-  private deHissNode: BiquadFilterNode | null = null;
   private gainNode: GainNode | null = null;
-  private noiseGateNode: GainNode | null = null;
-  private compressorNode: DynamicsCompressorNode | null = null;
-  private limiterNode: GainNode | null = null;
   private analyserNode: AnalyserNode | null = null;
-  private destinationNode: MediaStreamAudioDestinationNode | null = null;
-  private processedTrack: MediaStreamTrack | null = null;
   private rawTrack: MediaStreamTrack | null = null;
 
   private animFrameId: number | null = null;
@@ -190,15 +184,8 @@ export class AudioDSPManager {
   private isProcessing: boolean = false;
   private isMuted: boolean = false;
 
-  // Real-time Noise Gate & Voice Isolation Parameters
+  // Real-time Voice Telemetry & VAD Parameters
   private gateState: GateState = 'open';
-  private isGateEnabled: boolean = true;
-  private gateAttenuationFactor: number = 0.03; // -30dB for balanced
-  private isVoiceIsolationEnabled: boolean = true;
-  private isHighPassEnabled: boolean = true;
-  private isCompressorEnabled: boolean = true;
-
-  // VAD Hysteresis & Hangover with Adaptive Noise Floor
   private readonly baseSpeakThreshold: number = 14;
   private readonly baseSilenceThreshold: number = 8;
   private readonly hangoverTimeMs: number = 380;
@@ -213,8 +200,8 @@ export class AudioDSPManager {
   constructor() {}
 
   /**
-   * Initializes real Web Audio DSP processing pipeline on a MediaStream track.
-   * Returns the processed MediaStreamTrack (or falls back to raw track on error).
+   * Passively taps into a MediaStream track for accurate volume metering and VAD.
+   * Strictly returns the unmodified hardware MediaStreamTrack so WebRTC uses native AEC.
    */
   public attachStream(
     stream: MediaStream,
@@ -235,10 +222,7 @@ export class AudioDSPManager {
         return this.rawTrack;
       }
 
-      this.audioContext = new AudioCtx({
-        sampleRate: 48000,
-        latencyHint: 'interactive',
-      });
+      this.audioContext = new AudioCtx();
 
       // Resume context if browser started it in suspended state
       if (this.audioContext.state === 'suspended') {
@@ -247,124 +231,32 @@ export class AudioDSPManager {
 
       const now = this.audioContext.currentTime;
 
-      // 1. MediaStream source from physical mic
+      // Passive metering pipeline: source -> gain -> analyser
+      // Strictly do NOT connect to destination to avoid self-echo or altering broadcast audio!
       this.sourceNode = this.audioContext.createMediaStreamSource(stream);
-
-      // 2. High-Pass Filter (removes low-frequency desk rumble, AC hum < 85Hz)
-      this.highPassNode = this.audioContext.createBiquadFilter();
-      this.highPassNode.type = 'highpass';
-      this.isHighPassEnabled = settings?.highPassFilter !== false;
-      this.highPassNode.frequency.setValueAtTime(this.isHighPassEnabled ? 85 : 10, now);
-      this.highPassNode.Q.setValueAtTime(0.707, now);
-
-      // 3. Voice Formant Peaking Filter (amplifies intelligibility 2.8kHz by +3dB)
-      this.voiceFormantNode = this.audioContext.createBiquadFilter();
-      this.voiceFormantNode.type = 'peaking';
-      this.voiceFormantNode.frequency.setValueAtTime(2800, now);
-      this.voiceFormantNode.Q.setValueAtTime(1.2, now);
-      this.isVoiceIsolationEnabled = settings?.voiceIsolation !== false;
-      this.voiceFormantNode.gain.setValueAtTime(this.isVoiceIsolationEnabled ? 3.0 : 0, now);
-
-      // 4. De-Hiss High-Shelf Filter (rolls off preamp/electronic hiss > 8kHz)
-      this.deHissNode = this.audioContext.createBiquadFilter();
-      this.deHissNode.type = 'highshelf';
-      this.deHissNode.frequency.setValueAtTime(8000, now);
-      this.deHissNode.gain.setValueAtTime(this.isVoiceIsolationEnabled ? -3.0 : 0, now);
-
-      // 5. Input Gain Calibration Node
       this.gainNode = this.audioContext.createGain();
-      this.gainNode.gain.setValueAtTime(initialGain, now);
+      const initialVol = settings?.inputVolume !== undefined ? settings.inputVolume / 100 : initialGain;
+      this.gainNode.gain.setValueAtTime(initialVol, now);
 
-      // 6. Real-Time Adaptive Noise Gate (Downward Expander Node)
-      this.noiseGateNode = this.audioContext.createGain();
-      this.applyGateMode(settings?.noiseGateMode || 'balanced', settings?.noiseGate !== false);
-      this.noiseGateNode.gain.setValueAtTime(1.0, now);
-
-      // 7. Studio Dynamics Compressor (Vocal leveling & soft-knee peak protection)
-      this.compressorNode = this.audioContext.createDynamicsCompressor();
-      this.isCompressorEnabled = settings?.dynamicsCompressor !== false;
-      if (this.isCompressorEnabled) {
-        this.compressorNode.threshold.setValueAtTime(-24, now);
-        this.compressorNode.knee.setValueAtTime(12, now);
-        this.compressorNode.ratio.setValueAtTime(5, now);
-        this.compressorNode.attack.setValueAtTime(0.003, now);
-        this.compressorNode.release.setValueAtTime(0.25, now);
-      } else {
-        this.compressorNode.threshold.setValueAtTime(0, now);
-        this.compressorNode.ratio.setValueAtTime(1, now);
-      }
-
-      // 8. Output Peak Ceiling Limiter (prevents 0dBFS digital clipping)
-      this.limiterNode = this.audioContext.createGain();
-      this.limiterNode.gain.setValueAtTime(0.98, now);
-
-      // 9. AnalyserNode for VAD and UI metering
       this.analyserNode = this.audioContext.createAnalyser();
       this.analyserNode.fftSize = 512;
       this.analyserNode.smoothingTimeConstant = 0.35;
 
-      // 10. Destination Node that outputs the enhanced MediaStreamTrack
-      this.destinationNode = this.audioContext.createMediaStreamDestination();
-
-      // Connect the active DSP chain:
-      // source -> highpass -> formant EQ -> de-hiss -> gain -> noise gate -> compressor -> limiter -> destination
-      this.sourceNode.connect(this.highPassNode);
-      this.highPassNode.connect(this.voiceFormantNode);
-      this.voiceFormantNode.connect(this.deHissNode);
-      this.deHissNode.connect(this.gainNode);
-      this.gainNode.connect(this.noiseGateNode);
-      this.noiseGateNode.connect(this.compressorNode);
-      this.compressorNode.connect(this.limiterNode);
-
-      // Broadcast to destination
-      this.limiterNode.connect(this.destinationNode);
-
-      // Passive connection to analyser for metering & VAD
-      this.limiterNode.connect(this.analyserNode);
-
-      const destTracks = this.destinationNode.stream.getAudioTracks();
-      if (destTracks.length > 0) {
-        this.processedTrack = destTracks[0];
-      } else {
-        this.processedTrack = this.rawTrack;
-      }
+      this.sourceNode.connect(this.gainNode);
+      this.gainNode.connect(this.analyserNode);
 
       this.isProcessing = true;
       this.startMeteringLoop();
 
-      return this.processedTrack;
+      return this.rawTrack;
     } catch (err) {
-      console.warn('[AudioDSP] Web Audio active pipeline error, falling back to raw mic track:', err);
+      console.warn('[AudioDSP] Web Audio passive metering warning:', err);
       return this.rawTrack;
     }
   }
 
   /**
-   * Configures noise gate attenuation factor and enablement
-   */
-  private applyGateMode(mode: NoiseGateMode = 'balanced', enabled: boolean = true): void {
-    this.isGateEnabled = enabled && mode !== 'off';
-    switch (mode) {
-      case 'aggressive':
-        this.gateAttenuationFactor = 0.01; // -40dB deep silence
-        break;
-      case 'gentle':
-        this.gateAttenuationFactor = 0.10; // -20dB gentle pad
-        break;
-      case 'balanced':
-      default:
-        this.gateAttenuationFactor = 0.03; // -30dB natural attenuation
-        break;
-    }
-
-    if (!this.isGateEnabled && this.noiseGateNode && this.audioContext) {
-      this.noiseGateNode.gain.setTargetAtTime(1.0, this.audioContext.currentTime, 0.02);
-      this.gateState = 'open';
-    }
-  }
-
-  /**
-   * Updates DSP parameters in real-time without glitching or renegotiating audio
+   * Updates DSP / telemetry parameters in real-time without glitching audio
    */
   public updateDSPParameters(settings: Partial<MediaDeviceSettings>): void {
     if (!this.audioContext) return;
@@ -374,42 +266,6 @@ export class AudioDSPManager {
     if (settings.inputVolume !== undefined && this.gainNode) {
       const normalizedGain = Math.max(0, Math.min(2.0, settings.inputVolume / 100));
       this.gainNode.gain.setTargetAtTime(normalizedGain, now, 0.03);
-    }
-
-    // Highpass rumble filter
-    if (settings.highPassFilter !== undefined && this.highPassNode) {
-      this.isHighPassEnabled = settings.highPassFilter;
-      this.highPassNode.frequency.setTargetAtTime(this.isHighPassEnabled ? 85 : 10, now, 0.03);
-    }
-
-    // Voice isolation (peaking formant boost & high shelf de-hiss)
-    if (settings.voiceIsolation !== undefined) {
-      this.isVoiceIsolationEnabled = settings.voiceIsolation;
-      if (this.voiceFormantNode) {
-        this.voiceFormantNode.gain.setTargetAtTime(this.isVoiceIsolationEnabled ? 3.0 : 0, now, 0.03);
-      }
-      if (this.deHissNode) {
-        this.deHissNode.gain.setTargetAtTime(this.isVoiceIsolationEnabled ? -3.0 : 0, now, 0.03);
-      }
-    }
-
-    // Noise gate mode & toggle
-    if (settings.noiseGate !== undefined || settings.noiseGateMode !== undefined) {
-      const enabled = settings.noiseGate !== undefined ? settings.noiseGate : this.isGateEnabled;
-      const mode = settings.noiseGateMode || 'balanced';
-      this.applyGateMode(mode, enabled);
-    }
-
-    // Studio dynamics compressor
-    if (settings.dynamicsCompressor !== undefined && this.compressorNode) {
-      this.isCompressorEnabled = settings.dynamicsCompressor;
-      if (this.isCompressorEnabled) {
-        this.compressorNode.threshold.setTargetAtTime(-24, now, 0.03);
-        this.compressorNode.ratio.setTargetAtTime(5, now, 0.03);
-      } else {
-        this.compressorNode.threshold.setTargetAtTime(0, now, 0.03);
-        this.compressorNode.ratio.setTargetAtTime(1, now, 0.03);
-      }
     }
   }
 
@@ -428,16 +284,13 @@ export class AudioDSPManager {
    */
   public setMuted(muted: boolean): void {
     this.isMuted = muted;
-    if (this.processedTrack) {
-      this.processedTrack.enabled = !muted;
-    }
     if (this.rawTrack) {
       this.rawTrack.enabled = !muted;
     }
   }
 
   public getProcessedTrack(): MediaStreamTrack | null {
-    return this.processedTrack || this.rawTrack;
+    return this.rawTrack;
   }
 
   public onLevel(callback: (level: number, isSpeaking: boolean, gateState: GateState) => void): void {
@@ -487,25 +340,8 @@ export class AudioDSPManager {
         }
       }
 
-      // Real-time Noise Gate Gain Automation
-      if (this.isGateEnabled && this.noiseGateNode && this.audioContext) {
-        const audioTime = this.audioContext.currentTime;
-        if (this.isCurrentlySpeaking) {
-          if (this.gateState !== 'open') {
-            this.gateState = 'open';
-            this.noiseGateNode.gain.cancelScheduledValues(audioTime);
-            this.noiseGateNode.gain.setTargetAtTime(1.0, audioTime, 0.005); // fast 5ms attack
-          }
-        } else {
-          if (this.gateState !== 'attenuated') {
-            this.gateState = 'attenuated';
-            this.noiseGateNode.gain.cancelScheduledValues(audioTime);
-            this.noiseGateNode.gain.setTargetAtTime(this.gateAttenuationFactor, audioTime, 0.12); // smooth 120ms release
-          }
-        }
-      } else {
-        this.gateState = 'open';
-      }
+      // Telemetry gate state (informative for UI badge, zero audio destruction)
+      this.gateState = this.isCurrentlySpeaking ? 'open' : 'attenuated';
 
       // Throttle UI notification: emit immediately on speaking or gate change,
       // or every ~35ms if level changed by >= 2% to protect React performance
@@ -535,53 +371,19 @@ export class AudioDSPManager {
       this.animFrameId = null;
     }
 
-    if (this.processedTrack && this.processedTrack !== this.rawTrack) {
-      try {
-        this.processedTrack.stop();
-      } catch {}
-      this.processedTrack = null;
-    }
     this.rawTrack = null;
 
     if (this.sourceNode) {
       try { this.sourceNode.disconnect(); } catch {}
       this.sourceNode = null;
     }
-    if (this.highPassNode) {
-      try { this.highPassNode.disconnect(); } catch {}
-      this.highPassNode = null;
-    }
-    if (this.voiceFormantNode) {
-      try { this.voiceFormantNode.disconnect(); } catch {}
-      this.voiceFormantNode = null;
-    }
-    if (this.deHissNode) {
-      try { this.deHissNode.disconnect(); } catch {}
-      this.deHissNode = null;
-    }
     if (this.gainNode) {
       try { this.gainNode.disconnect(); } catch {}
       this.gainNode = null;
     }
-    if (this.noiseGateNode) {
-      try { this.noiseGateNode.disconnect(); } catch {}
-      this.noiseGateNode = null;
-    }
-    if (this.compressorNode) {
-      try { this.compressorNode.disconnect(); } catch {}
-      this.compressorNode = null;
-    }
-    if (this.limiterNode) {
-      try { this.limiterNode.disconnect(); } catch {}
-      this.limiterNode = null;
-    }
     if (this.analyserNode) {
       try { this.analyserNode.disconnect(); } catch {}
       this.analyserNode = null;
-    }
-    if (this.destinationNode) {
-      try { this.destinationNode.disconnect(); } catch {}
-      this.destinationNode = null;
     }
 
     if (this.audioContext && this.audioContext.state !== 'closed') {

@@ -457,10 +457,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         }}
                       >
                         {deviceSettings.audioCompressionProfile === 'high_compression'
-                          ? 'Opus 28kbps SILK • DTX'
+                          ? 'Opus 64kbps Voice • DTX'
                           : deviceSettings.audioCompressionProfile === 'studio_hd'
-                          ? 'Opus 128kbps CELT • HD'
-                          : 'Opus 64kbps VBR • FEC'}
+                          ? 'Opus 510kbps Stereo • Fullband'
+                          : 'Opus 320kbps Studio • RED'}
                       </span>
                       <span style={{ fontWeight: 600, color: audioLevel > 15 ? 'var(--status-online)' : 'var(--text-muted)' }}>
                         {audioLevel}%
@@ -738,7 +738,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                   <button
                     type="button"
-                    onClick={() => updateSettings({ audioCompressionProfile: 'balanced', stereoAudio: false })}
+                    onClick={() => updateSettings({ audioCompressionProfile: 'balanced', stereoAudio: true })}
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -773,9 +773,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         DEFAULT
                       </span>
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>64 kbps Opus VBR</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>320 kbps Studio Opus</span>
                     <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
-                      Pristine speech intelligibility & low latency
+                      Pristine broadcast fidelity with RED packet-loss immunity
                     </span>
                   </button>
 
@@ -816,9 +816,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         SAVER
                       </span>
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--status-online)' }}>28 kbps SILK + DTX</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--status-online)' }}>64 kbps Opus + DTX</span>
                     <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
-                      Saves 70% bandwidth on weak networks
+                      Optimized low-bandwidth speech for mobile & slow connections
                     </span>
                   </button>
 
@@ -859,9 +859,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         HI-FI
                       </span>
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: '#c084fc' }}>128 kbps CELT Stereo</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#c084fc' }}>510 kbps Fullband Stereo</span>
                     <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
-                      Full dynamic range for studio mics & music
+                      Maximum dynamic range and uncompromised acoustic fidelity
                     </span>
                   </button>
                 </div>
