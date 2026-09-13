@@ -208,7 +208,9 @@ $$;
 DROP POLICY IF EXISTS "Servers viewable by members or owners" ON public.servers;
 CREATE POLICY "Servers viewable by members or owners"
   ON public.servers FOR SELECT USING (
-    owner_id = auth.uid() OR public.is_server_member(id, auth.uid())
+    owner_id = auth.uid()
+    OR public.is_server_member(id, auth.uid())
+    OR EXISTS (SELECT 1 FROM public.invites WHERE server_id = public.servers.id)
   );
 
 CREATE POLICY "Authenticated users can create servers"
@@ -324,6 +326,9 @@ CREATE POLICY "Server members can create invites"
     auth.uid() = creator_id AND
     (public.is_server_member(server_id, auth.uid()) OR public.is_server_owner(server_id, auth.uid()))
   );
+
+CREATE POLICY "Anyone can update invite use counts"
+  ON public.invites FOR UPDATE USING (true);
 
 -- Enable Supabase Realtime publication
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;

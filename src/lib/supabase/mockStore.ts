@@ -313,6 +313,111 @@ class MockStore {
       }));
   }
 
+  public isServerMember(serverId: string, userId: string): boolean {
+    const members = this.getMembers();
+    return members.some((m) => m.serverId === serverId && m.userId === userId);
+  }
+
+  public addServerMember(
+    serverId: string,
+    userId: string,
+    role: 'owner' | 'admin' | 'member' = 'member'
+  ): ServerMember {
+    const members = this.getMembers();
+    let member = members.find((m) => m.serverId === serverId && m.userId === userId);
+    if (!member) {
+      member = {
+        serverId,
+        userId,
+        role,
+        joinedAt: new Date().toISOString(),
+      };
+      members.push(member);
+      localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(members));
+      this.emit('MEMBER_JOINED', member);
+    }
+    return member;
+  }
+
+  public addServer(server: Server): void {
+    const servers = this.getServers();
+    if (!servers.some((s) => s.id === server.id)) {
+      servers.push(server);
+      localStorage.setItem(STORAGE_KEYS.SERVERS, JSON.stringify(servers));
+      this.emit('SERVER_CREATED', server);
+    }
+  }
+
+  // Invites
+  public getInvites(serverId?: string): Invite[] {
+    const saved = localStorage.getItem(STORAGE_KEYS.INVITES);
+    let allInvites: Invite[] = [];
+    if (saved) {
+      try {
+        allInvites = JSON.parse(saved);
+      } catch {}
+    }
+    if (serverId) {
+      return allInvites.filter((inv) => inv.serverId === serverId);
+    }
+    return allInvites;
+  }
+
+  public getInviteByCode(code: string): Invite | null {
+    if (!code) return null;
+    const cleanCode = code.trim().toUpperCase();
+    const invites = this.getInvites();
+    return invites.find((inv) => inv.code.toUpperCase() === cleanCode) || null;
+  }
+
+  public createInvite(
+    serverId: string,
+    creatorId: string,
+    maxUses?: number,
+    expiresInHours?: number
+  ): Invite {
+    const invites = this.getInvites();
+    // Re-use an existing non-expiring unlimited invite if available
+    if (!maxUses && !expiresInHours) {
+      const existing = invites.find(
+        (inv) => inv.serverId === serverId && !inv.expiresAt && !inv.maxUses
+      );
+      if (existing) return existing;
+    }
+
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const expiresAt = expiresInHours
+      ? new Date(Date.now() + expiresInHours * 3600 * 1000).toISOString()
+      : undefined;
+
+    const newInvite: Invite = {
+      id: `inv-${Date.now()}`,
+      serverId,
+      code,
+      creatorId,
+      maxUses: maxUses || undefined,
+      expiresAt,
+      usesCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+
+    invites.push(newInvite);
+    localStorage.setItem(STORAGE_KEYS.INVITES, JSON.stringify(invites));
+    this.emit('INVITE_CREATED', newInvite);
+    return newInvite;
+  }
+
+  public incrementInviteUses(code: string): void {
+    const invites = this.getInvites();
+    const cleanCode = code.trim().toUpperCase();
+    const idx = invites.findIndex((inv) => inv.code.toUpperCase() === cleanCode);
+    if (idx !== -1) {
+      invites[idx].usesCount = (invites[idx].usesCount || 0) + 1;
+      localStorage.setItem(STORAGE_KEYS.INVITES, JSON.stringify(invites));
+      this.emit('INVITE_UPDATED', invites[idx]);
+    }
+  }
+
   // Messages
   public getMessages(channelId: string): Message[] {
     const saved = localStorage.getItem(STORAGE_KEYS.MESSAGES);
@@ -559,37 +664,6 @@ class MockStore {
     localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(allLogs));
     this.emit('AUDIT_LOG_ADDED', newEntry);
     return newEntry;
-  }
-
-  // Invites
-  public getInvites(serverId: string): Invite[] {
-    const saved = localStorage.getItem(STORAGE_KEYS.INVITES);
-    let allInvites: Invite[] = [];
-    if (saved) {
-      try {
-        allInvites = JSON.parse(saved);
-      } catch {}
-    }
-    return allInvites.filter((inv) => inv.serverId === serverId);
-  }
-
-  public createInvite(serverId: string, creatorId: string): Invite {
-    const saved = localStorage.getItem(STORAGE_KEYS.INVITES);
-    const allInvites: Invite[] = saved ? JSON.parse(saved) : [];
-
-    const newInvite: Invite = {
-      id: `inv-${Date.now()}`,
-      serverId,
-      creatorId,
-      code: Math.random().toString(36).substring(2, 8).toUpperCase(),
-      usesCount: 0,
-      createdAt: new Date().toISOString(),
-    };
-
-    allInvites.push(newInvite);
-    localStorage.setItem(STORAGE_KEYS.INVITES, JSON.stringify(allInvites));
-    this.emit('INVITE_CREATED', newInvite);
-    return newInvite;
   }
 
   // Telemetry

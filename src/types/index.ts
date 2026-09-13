@@ -145,6 +145,7 @@ export interface Invite {
   serverId: string;
   code: string;
   creatorId: string;
+  maxUses?: number;
   expiresAt?: string;
   usesCount: number;
   createdAt?: string;

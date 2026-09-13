@@ -23,6 +23,7 @@ import { CommandPalette } from '../navigation/CommandPalette';
 import { QuickSwitcher } from '../navigation/QuickSwitcher';
 import { GlobalSearchModal } from '../navigation/GlobalSearchModal';
 import { ServerInviteModal } from '../servers/ServerInviteModal';
+import { InviteAcceptModal } from '../servers/InviteAcceptModal';
 import { AuditLogModal } from '../servers/AuditLogModal';
 import { ChannelBrowserModal } from '../servers/ChannelBrowserModal';
 import { ServerOnboardingModal } from '../servers/ServerOnboardingModal';
@@ -57,6 +58,66 @@ export const AppLayout: React.FC = () => {
   const [auditLogOpen, setAuditLogOpen] = useState(false);
   const [channelBrowserOpen, setChannelBrowserOpen] = useState(false);
   const [serverOnboardingOpen, setServerOnboardingOpen] = useState(false);
+  const [pendingInvite, setPendingInvite] = useState<{ code: string; encodedData?: string | null } | null>(null);
+
+  // URL Routing detection for invites (/invite/:code, ?invite=:code, #/invite/:code) and channel links (/channels/:serverId/:channelId)
+  useEffect(() => {
+    const handleUrlRoute = () => {
+      const pathname = window.location.pathname;
+      const searchParams = new URLSearchParams(window.location.search);
+      const hash = window.location.hash;
+
+      // 1. Check for invite link
+      let inviteCode: string | null = null;
+      let encodedData = searchParams.get('d') || searchParams.get('data');
+
+      const pathMatch = pathname.match(/\/invite\/([a-zA-Z0-9_-]+)/i);
+      if (pathMatch && pathMatch[1]) {
+        inviteCode = pathMatch[1];
+      } else if (searchParams.get('invite')) {
+        inviteCode = searchParams.get('invite');
+      } else if (hash.includes('/invite/')) {
+        const hashMatch = hash.match(/\/invite\/([a-zA-Z0-9_-]+)/i);
+        if (hashMatch && hashMatch[1]) {
+          inviteCode = hashMatch[1];
+        }
+      }
+
+      if (inviteCode) {
+        setPendingInvite({ code: inviteCode, encodedData });
+        return;
+      }
+
+      // 2. Check for channel link: /channels/:serverId/:channelId
+      const chanMatch = pathname.match(/\/channels\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)/i);
+      if (chanMatch && chanMatch[1] && chanMatch[2]) {
+        const sId = chanMatch[1];
+        const cId = chanMatch[2];
+        selectServer(sId);
+        selectChannel(cId);
+        setViewMode('server');
+      }
+    };
+
+    handleUrlRoute();
+
+    window.addEventListener('popstate', handleUrlRoute);
+    window.addEventListener('hashchange', handleUrlRoute);
+
+    // Custom in-app event to trigger invite acceptance modal
+    const handleCustomInvite = (e: any) => {
+      if (e.detail?.code) {
+        setPendingInvite({ code: e.detail.code, encodedData: e.detail.encodedData });
+      }
+    };
+    window.addEventListener('meetwo:open-invite', handleCustomInvite);
+
+    return () => {
+      window.removeEventListener('popstate', handleUrlRoute);
+      window.removeEventListener('hashchange', handleUrlRoute);
+      window.removeEventListener('meetwo:open-invite', handleCustomInvite);
+    };
+  }, []);
 
   // Push navigation entry on channel selection
   useEffect(() => {
@@ -347,7 +408,7 @@ export const AppLayout: React.FC = () => {
       />
 
       <AuthModal
-        isOpen={authOpen || !currentUser}
+        isOpen={authOpen || (!currentUser && !pendingInvite)}
         onClose={() => setAuthOpen(false)}
       />
 
@@ -359,6 +420,29 @@ export const AppLayout: React.FC = () => {
       <ServerInviteModal
         isOpen={inviteModalOpen}
         onClose={() => setInviteModalOpen(false)}
+      />
+
+      <InviteAcceptModal
+        isOpen={Boolean(pendingInvite)}
+        inviteCode={pendingInvite?.code || ''}
+        encodedData={pendingInvite?.encodedData}
+        onClose={() => {
+          setPendingInvite(null);
+          if (window.location.pathname.startsWith('/invite/')) {
+            window.history.replaceState({}, '', '/');
+          }
+        }}
+        onSuccess={(server, channelId) => {
+          setPendingInvite(null);
+          setViewMode('server');
+          selectServer(server.id, server);
+          if (channelId) {
+            selectChannel(channelId);
+          }
+          if (window.location.pathname.startsWith('/invite/')) {
+            window.history.replaceState({}, '', '/');
+          }
+        }}
       />
 
       <AuditLogModal

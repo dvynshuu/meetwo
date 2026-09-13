@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { PollMessage } from './PollMessage';
 import { Tooltip } from '../ui/Tooltip';
+import { ServerInviteEmbed } from './ServerInviteEmbed';
 
 interface MessageItemProps {
   message: Message;
@@ -391,6 +392,20 @@ export const MessageItem: React.FC<MessageItemProps> = ({
               )}
             </div>
           )}
+
+          {/* Server Invite Link Embed */}
+          {(() => {
+            const inviteMatch = message.content?.match(/(?:https?:\/\/[^\s/]+)?\/invite\/([a-zA-Z0-9_-]+)(?:\?d=([^\s]+))?/i);
+            if (inviteMatch && inviteMatch[1]) {
+              return (
+                <ServerInviteEmbed
+                  inviteCode={inviteMatch[1]}
+                  encodedData={inviteMatch[2] || null}
+                />
+              );
+            }
+            return null;
+          })()}
 
           {/* Attachments rendering */}
           {message.attachments && message.attachments.length > 0 && (
