@@ -5,6 +5,7 @@ import { useAuth } from '../../app/providers/AuthContext';
 import { Avatar } from '../ui/Avatar';
 import { Tooltip } from '../ui/Tooltip';
 import { User } from '../../types';
+import { useViewport } from '../../lib/hooks/useViewport';
 
 interface DMConversationViewProps {
   conversationId: string;
@@ -13,6 +14,7 @@ interface DMConversationViewProps {
 export const DMConversationView: React.FC<DMConversationViewProps> = ({ conversationId }) => {
   const { currentUser } = useAuth();
   const { conversations, dmMessages, sendDM } = useDM();
+  const { isMobile } = useViewport();
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -150,7 +152,7 @@ export const DMConversationView: React.FC<DMConversationViewProps> = ({ conversa
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
-            autoFocus
+            autoFocus={!isMobile}
           />
           <button
             type="submit"

@@ -5665,3 +5665,102 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ====================================================================
+   MOBILE COMPOSER & CONTROLS ENHANCEMENTS
+   ==================================================================== */
+.composer-attach-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition-fast);
+}
+
+.composer-attach-btn:hover,
+.composer-attach-btn:active {
+  color: var(--text-primary);
+  background: var(--bg-surface-hover);
+}
+
+@media (max-width: 768px) {
+  .composer-container {
+    padding: 8px 12px calc(8px + var(--safe-area-bottom));
+  }
+
+  .composer-box {
+    padding: 6px 10px;
+    min-height: 48px;
+    border-radius: var(--radius-pill);
+  }
+
+  .composer-attach-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .composer-send-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-pill);
+  }
+
+  /* Full screen thread drawer on mobile */
+  .side-drawer {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    z-index: 60 !important;
+    height: 100dvh !important;
+  }
+
+  /* Mobile Member list sheet wrapper */
+  .mobile-member-sheet-wrap .member-sidebar {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  /* Video controls mobile dock */
+  .video-controls-dock.mobile-dock {
+    bottom: calc(16px + var(--safe-area-bottom));
+    padding: 6px 14px;
+    gap: 8px;
+    border-radius: var(--radius-pill);
+  }
+
+  .video-controls-dock.mobile-dock .dock-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .mobile-flip-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-pill);
+    background: var(--bg-surface-active);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--accent-border);
+  }
+
+  .video-controls-dock.mobile-dock .dock-disconnect-btn {
+    padding: 0 14px;
+    height: 44px;
+  }
+
+  .video-controls-dock.mobile-dock .dock-disconnect-text {
+    display: none;
+  }
+}

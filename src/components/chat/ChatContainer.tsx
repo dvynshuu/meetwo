@@ -19,13 +19,37 @@ export const ChatContainer: React.FC<ChatContainerProps> = () => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [activeThreadMessage, setActiveThreadMessage] = useState<Message | null>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
+  const prevMessageCountRef = useRef(messages.length);
 
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    if (bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+  const handleScroll = () => {
+    if (!containerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    const nearBottom = scrollHeight - scrollTop - clientHeight < 100;
+    setIsAtBottom(nearBottom);
+    if (nearBottom) {
+      setHasNewMessagesBelow(false);
     }
-  }, [messages.length]);
+  };
+
+  // Only auto-scroll to bottom on new messages IF the user was already near the bottom
+  useEffect(() => {
+    if (messages.length > prevMessageCountRef.current) {
+      if (isAtBottom) {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+        setHasNewMessagesBelow(false);
+      } else {
+        setHasNewMessagesBelow(true);
+      }
+    }
+    prevMessageCountRef.current = messages.length;
+  }, [messages.length, isAtBottom]);
+
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setHasNewMessagesBelow(false);
+  };
 
   const pinnedMessage = messages.find((m) => m.isPinned);
 
@@ -71,7 +95,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = () => {
           </div>
         )}
 
-        <div className="chat-messages-container" ref={containerRef}>
+        <div className="chat-messages-container" ref={containerRef} onScroll={handleScroll}>
           {/* Channel Start Banner / Editorial Welcome */}
           <div className="messages-empty-state">
             <div className="messages-empty-hash">
@@ -108,6 +132,19 @@ export const ChatContainer: React.FC<ChatContainerProps> = () => {
 
           <div ref={bottomRef} style={{ height: 1 }} />
         </div>
+
+        {/* Floating New Messages Button */}
+        {hasNewMessagesBelow && (
+          <button
+            type="button"
+            className="mobile-new-messages-pill"
+            onClick={scrollToBottom}
+            aria-label="Scroll to new messages"
+          >
+            <span>New messages</span>
+            <span className="arrow">↓</span>
+          </button>
+        )}
 
         <TypingIndicator />
         <MessageComposer />

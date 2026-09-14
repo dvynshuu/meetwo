@@ -6,12 +6,14 @@ import { useServer } from '../../app/providers/ServerContext';
 import { useAuth } from '../../app/providers/AuthContext';
 import { StorageService } from '../../lib/services/storageService';
 import { Attachment } from '../../types';
+import { useViewport } from '../../lib/hooks/useViewport';
 
 export const MessageComposer: React.FC = () => {
   const { sendMessage, replyingTo, setReplyingTo } = useChat();
   const { sendTyping } = usePresence();
   const { activeChannel } = useServer();
   const { currentUser } = useAuth();
+  const { isMobile } = useViewport();
 
   const [content, setContent] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -21,12 +23,12 @@ export const MessageComposer: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastTypingTimeRef = useRef<number>(0);
 
-  // Auto focus when channel changes
+  // Auto focus when channel changes ONLY on desktop
   useEffect(() => {
-    if (textareaRef.current) {
+    if (!isMobile && textareaRef.current) {
       textareaRef.current.focus();
     }
-  }, [activeChannel?.id]);
+  }, [activeChannel?.id, isMobile]);
 
   const handleSend = useCallback(() => {
     if (!content.trim() && attachments.length === 0) return;
@@ -179,13 +181,12 @@ export const MessageComposer: React.FC = () => {
         {/* Attachment Button */}
         <button
           type="button"
-          className="icon-btn"
-          style={{ width: 30, height: 30 }}
+          className="composer-attach-btn"
           onClick={() => fileInputRef.current?.click()}
-          title="Attach file"
+          title="Attach file or photo"
           aria-label="Upload Attachment"
         >
-          <Paperclip size={16} />
+          <Paperclip size={18} />
         </button>
 
         <textarea
@@ -199,41 +200,45 @@ export const MessageComposer: React.FC = () => {
         />
 
         <div className="composer-actions">
-          {/* Quick Emojis */}
-          <button
-            type="button"
-            className="composer-emoji-btn"
-            onClick={() => addEmoji('👍')}
-            title="Thumbs Up"
-          >
-            👍
-          </button>
-          <button
-            type="button"
-            className="composer-emoji-btn"
-            onClick={() => addEmoji('🔥')}
-            title="Fire"
-          >
-            🔥
-          </button>
-          <button
-            type="button"
-            className="composer-emoji-btn"
-            onClick={() => addEmoji('✨')}
-            title="Sparkles"
-          >
-            ✨
-          </button>
+          {/* Quick Emojis (Desktop Only) */}
+          {!isMobile && (
+            <>
+              <button
+                type="button"
+                className="composer-emoji-btn"
+                onClick={() => addEmoji('👍')}
+                title="Thumbs Up"
+              >
+                👍
+              </button>
+              <button
+                type="button"
+                className="composer-emoji-btn"
+                onClick={() => addEmoji('🔥')}
+                title="Fire"
+              >
+                🔥
+              </button>
+              <button
+                type="button"
+                className="composer-emoji-btn"
+                onClick={() => addEmoji('✨')}
+                title="Sparkles"
+              >
+                ✨
+              </button>
+            </>
+          )}
 
           <button
             type="button"
             className={`composer-send-btn ${content.trim() || attachments.length > 0 ? 'active' : ''}`}
             onClick={handleSend}
             disabled={!content.trim() && attachments.length === 0}
-            title="Send (Enter)"
+            title="Send"
             aria-label="Send message"
           >
-            <Send size={15} />
+            <Send size={16} />
           </button>
         </div>
       </div>

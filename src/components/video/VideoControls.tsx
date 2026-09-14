@@ -10,11 +10,13 @@ import {
   ChevronUp,
   Activity,
   Check,
+  RefreshCw,
 } from 'lucide-react';
 import { useMedia } from '../../app/providers/MediaContext';
 import { MediaSession } from '../../lib/webrtc/mediaSession';
 import { DiagnosticsModal } from './DiagnosticsModal';
 import { Tooltip } from '../ui/Tooltip';
+import { useViewport } from '../../lib/hooks/useViewport';
 
 interface VideoControlsProps {
   onOpenSettings: () => void;
@@ -64,18 +66,27 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const { isMobile } = useViewport();
+
+  const handleFlipCamera = () => {
+    if (videoInputs.length < 2) return;
+    const currentIndex = videoInputs.findIndex((d) => d.deviceId === deviceSettings.videoInputId);
+    const nextIndex = (currentIndex + 1) % videoInputs.length;
+    switchCamera(videoInputs[nextIndex].deviceId);
+  };
+
   const isAnyMenuOpen = showVideoMenu || showAudioMenu || isDiagnosticsOpen;
 
   return (
     <div
-      className={`video-controls-dock ${isAnyMenuOpen ? 'dock-active' : ''}`}
+      className={`video-controls-dock ${isAnyMenuOpen ? 'dock-active' : ''} ${isMobile ? 'mobile-dock' : ''}`}
       id="video-controls"
       role="toolbar"
       aria-label="Call controls"
     >
-      {/* 1. Camera Toggle with integrated split picker */}
+      {/* 1. Camera Toggle */}
       <div className={`dock-split-wrapper ${showVideoMenu ? 'menu-open' : ''}`} ref={videoMenuRef}>
-        <Tooltip content={isVideoMuted ? 'Turn on Camera (Ctrl+E)' : 'Turn off Camera (Ctrl+E)'} position="top">
+        <Tooltip content={isVideoMuted ? 'Turn on Camera' : 'Turn off Camera'} position="top">
           <button
             className={`dock-btn ${isVideoMuted ? 'dock-btn-off' : 'dock-btn-active'}`}
             onClick={toggleVideo}
@@ -84,19 +95,21 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
             {isVideoMuted ? <VideoOff size={19} /> : <VideoIcon size={19} />}
           </button>
         </Tooltip>
-        <Tooltip content="Camera Settings" position="top" className="dock-arrow-tooltip">
-          <button
-            type="button"
-            className="dock-arrow-btn"
-            onClick={() => {
-              setShowVideoMenu(!showVideoMenu);
-              setShowAudioMenu(false);
-            }}
-            aria-label="Select camera"
-          >
-            <ChevronUp size={12} />
-          </button>
-        </Tooltip>
+        {!isMobile && (
+          <Tooltip content="Camera Settings" position="top" className="dock-arrow-tooltip">
+            <button
+              type="button"
+              className="dock-arrow-btn"
+              onClick={() => {
+                setShowVideoMenu(!showVideoMenu);
+                setShowAudioMenu(false);
+              }}
+              aria-label="Select camera"
+            >
+              <ChevronUp size={12} />
+            </button>
+          </Tooltip>
+        )}
 
         {showVideoMenu && (
           <div className="control-quick-menu">
@@ -124,6 +137,19 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
         )}
       </div>
 
+      {/* 1B. Mobile Front/Back Camera Flip */}
+      {isMobile && videoInputs.length > 1 && (
+        <button
+          type="button"
+          className="dock-btn dock-btn-active mobile-flip-btn"
+          onClick={handleFlipCamera}
+          aria-label="Flip Camera (Front/Back)"
+          title="Flip Camera"
+        >
+          <RefreshCw size={18} />
+        </button>
+      )}
+
       {/* 2. Screen Sharing */}
       <Tooltip content={isScreenSharing ? 'Stop Screen Share' : 'Share Screen'} position="top">
         <button
@@ -135,12 +161,12 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
         </button>
       </Tooltip>
 
-      {/* 3. Microphone Toggle with Discord red-muted pill style */}
+      {/* 3. Microphone Toggle */}
       <div
         className={`dock-split-wrapper ${isAudioMuted ? 'dock-split-danger' : ''} ${showAudioMenu ? 'menu-open' : ''}`}
         ref={audioMenuRef}
       >
-        <Tooltip content={isAudioMuted ? 'Unmute Mic (Ctrl+D)' : 'Mute Mic (Ctrl+D)'} position="top">
+        <Tooltip content={isAudioMuted ? 'Unmute Mic' : 'Mute Mic'} position="top">
           <button
             className={`dock-btn ${isAudioMuted ? 'dock-btn-muted-danger' : 'dock-btn-active'}`}
             onClick={toggleAudio}
@@ -149,19 +175,21 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
             {isAudioMuted ? <MicOff size={19} /> : <Mic size={19} />}
           </button>
         </Tooltip>
-        <Tooltip content="Microphone Settings" position="top" className="dock-arrow-tooltip">
-          <button
-            type="button"
-            className="dock-arrow-btn"
-            onClick={() => {
-              setShowAudioMenu(!showAudioMenu);
-              setShowVideoMenu(false);
-            }}
-            aria-label="Select microphone"
-          >
-            <ChevronUp size={12} />
-          </button>
-        </Tooltip>
+        {!isMobile && (
+          <Tooltip content="Microphone Settings" position="top" className="dock-arrow-tooltip">
+            <button
+              type="button"
+              className="dock-arrow-btn"
+              onClick={() => {
+                setShowAudioMenu(!showAudioMenu);
+                setShowVideoMenu(false);
+              }}
+              aria-label="Select microphone"
+            >
+              <ChevronUp size={12} />
+            </button>
+          </Tooltip>
+        )}
 
         {showAudioMenu && (
           <div className="control-quick-menu">

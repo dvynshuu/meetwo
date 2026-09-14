@@ -29,6 +29,17 @@ import { AuditLogModal } from '../servers/AuditLogModal';
 import { ChannelBrowserModal } from '../servers/ChannelBrowserModal';
 import { ServerOnboardingModal } from '../servers/ServerOnboardingModal';
 import { NavigationEntry } from '../../types';
+import { useViewport } from '../../lib/hooks/useViewport';
+import { MobileBottomNav, MobileTab } from './MobileBottomNav';
+import { MobileHeader } from './MobileHeader';
+import { MiniCallBar } from './MiniCallBar';
+import { WorkspaceSheet } from '../navigation/WorkspaceSheet';
+import { ChannelSheet } from '../navigation/ChannelSheet';
+import { MobileSettingsSheet } from '../settings/MobileSettingsSheet';
+import { MobileSearchView } from '../navigation/MobileSearchView';
+import { MobileDMList } from '../home/MobileDMList';
+import { DMConversationView } from '../home/DMConversationView';
+import { BottomSheet } from '../ui/BottomSheet';
 
 export const AppLayout: React.FC = () => {
   const { activeServer, activeChannel, channels, selectServer, selectChannel } = useServer();
@@ -40,6 +51,15 @@ export const AppLayout: React.FC = () => {
   // Primary view mode: 'home' (DMs, friends, inbox) or 'server' (workspaces & channels)
   const [viewMode, setViewMode] = useState<'home' | 'server'>('home');
   const [homeTab, setHomeTab] = useState<HomeTab>('dms');
+
+  // Mobile layout state
+  const { isMobile } = useViewport();
+  const [mobileTab, setMobileTab] = useState<MobileTab>('home');
+  const [workspaceSheetOpen, setWorkspaceSheetOpen] = useState(false);
+  const [channelSheetOpen, setChannelSheetOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const [mobileMemberListOpen, setMobileMemberListOpen] = useState(false);
 
   const [showMemberList, setShowMemberList] = useState(true);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -316,6 +336,249 @@ export const AppLayout: React.FC = () => {
     return <AuthScreen />;
   }
 
+  // ====================================================================
+  // MOBILE-FIRST APPLICATION VIEWPORT (< 768px)
+  // ====================================================================
+  if (isMobile) {
+    return (
+      <div className="app-container mobile-layout-root">
+        {/* Mobile Header (Hidden in Fullscreen Voice/Stage views) */}
+        {!isVoiceView && !isStageView && (
+          <MobileHeader
+            mobileTab={mobileTab}
+            viewMode={viewMode}
+            onOpenChannelSheet={() => setChannelSheetOpen(true)}
+            onOpenWorkspaceSheet={() => setWorkspaceSheetOpen(true)}
+            onOpenSearch={() => setMobileSearchOpen(true)}
+            onOpenMemberList={() => setMobileMemberListOpen(true)}
+            onBackFromDM={() => selectConversation(null)}
+            onOpenSettings={() => setMobileSettingsOpen(true)}
+          />
+        )}
+
+        {/* Mobile Main Body */}
+        <main className={`mobile-main-body ${isVoiceView || isStageView ? 'mobile-fullscreen-view' : ''}`}>
+          {mobileTab === 'home' ? (
+            <HomeView
+              activeTab={homeTab}
+              onSelectTab={setHomeTab}
+              onNavigateToChannel={(serverId, channelId) => {
+                selectServer(serverId);
+                selectChannel(channelId);
+                setViewMode('server');
+                setMobileTab('spaces');
+              }}
+              onSelectServer={(serverId) => {
+                selectServer(serverId);
+                setViewMode('server');
+                setMobileTab('spaces');
+              }}
+              onOpenCreateServer={() => setCreateServerOpen(true)}
+              onNavigateToDestination={(dest) => {
+                handleNavigateHistory(dest);
+                if (dest.type === 'dm') setMobileTab('dms');
+                else setMobileTab('spaces');
+              }}
+              onOpenQuickSwitcher={() => setMobileSearchOpen(true)}
+              onOpenSavedMessages={() => setSavedMessagesOpen(true)}
+            />
+          ) : mobileTab === 'dms' ? (
+            activeConversationId ? (
+              <DMConversationView conversationId={activeConversationId} />
+            ) : (
+              <MobileDMList onStartNewDM={() => setMobileSearchOpen(true)} />
+            )
+          ) : mobileTab === 'inbox' ? (
+            <div className="mobile-tab-view">
+              <HomeView
+                activeTab="inbox"
+                onSelectTab={setHomeTab}
+                onNavigateToChannel={(serverId, channelId) => {
+                  selectServer(serverId);
+                  selectChannel(channelId);
+                  setViewMode('server');
+                  setMobileTab('spaces');
+                }}
+                onSelectServer={(serverId) => {
+                  selectServer(serverId);
+                  setViewMode('server');
+                  setMobileTab('spaces');
+                }}
+                onOpenCreateServer={() => setCreateServerOpen(true)}
+                onNavigateToDestination={handleNavigateHistory}
+                onOpenQuickSwitcher={() => setMobileSearchOpen(true)}
+                onOpenSavedMessages={() => setSavedMessagesOpen(true)}
+              />
+            </div>
+          ) : (
+            /* mobileTab === 'spaces' or channel view */
+            isStageView ? (
+              <StageRoom onOpenSettings={() => setMobileSettingsOpen(true)} />
+            ) : isForumView ? (
+              <ForumContainer />
+            ) : isVoiceView ? (
+              <VideoRoom onOpenSettings={() => setMobileSettingsOpen(true)} />
+            ) : (
+              <ChatContainer />
+            )
+          )}
+        </main>
+
+        {/* Persistent Mini Call Bar (rendered whenever in call & browsing elsewhere) */}
+        <MiniCallBar
+          onReturnToCall={() => {
+            setViewMode('server');
+            setMobileTab('spaces');
+          }}
+          isFullCallViewActive={isVoiceView || isStageView}
+        />
+
+        {/* Bottom Navigation Bar */}
+        <MobileBottomNav
+          activeTab={mobileTab}
+          onSelectTab={(tab) => {
+            if (tab === 'profile') {
+              setMobileSettingsOpen(true);
+            } else {
+              setMobileTab(tab);
+              if (tab === 'home') {
+                setViewMode('home');
+              } else if (tab === 'dms') {
+                setViewMode('home');
+                setHomeTab('dms');
+              } else if (tab === 'spaces') {
+                setViewMode('server');
+              } else if (tab === 'inbox') {
+                setViewMode('home');
+                setHomeTab('inbox');
+              }
+            }
+          }}
+        />
+
+        {/* Mobile Workspace Switcher Sheet */}
+        <WorkspaceSheet
+          isOpen={workspaceSheetOpen}
+          onClose={() => setWorkspaceSheetOpen(false)}
+          viewMode={viewMode}
+          onSelectHome={() => {
+            setViewMode('home');
+            setMobileTab('home');
+          }}
+          onSelectServer={(sId) => {
+            selectServer(sId);
+            setViewMode('server');
+            setMobileTab('spaces');
+          }}
+          onOpenCreateServer={() => setCreateServerOpen(true)}
+        />
+
+        {/* Mobile Channel Switcher Sheet */}
+        <ChannelSheet
+          isOpen={channelSheetOpen}
+          onClose={() => setChannelSheetOpen(false)}
+          onOpenCreateChannel={() => handleOpenCreateChannel()}
+          onOpenWorkspaceSheet={() => {
+            setChannelSheetOpen(false);
+            setWorkspaceSheetOpen(true);
+          }}
+        />
+
+        {/* Mobile Dedicated Search Screen */}
+        <MobileSearchView
+          isOpen={mobileSearchOpen}
+          onClose={() => setMobileSearchOpen(false)}
+          onNavigateToDM={(convoId) => {
+            setViewMode('home');
+            setMobileTab('dms');
+            selectConversation(convoId);
+          }}
+          onNavigateToServerChannel={(sId, cId) => {
+            selectServer(sId);
+            selectChannel(cId);
+            setViewMode('server');
+            setMobileTab('spaces');
+          }}
+          onNavigateToServer={(sId) => {
+            selectServer(sId);
+            setViewMode('server');
+            setMobileTab('spaces');
+          }}
+        />
+
+        {/* Mobile Member List Sheet */}
+        <BottomSheet
+          isOpen={mobileMemberListOpen}
+          onClose={() => setMobileMemberListOpen(false)}
+          title="Members"
+          maxHeight="80vh"
+        >
+          <div className="mobile-member-sheet-wrap">
+            <MemberList />
+          </div>
+        </BottomSheet>
+
+        {/* Mobile Settings Sheet */}
+        <MobileSettingsSheet
+          isOpen={mobileSettingsOpen}
+          onClose={() => setMobileSettingsOpen(false)}
+        />
+
+        {/* Global Modals for Mobile */}
+        <CreateServerModal
+          isOpen={createServerOpen}
+          onClose={() => setCreateServerOpen(false)}
+          onCreated={(newServer) => {
+            selectServer(newServer.id);
+            setViewMode('server');
+            setMobileTab('spaces');
+          }}
+        />
+
+        <CreateChannelModal
+          isOpen={createChannelOpen}
+          onClose={() => {
+            setCreateChannelOpen(false);
+            setSelectedCategoryId(undefined);
+          }}
+          defaultCategoryId={selectedCategoryId}
+        />
+
+        <InviteAcceptModal
+          isOpen={Boolean(pendingInvite)}
+          inviteCode={pendingInvite?.code || ''}
+          encodedData={pendingInvite?.encodedData}
+          onClose={() => {
+            setPendingInvite(null);
+            if (window.location.pathname.startsWith('/invite/')) {
+              window.history.replaceState({}, '', '/');
+            }
+          }}
+          onSuccess={(server, channelId) => {
+            setPendingInvite(null);
+            setViewMode('server');
+            setMobileTab('spaces');
+            selectServer(server.id, server);
+            if (channelId) {
+              selectChannel(channelId);
+            }
+            if (window.location.pathname.startsWith('/invite/')) {
+              window.history.replaceState({}, '', '/');
+            }
+          }}
+        />
+
+        <SavedMessagesDrawer
+          isOpen={savedMessagesOpen}
+          onClose={() => setSavedMessagesOpen(false)}
+        />
+      </div>
+    );
+  }
+
+  // ====================================================================
+  // DESKTOP APPLICATION VIEWPORT (>= 768px)
+  // ====================================================================
   return (
     <div className={`app-container ${mobileNavOpen ? 'sidebar-open' : ''}`}>
       {/* Mobile Backdrop */}

@@ -127,4 +127,17 @@
   --member-sidebar-width: 240px;
   --topbar-height: 48px;
   --userbar-height: 54px;
+
+  /* Mobile Layout & Ergonomic Tokens */
+  --mobile-bottom-nav-height: 56px;
+  --mobile-header-height: 52px;
+  --mobile-mini-call-height: 48px;
+  --mobile-touch-min: 44px;
+  --mobile-touch-target: 48px;
+
+  /* Safe Area Insets (Hardware Notch / Dynamic Island / Home Indicator) */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
 }

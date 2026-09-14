@@ -6,6 +6,8 @@ import { VideoControls } from './VideoControls';
 import { PreJoinModal } from './PreJoinModal';
 import { ChatContainer } from '../chat/ChatContainer';
 import { Tooltip } from '../ui/Tooltip';
+import { BottomSheet } from '../ui/BottomSheet';
+import { useViewport } from '../../lib/hooks/useViewport';
 import {
   Users,
   ShieldCheck,
@@ -51,10 +53,13 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
     }
   });
 
+  const { isMobile, isLandscape } = useViewport();
   const [viewLayout, setViewLayout] = useState<'grid' | 'focus'>('grid');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [showStatsPopover, setShowStatsPopover] = useState(false);
   const [isRoomFullscreen, setIsRoomFullscreen] = useState(false);
+
+  const effectiveLayout = isMobile && !isLandscape && viewLayout === 'grid' && participants.length > 1 ? 'focus' : viewLayout;
 
   const statsRef = useRef<HTMLDivElement>(null);
 
@@ -426,35 +431,48 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
         <div className="video-room-stage">
           <VideoGrid
             participants={participants}
-            viewLayout={viewLayout}
+            viewLayout={effectiveLayout}
           />
           <VideoControls onOpenSettings={onOpenSettings} />
         </div>
 
-        {/* Discord-style In-Call Chat Side Drawer */}
-        {isChatOpen && (
-          <aside className="video-in-call-chat" aria-label="In-Call Text Chat">
-            <div className="video-chat-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <MessageSquare size={14} style={{ color: 'var(--accent)' }} />
-                <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
-                  Text Chat
-                </span>
-              </div>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => setIsChatOpen(false)}
-                title="Close Text Chat"
-                style={{ width: 24, height: 24, padding: 0 }}
-              >
-                <X size={14} />
-              </button>
-            </div>
-            <div className="video-chat-body">
+        {/* In-Call Text Chat: Mobile BottomSheet or Desktop Side Drawer */}
+        {isMobile ? (
+          <BottomSheet
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            title="In-Call Text Chat"
+            maxHeight="85vh"
+          >
+            <div style={{ height: '70vh', display: 'flex', flexDirection: 'column' }}>
               <ChatContainer />
             </div>
-          </aside>
+          </BottomSheet>
+        ) : (
+          isChatOpen && (
+            <aside className="video-in-call-chat" aria-label="In-Call Text Chat">
+              <div className="video-chat-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <MessageSquare size={14} style={{ color: 'var(--accent)' }} />
+                  <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
+                    Text Chat
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => setIsChatOpen(false)}
+                  title="Close Text Chat"
+                  style={{ width: 24, height: 24, padding: 0 }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="video-chat-body">
+                <ChatContainer />
+              </div>
+            </aside>
+          )
         )}
       </div>
     </div>

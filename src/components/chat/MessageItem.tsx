@@ -24,6 +24,7 @@ import {
 import { PollMessage } from './PollMessage';
 import { Tooltip } from '../ui/Tooltip';
 import { ServerInviteEmbed } from './ServerInviteEmbed';
+import { MessageActionSheet } from './MessageActionSheet';
 
 interface MessageItemProps {
   message: Message;
@@ -54,10 +55,47 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   const [copied, setCopied] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showActionSheet, setShowActionSheet] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const isAuthor = currentUser?.id === message.authorId;
   const authorName = message.author?.displayName || message.author?.username || 'User';
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = setTimeout(() => {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try {
+          navigator.vibrate(15);
+        } catch {}
+      }
+      setShowActionSheet(true);
+    }, 380);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    const deltaX = Math.abs(touch.clientX - touchStartPosRef.current.x);
+    const deltaY = Math.abs(touch.clientY - touchStartPosRef.current.y);
+    if (deltaX > 8 || deltaY > 8) {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -196,6 +234,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       className={`message-item-container ${isGrouped ? 'grouped-msg' : ''}`}
       id={`message-${message.id}`}
       onContextMenu={handleContextMenu}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
     >
       {/* Refined 4-Action Hover Toolbar */}
       <div className="message-hover-actions">
@@ -473,6 +515,26 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           )}
         </div>
       </div>
+
+      {/* Mobile Context Bottom Sheet */}
+      <MessageActionSheet
+        isOpen={showActionSheet}
+        onClose={() => setShowActionSheet(false)}
+        message={message}
+        isAuthor={isAuthor}
+        isBookmarked={isBookmarked}
+        onReact={(emoji) => toggleReaction(message.id, emoji)}
+        onReply={() => setReplyingTo(message)}
+        onOpenThread={onOpenThread ? () => onOpenThread(message) : undefined}
+        onCopy={handleCopy}
+        onCopyLink={handleCopyLink}
+        onToggleBookmark={handleToggleBookmark}
+        onStartEdit={() => {
+          setIsEditing(true);
+          setEditContent(message.content);
+        }}
+        onDelete={() => deleteMessage(message.id)}
+      />
     </div>
   );
 };
