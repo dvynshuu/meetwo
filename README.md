@@ -61,9 +61,10 @@ Meetwo V4 is a premium, lightweight real-time communication platform engineered 
 - **Frontend**: React 18, TypeScript, Vite
 - **Styling**: Vanilla CSS Design Tokens (Obsidian Dark Mode, Glassmorphism)
 - **Icons**: Lucide React
-- **Media Transports**: LiveKit Client SFU + Native WebRTC RTCPeerConnection (W3C Perfect Negotiation)
+- **Media Transports**: LiveKit SFU (`livekit-client` 2.22+) for production; local development P2P adapter with W3C Perfect Negotiation
 - **Audio Processing**: Web Audio API (AnalyserNode, GainNode, OscillatorNode)
-- **Data & Realtime**: Supabase (PostgreSQL with RLS & Realtime) + Built-in multi-tab MockStore fallback
+- **Data & Realtime**: Supabase (PostgreSQL 15+ with RLS & Realtime CDC) via clean Repository Pattern (zero silent mock fallback in production)
+- **Testing**: Vitest for automated unit & integration testing
 
 ---
 
@@ -92,12 +93,17 @@ Meetwo V4 is a premium, lightweight real-time communication platform engineered 
    ```
    Open `http://localhost:5173` in your browser.
 
-4. Build for production:
+4. Run automated test suites:
+   ```bash
+   npm test
+   ```
+
+5. Build for production:
    ```bash
    npm run build
    ```
 
-5. Run diagnostics test harness:
+6. Run in-call diagnostics test harness:
    Press `Ctrl+Shift+D` in any call, navigate to the **Automated Test Harness** tab, and click **Run All Scenarios (A–H)**.
 
 ---

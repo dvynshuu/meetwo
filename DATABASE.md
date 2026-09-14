@@ -1,19 +1,32 @@
-# Meetwo — Database Architecture & Service Layer
+# Meetwo — Database Architecture & Repository Pattern
 
-Meetwo uses **Supabase (PostgreSQL 15+)** as its primary authoritative data store, with Row-Level Security (RLS) and Realtime change-data-capture (CDC) subscriptions.
+Meetwo uses **Supabase (PostgreSQL 15+)** as its authoritative, primary persistence layer with Row-Level Security (RLS) policies, Realtime Change Data Capture (CDC), and atomic PostgreSQL RPC functions.
 
 ---
 
-## 1. Production Database Schema
+## 1. Authoritative Production Hierarchy
 
-The schema migration is codified in [`supabase/migrations/001_production_schema.sql`](file:///c:/CodeBase/Projects/meetwo/supabase/migrations/001_production_schema.sql).
+1. **Identity & Auth**: Supabase Auth (`auth.users`) linked directly to `public.profiles`.
+2. **Application State & Persistence**: PostgreSQL (`profiles`, `servers`, `channels`, `messages`, `bookmarks`, `threads`, `forums`, `dms`, `friends`, `read_states`, `notifications`, `stage_states`).
+3. **Realtime Engine**: Supabase Realtime WebSocket subscriptions on PostgreSQL tables.
+4. **Media SFU**: LiveKit SFU (1080p, 30fps, Opus; no silent P2P fallback in production).
+5. **Mocks & Local Adapters**: Development/test harness adapters only; **zero silent mock fallbacks in production**.
+
+---
+
+## 2. Production Database Schema
+
+The database migrations are codified in:
+- [`supabase/migrations/001_production_schema.sql`](file:///c:/CodeBase/Projects/meetwo/supabase/migrations/001_production_schema.sql)
+- [`supabase/migrations/002_coherent_production_schema.sql`](file:///c:/CodeBase/Projects/meetwo/supabase/migrations/002_coherent_production_schema.sql)
+- Consolidated: [`supabase/schema.sql`](file:///c:/CodeBase/Projects/meetwo/supabase/schema.sql)
 
 ### Core Tables
 
 | Table | Description | Key Columns |
 |---|---|---|
 | `profiles` | User profiles synced with Supabase Auth | `id` (UUID PK), `username`, `display_name`, `avatar_url`, `status`, `custom_status` (JSONB) |
-| `servers` | Workspaces/Communities | `id` (UUID PK), `name`, `icon_url`, `description`, `owner_id` (FK to profiles) |
+| `servers` | Workspaces / Communities | `id` (UUID PK), `name`, `icon_url`, `description`, `owner_id` (FK to profiles) |
 | `server_members` | Server membership & roles | `server_id`, `user_id`, `role` (`'owner'` \| `'admin'` \| `'member'`), `joined_at` |
 | `categories` | Channel organizational categories | `id` (UUID PK), `server_id`, `name`, `position` |
 | `channels` | Text, voice, stage, and forum channels | `id` (UUID PK), `server_id`, `category_id`, `name`, `type`, `topic`, `position` |
@@ -22,10 +35,12 @@ The schema migration is codified in [`supabase/migrations/001_production_schema.
 | `attachments` | File and media metadata | `id` (UUID PK), `message_id`, `url`, `filename`, `file_size`, `content_type` |
 | `invites` | Shareable workspace invite links | `id` (UUID PK), `server_id`, `code`, `creator_id`, `max_uses`, `uses_count`, `expires_at` |
 
-### Small-Group & Collaboration Tables
+### Attention, Stage & Collaboration Tables
 
 | Table | Description | Key Columns |
 |---|---|---|
+| `notifications` | Cross-device attention feed (mentions, replies, DMs) | `id` (UUID PK), `user_id`, `type`, `source_id`, `actor_id`, `server_id`, `channel_id`, `content`, `is_read`, `created_at` |
+| `stage_states` | Authoritative stage queue & approved speakers | `channel_id` (UUID PK), `host_id`, `speakers` (JSONB), `hand_raised_queue` (JSONB), `stage_settings` (JSONB) |
 | `bookmarks` | Saved/bookmarked messages | `id` (UUID PK), `user_id`, `message_id`, `created_at` |
 | `threads` | Message conversation threads | `id` (UUID PK), `channel_id`, `parent_message_id`, `created_at` |
 | `thread_messages` | Replies in a specific thread | `id` (UUID PK), `thread_id`, `author_id`, `content`, `created_at` |
@@ -35,41 +50,43 @@ The schema migration is codified in [`supabase/migrations/001_production_schema.
 | `dm_participants` | Participants in direct chats | `conversation_id`, `user_id`, `joined_at` |
 | `dm_messages` | Messages inside direct chats | `id` (UUID PK), `conversation_id`, `sender_id`, `content`, `read_by`, `created_at` |
 | `friends` | Friend relationships & requests | `user_id`, `friend_id`, `status` (`'pending_sent'` \| `'pending_received'` \| `'accepted'`), `created_at` |
-| `read_states` | Attention & unread tracking | `user_id`, `entity_type` (`'channel'` \| `'dm'`), `entity_id`, `last_read_message_id`, `last_read_at` |
+| `read_states` | Cursor-based attention & unread tracking | `user_id`, `entity_type` (`'channel'` \| `'dm'`), `entity_id`, `last_read_message_id`, `last_read_at` |
 
 ---
 
-## 2. Realtime Subscriptions & CDC
+## 3. Atomic PostgreSQL RPC Functions
 
-To support instantaneous live updates across multiple users:
-1. **`REPLICA IDENTITY FULL`**: Enabled on `messages` and `message_reactions` so Postgres change events include full previous records for delete and unreaction events.
-2. **Channel Postgres Subscriptions**:
-   - `supabase.channel('channel:${channelId}').on('postgres_changes', ...)` for new messages, edits, and deletions.
-   - `supabase.channel('thread:${threadId}')` for real-time thread messages.
-   - `supabase.channel('forum:${channelId}')` for real-time forum discussions.
-   - `supabase.channel('user_dms:${userId}')` for instant notifications and direct messages.
-
----
-
-## 3. Modular Service Layer (`src/lib/services/`)
-
-All database interactions flow through dedicated, strongly-typed service classes with fallback resilience:
-
-1. **`StorageService`**: Validates file size (≤ 25MB), uploads files to Supabase Storage bucket `attachments`, generates public download URLs, and provides inline fallback if storage bucket is inaccessible.
-2. **`MessageService`**: Handles channel message persistence, attachment linking, edits, deletions, and emoji reactions with optimistic client-side UI updates.
-3. **`ThreadService`**: Manages thread creation from messages, reply posting, and real-time subscription.
-4. **`BookmarkService`**: Toggles and persists user message bookmarks in the `bookmarks` table.
-5. **`ForumService`**: Manages forum posts, replies, and solution marking (`is_solved = true`).
-6. **`DMService`**: Manages 1:1 direct conversations, participant verification, direct message sending, and real-time subscriptions.
-7. **`FriendService`**: User search by handle/display name, friend request lifecycle, and removal.
-8. **`SearchService`**: Multi-entity search across channels, messages, and forum posts with author and channel filters.
-9. **`ReadStateService`**: Cursor-based unread tracking for channels and direct conversations.
+To eliminate race conditions, invite leaks, and client-side privilege escalation:
+1. **`join_server_with_invite(p_code TEXT)`**:
+   - `SECURITY DEFINER` function executed under caller authentication (`auth.uid()`).
+   - Validates that the invite code exists, has not expired, and has not exceeded `max_uses`.
+   - Idempotently adds caller to `server_members` with role `'member'`.
+   - Atomically increments `uses_count`.
+   - Returns `{ success: true, server_id, server_name, icon_url }`.
+2. **Stage RPCs (`raise_stage_hand`, `lower_stage_hand`, `moderate_stage_speaker`)**:
+   - Manages stage audience queues and speaker role transitions server-side with strict permission verification.
+3. **`handle_new_message_notifications()`**:
+   - Database trigger that scans new messages for `@username` mentions and reply targets, automatically populating `public.notifications`.
 
 ---
 
-## 4. Zero-Downtime & Graceful Degradation
+## 4. Repository Pattern (`src/lib/repositories/`)
 
-If any table from the migration hasn't yet been executed in a development Supabase instance:
-- Service methods intercept Postgres errors (`PGRST204`, table missing).
-- The service gracefully falls back to local reactive storage (`mockStore`) rather than throwing an unhandled exception or breaking UI rendering.
-- Production users with the migration applied automatically enjoy full remote persistence and multi-device sync.
+Data access is fully abstracted using repository interfaces:
+
+- `IMessageRepository`
+- `IServerRepository`
+- `IChannelRepository`
+- `IDMRepository`
+- `IBookmarkRepository`
+- `IThreadRepository`
+- `IForumRepository`
+- `INotificationRepository`
+- `IReadStateRepository`
+- `IStageRepository`
+- `ISearchRepository`
+- `IFriendRepository`
+
+### Behavior Guarantee:
+- When running in **Production** (`VITE_APP_ENV=production` or `PROD`), Supabase repositories execute all database queries and throw typed `ServiceError` on failures. **There is no silent fallback to mocks in production.**
+- In local development without database credentials, `MockRepository` adapters provide multi-tab simulation.

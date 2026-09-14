@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserStatus } from '../../types';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { mockStore } from '../../lib/supabase/mockStore';
+import { ReadStateService } from '../../lib/services/readStateService';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -38,7 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .maybeSingle();
 
       if (profile) {
-        return {
+        const u: User = {
           id: profile.id,
           username: profile.username,
           displayName: profile.display_name,
@@ -47,6 +48,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           status: profile.status || 'online',
           createdAt: profile.created_at,
         };
+        ReadStateService.hydrate(u.id);
+        return u;
       }
     } catch (e) {
       console.warn('Failed to query profile, creating fallback:', e);
@@ -87,6 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     } catch {}
 
+    ReadStateService.hydrate(fallbackUser.id);
     return fallbackUser;
   };
 
@@ -101,7 +105,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const user = await loadUserProfile(session.user.id, session.user);
             if (isMounted) setCurrentUser(user);
           } else if (isMounted) {
-            // Not logged in
+            // Unauthenticated in production
             setCurrentUser(null);
           }
         } else if (isProduction) {
@@ -112,7 +116,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
           // Development / Local Store mode
           const localUser = mockStore.getCurrentUser();
-          if (isMounted) setCurrentUser(localUser);
+          if (isMounted) {
+            setCurrentUser(localUser);
+            if (localUser) {
+              ReadStateService.hydrate(localUser.id);
+            }
+          }
         }
       } catch (err: any) {
         console.error('Auth initialization error:', err);
@@ -141,19 +150,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       authSubscription = data.subscription;
     }
 
-    // Listen to mock store user updates (multi-tab dev mode)
-    const unsubscribeMock = mockStore.subscribe('USER_UPDATED', (updatedUser: User) => {
-      if (isMounted) {
-        setCurrentUser((prev) => (prev?.id === updatedUser.id ? updatedUser : prev));
-      }
-    });
+    // Listen to mock store user updates (multi-tab dev mode only)
+    let unsubscribeMock = () => {};
+    if (!isProduction && !isSupabaseConfigured) {
+      unsubscribeMock = mockStore.subscribe('USER_UPDATED', (updatedUser: User) => {
+        if (isMounted) {
+          setCurrentUser((prev) => (prev?.id === updatedUser.id ? updatedUser : prev));
+        }
+      });
+    }
 
     return () => {
       isMounted = false;
       if (authSubscription) authSubscription.unsubscribe();
       unsubscribeMock();
     };
-  }, []);
+  }, [isProduction]);
 
   const login = async (email: string, password?: string): Promise<boolean> => {
     setIsLoading(true);
@@ -171,8 +183,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setCurrentUser(user);
         }
         return true;
+      } else if (isProduction) {
+        throw new Error('Supabase authentication is required in production.');
       } else {
-        // Fallback local mode login
+        // Fallback local dev login
         const existingUsers = mockStore.getAllUsers();
         const existing =
           existingUsers.find(
@@ -223,6 +237,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setCurrentUser(user);
         }
         return true;
+      } else if (isProduction) {
+        throw new Error('Supabase authentication is required in production.');
       } else {
         // Local mode sign up
         const newUser: User = {
@@ -275,8 +291,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           updated_at: new Date().toISOString(),
         })
         .eq('id', currentUser.id);
+    } else {
+      mockStore.setCurrentUser(updated);
     }
-    mockStore.setCurrentUser(updated);
     setCurrentUser(updated);
   };
 

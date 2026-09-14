@@ -255,6 +255,20 @@ class MockStore {
     return [];
   }
 
+  public createCategory(serverId: string, name: string): ChannelCategory {
+    const categories = this.getCategories();
+    const serverCategories = categories.filter((c) => c.serverId === serverId);
+    const newCategory: ChannelCategory = {
+      id: `cat-${Date.now()}`,
+      serverId,
+      name,
+      position: serverCategories.length,
+    };
+    categories.push(newCategory);
+    localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
+    return newCategory;
+  }
+
   // Channels
   public getChannels(): Channel[] {
     const saved = localStorage.getItem(STORAGE_KEYS.CHANNELS);

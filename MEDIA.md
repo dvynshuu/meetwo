@@ -83,8 +83,10 @@ Meetwo V4 strictly bans fabricated defaults in telemetry and UI:
 ### Primary: LiveKit SFU (`LiveKitSFUAdapter`)
 - Production media transport with selective forwarding, dynacast, and truthful `getStats()` polling.
 - Independent screen publications with `Track.Source.ScreenShare` and `Track.Source.ScreenShareAudio`.
+- Enforces room authorization and stage participant scopes (`canPublish: false` for audience).
+- In production (`VITE_APP_ENV=production`), connection failures report actionable error diagnostics with retry rather than falling back silently.
 
-### Fallback: Enhanced P2P Mesh (`PeerConnectionManager`)
+### Development Adapter: Enhanced P2P Mesh (`PeerConnectionManager`)
 - W3C Perfect Negotiation with polite/impolite glare resolution.
 - Per-peer sender track parameter adaptation.
-- Multi-tab and offline sandbox support via `BroadcastChannel`.
+- Multi-tab and offline sandbox support via `BroadcastChannel` in development/mock mode only. Silent P2P fallback in production is strictly disabled.

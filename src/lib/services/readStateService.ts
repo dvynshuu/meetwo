@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from '../supabase/client';
+import { readStateRepository } from '../repositories';
 
 export interface ReadMarker {
   channelId?: string;
@@ -9,6 +9,23 @@ export interface ReadMarker {
 
 export class ReadStateService {
   private static localReadCache = new Map<string, string>(); // Key: channelId or convoId -> lastReadAt
+  private static isHydrated = false;
+
+  /**
+   * Hydrates the read state cache from the authoritative PostgreSQL database.
+   */
+  public static async hydrate(userId: string): Promise<void> {
+    if (!userId) return;
+    try {
+      const serverReads = await readStateRepository.getReadStates(userId);
+      for (const [k, v] of Object.entries(serverReads)) {
+        this.localReadCache.set(k, v);
+      }
+      this.isHydrated = true;
+    } catch (e) {
+      console.warn('[ReadStateService] Failed to hydrate read states:', e);
+    }
+  }
 
   /**
    * Records that a user has read up to a certain point in a channel or DM conversation.
@@ -23,32 +40,11 @@ export class ReadStateService {
     const now = new Date().toISOString();
     this.localReadCache.set(key, now);
 
-    // Save to localStorage for instant client recovery
     try {
       localStorage.setItem(`mw:read:${key}`, now);
     } catch {}
 
-    if (isSupabaseConfigured && supabase && userId) {
-      try {
-        if (target.channelId) {
-          await supabase.from('read_states').upsert({
-            user_id: userId,
-            channel_id: target.channelId,
-            last_read_message_id: target.messageId || null,
-            last_read_at: now,
-          });
-        } else if (target.conversationId) {
-          await supabase.from('read_states').upsert({
-            user_id: userId,
-            conversation_id: target.conversationId,
-            last_read_message_id: target.messageId || null,
-            last_read_at: now,
-          });
-        }
-      } catch (err) {
-        console.warn('[ReadStateService] Upsert read state error:', err);
-      }
-    }
+    await readStateRepository.markAsRead(userId, target);
   }
 
   /**

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Modal } from './Modal';
 import { useAuth } from '../../app/providers/AuthContext';
-import { mockStore } from '../../lib/supabase/mockStore';
 import { Smile, Clock, X, Check } from 'lucide-react';
 
 interface CustomStatusModalProps {
@@ -10,7 +9,7 @@ interface CustomStatusModalProps {
 }
 
 export const CustomStatusModal: React.FC<CustomStatusModalProps> = ({ isOpen, onClose }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, updateProfile } = useAuth();
   const [text, setText] = useState(currentUser?.customStatus?.text || '');
   const [emoji, setEmoji] = useState(currentUser?.customStatus?.emoji || '💬');
   const [duration, setDuration] = useState<'never' | '30m' | '1h' | '4h' | 'today'>('never');
@@ -19,7 +18,7 @@ export const CustomStatusModal: React.FC<CustomStatusModalProps> = ({ isOpen, on
 
   const handleSave = () => {
     if (!text.trim()) {
-      mockStore.updateCustomStatus(undefined);
+      updateProfile({ customStatus: undefined });
       onClose();
       return;
     }
@@ -38,16 +37,18 @@ export const CustomStatusModal: React.FC<CustomStatusModalProps> = ({ isOpen, on
       expiresAt = endOfDay.toISOString();
     }
 
-    mockStore.updateCustomStatus({
-      text: text.trim(),
-      emoji,
-      expiresAt,
+    updateProfile({
+      customStatus: {
+        text: text.trim(),
+        emoji,
+        expiresAt,
+      },
     });
     onClose();
   };
 
   const handleClear = () => {
-    mockStore.updateCustomStatus(undefined);
+    updateProfile({ customStatus: undefined });
     setText('');
     onClose();
   };

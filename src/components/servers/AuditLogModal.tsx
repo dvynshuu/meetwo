@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
-import { mockStore } from '../../lib/supabase/mockStore';
+import { serverRepository } from '../../lib/repositories';
 import { useServer } from '../../app/providers/ServerContext';
 import { AuditLogEntry } from '../../types';
 import { Shield, Clock, Search, Filter, UserCheck } from 'lucide-react';
@@ -17,7 +17,15 @@ export const AuditLogModal: React.FC<AuditLogModalProps> = ({ isOpen, onClose })
 
   useEffect(() => {
     if (isOpen && activeServer) {
-      setLogs(mockStore.getAuditLogs(activeServer.id));
+      let isCancelled = false;
+      serverRepository.getAuditLogs(activeServer.id).then((result) => {
+        if (!isCancelled) {
+          setLogs(result);
+        }
+      });
+      return () => {
+        isCancelled = true;
+      };
     }
   }, [isOpen, activeServer?.id]);
 

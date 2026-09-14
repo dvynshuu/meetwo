@@ -19,8 +19,7 @@ import { PeerConnectionManager } from '../../lib/webrtc/peerConnection';
 import { LiveKitSFUAdapter, ITransportAdapter } from '../../lib/webrtc/transportAdapter';
 import { getLiveKitToken } from '../../lib/webrtc/livekitToken';
 import { ReconnectionManager } from '../../lib/webrtc/reconnectionManager';
-import { logger } from '../../lib/webrtc/observability';
-import { mockStore } from '../../lib/supabase/mockStore';
+import { StageService } from '../../lib/services/stageService';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { useAuth } from './AuthContext';
 
@@ -200,49 +199,69 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Synchronize server-authoritative stage state machine
   useEffect(() => {
-    const unsubStage = mockStore.on('STAGE_STATE_CHANGED', (stage: any) => {
-      if (activeRoomId && stage.channelId === activeRoomId) {
-        if (currentUser) {
-          const isHost = stage.hostId === currentUser.id;
-          const isSpeaker = Boolean(stage.speakers?.includes(currentUser.id));
-          const role = isHost ? 'host' : isSpeaker ? 'speaker' : 'listener';
-          setMyStageRole(role);
-          setMyHandRaised(Boolean(stage.handRaisedQueue?.includes(currentUser.id)));
-        }
+    if (!activeRoomId) return;
 
-        setRemoteParticipants((prev) => {
-          const next = new Map(prev);
-          next.forEach((participant, peerId) => {
-            const pUserId = participant.userId || peerId;
-            const isHost = stage.hostId === pUserId;
-            const isSpeaker = Boolean(stage.speakers?.includes(pUserId));
-            const pRole = isHost ? 'host' : isSpeaker ? 'speaker' : 'listener';
-            next.set(peerId, {
-              ...participant,
-              stageRole: pRole,
-              isStageSpeaker: isHost || isSpeaker,
-              isHandRaised: Boolean(stage.handRaisedQueue?.includes(pUserId)),
+    // 1. Initial hydration from database
+    StageService.getStageState(activeRoomId).then((stage) => {
+      if (stage && currentUser) {
+        const isHost = stage.hostId === currentUser.id;
+        const isSpeaker = Boolean(stage.speakers?.includes(currentUser.id));
+        const role: StageRole = isHost ? 'host' : isSpeaker ? 'speaker' : 'listener';
+        setMyStageRole(role);
+        setMyHandRaised(Boolean(stage.handRaisedQueue?.includes(currentUser.id)));
+      }
+    });
+
+    // 2. Realtime listener for stage state changes in Supabase
+    let stageChannel: any = null;
+    if (isSupabaseConfigured && supabase) {
+      stageChannel = supabase
+        .channel(`stage_sync:${activeRoomId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'stage_states',
+            filter: `channel_id=eq.${activeRoomId}`,
+          },
+          (payload) => {
+            const stage = payload.new as any;
+            if (!stage || stage.channel_id !== activeRoomId) return;
+
+            if (currentUser) {
+              const isHost = stage.host_id === currentUser.id;
+              const isSpeaker = Boolean(stage.speakers?.includes(currentUser.id));
+              const role: StageRole = isHost ? 'host' : isSpeaker ? 'speaker' : 'listener';
+              setMyStageRole(role);
+              setMyHandRaised(Boolean(stage.hand_raised_queue?.includes(currentUser.id)));
+            }
+
+            setRemoteParticipants((prev) => {
+              const next = new Map(prev);
+              next.forEach((participant, peerId) => {
+                const pUserId = participant.userId || peerId;
+                const isHost = stage.host_id === pUserId;
+                const isSpeaker = Boolean(stage.speakers?.includes(pUserId));
+                const pRole: StageRole = isHost ? 'host' : isSpeaker ? 'speaker' : 'listener';
+                next.set(peerId, {
+                  ...participant,
+                  stageRole: pRole,
+                  isStageSpeaker: isHost || isSpeaker,
+                  isHandRaised: Boolean(stage.hand_raised_queue?.includes(pUserId)),
+                });
+              });
+              return next;
             });
-          });
-          return next;
-        });
-      }
-    });
-
-    const unsubApproved = mockStore.on('STAGE_ACTION_APPROVED', (data: { channelId: string; targetUserId: string; action: 'invite' | 'demote' }) => {
-      if (activeRoomId && data.channelId === activeRoomId && currentUser && data.targetUserId === currentUser.id) {
-        if (data.action === 'invite') {
-          setMyStageRole('speaker');
-          setMyHandRaised(false);
-        } else if (data.action === 'demote') {
-          setMyStageRole('listener');
-        }
-      }
-    });
+          }
+        )
+        .subscribe();
+    }
 
     return () => {
-      unsubStage();
-      unsubApproved();
+      if (stageChannel && supabase) {
+        supabase.removeChannel(stageChannel);
+      }
     };
   }, [activeRoomId, currentUser]);
 
@@ -315,7 +334,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         // Check stage state if active room is a stage channel
-        const stageState = mockStore.getStageState(roomId);
+        const stageState = await StageService.getStageState(roomId);
         const isHost = stageState ? stageState.hostId === currentUser.id : false;
         const isSpeaker = Boolean(stageState?.speakers?.includes(currentUser.id));
         const initialRole: StageRole = isHost ? 'host' : isSpeaker ? 'speaker' : 'listener';
@@ -530,24 +549,25 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           },
         };
 
+        const isProduction =
+          (import.meta as any).env?.VITE_APP_ENV === 'production' ||
+          (import.meta as any).env?.PROD;
+
         let transport: ITransportAdapter;
         if (livekitUrl && livekitToken) {
           console.info('[MediaEngine] Initializing LiveKit SFU Transport (Primary Production Transport)');
           setProductionConfigError(null);
           transport = new LiveKitSFUAdapter(livekitUrl, livekitToken, callbacks);
+        } else if (isProduction) {
+          const errMsg = 'LiveKit SFU connection error: Valid token or server configuration unavailable.';
+          console.error('[MediaEngine]', errMsg);
+          setProductionConfigError(errMsg);
+          setConnectionState('failed');
+          throw new Error(errMsg);
         } else {
-          // Graceful fallback to Enhanced Direct Media Engine (WebRTC Mesh)
-          if (livekitUrl && !livekitToken) {
-            console.warn(
-              '[MediaEngine] LiveKit URL configured but token unavailable. Gracefully falling back to Direct WebRTC Engine.'
-            );
-            setProductionConfigError(
-              'Notice: LiveKit SFU token unavailable. Connected via Direct WebRTC Engine.'
-            );
-          } else {
-            setProductionConfigError(null);
-          }
-          console.info('[MediaEngine] Initializing Enhanced Direct Media Engine (Direct WebRTC Mesh)');
+          // Isolated local development sandbox only
+          console.info('[MediaEngine] Dev Mode: Initializing Enhanced Direct Media Engine (WebRTC Mesh)');
+          setProductionConfigError(null);
           transport = new PeerConnectionManager(currentUser.id, callbacks);
         }
 
@@ -696,29 +716,37 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [isScreenSharing, stopScreenSharing, startScreenSharing]);
 
-  // Server-Authoritative Stage Hand-Raising (Phases 11 & 12)
+  // Server-Authoritative Stage Hand-Raising
   const raiseHand = useCallback(async () => {
     if (!activeRoomId || !currentUser) return;
-    mockStore.requestToSpeak(activeRoomId, currentUser.id);
-    setMyHandRaised(true);
-    if (transportRef.current) {
-      await transportRef.current.sendStageRole(myStageRole, true);
+    try {
+      await StageService.raiseHand(activeRoomId);
+      setMyHandRaised(true);
+      if (transportRef.current) {
+        await transportRef.current.sendStageRole(myStageRole, true);
+      }
+    } catch (err) {
+      console.warn('[MediaContext] Failed to raise hand:', err);
     }
   }, [activeRoomId, currentUser, myStageRole]);
 
   const lowerHand = useCallback(async () => {
     if (!activeRoomId || !currentUser) return;
-    mockStore.lowerHand(activeRoomId, currentUser.id, currentUser.id);
-    setMyHandRaised(false);
-    if (transportRef.current) {
-      await transportRef.current.sendStageRole(myStageRole, false);
+    try {
+      await StageService.lowerHand(activeRoomId);
+      setMyHandRaised(false);
+      if (transportRef.current) {
+        await transportRef.current.sendStageRole(myStageRole, false);
+      }
+    } catch (err) {
+      console.warn('[MediaContext] Failed to lower hand:', err);
     }
   }, [activeRoomId, currentUser, myStageRole]);
 
   const setStageRole = useCallback(async (role: 'host' | 'speaker' | 'listener') => {
     if (!activeRoomId || !currentUser) return;
     if (role === 'listener') {
-      mockStore.demoteSpeaker(activeRoomId, currentUser.id, currentUser.id);
+      await StageService.lowerHand(activeRoomId).catch(() => {});
     }
     setMyStageRole(role);
     if (transportRef.current) {
@@ -726,80 +754,77 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [activeRoomId, currentUser, myHandRaised]);
 
-  // Targeted Stage Moderation Actions validated through server mockStore
+  // Targeted Stage Moderation Actions validated through server RPCs
   const inviteToStage = useCallback(async (targetUserId: string) => {
     if (!activeRoomId || !currentUser) return;
-    const res = mockStore.approveSpeaker(activeRoomId, currentUser.id, targetUserId);
-    if (!res.success) {
-      console.warn('[MediaContext] Unauthorized stage invitation:', res.error);
-      return;
-    }
-
-    if (transportRef.current) {
-      await transportRef.current.sendTargetedStageAction(targetUserId, 'invite');
-    }
-    setRemoteParticipants((prev) => {
-      const next = new Map(prev);
-      const target = next.get(targetUserId);
-      if (target) {
-        next.set(targetUserId, {
-          ...target,
-          stageRole: 'speaker',
-          isStageSpeaker: true,
-          isHandRaised: false,
-        });
+    try {
+      await StageService.moderateSpeaker(activeRoomId, targetUserId, 'invite');
+      if (transportRef.current) {
+        await transportRef.current.sendTargetedStageAction(targetUserId, 'invite');
       }
-      return next;
-    });
+      setRemoteParticipants((prev) => {
+        const next = new Map(prev);
+        const target = next.get(targetUserId);
+        if (target) {
+          next.set(targetUserId, {
+            ...target,
+            stageRole: 'speaker',
+            isStageSpeaker: true,
+            isHandRaised: false,
+          });
+        }
+        return next;
+      });
+    } catch (err) {
+      console.warn('[MediaContext] Unauthorized stage invitation:', err);
+    }
   }, [activeRoomId, currentUser]);
 
   const demoteToListener = useCallback(async (targetUserId: string) => {
     if (!activeRoomId || !currentUser) return;
-    const res = mockStore.demoteSpeaker(activeRoomId, currentUser.id, targetUserId);
-    if (!res.success) {
-      console.warn('[MediaContext] Unauthorized stage demotion:', res.error);
-      return;
-    }
-
-    if (transportRef.current) {
-      await transportRef.current.sendTargetedStageAction(targetUserId, 'demote');
-    }
-    setRemoteParticipants((prev) => {
-      const next = new Map(prev);
-      const target = next.get(targetUserId);
-      if (target) {
-        next.set(targetUserId, {
-          ...target,
-          stageRole: 'listener',
-          isStageSpeaker: false,
-        });
+    try {
+      await StageService.moderateSpeaker(activeRoomId, targetUserId, 'demote');
+      if (transportRef.current) {
+        await transportRef.current.sendTargetedStageAction(targetUserId, 'demote');
       }
-      return next;
-    });
+      setRemoteParticipants((prev) => {
+        const next = new Map(prev);
+        const target = next.get(targetUserId);
+        if (target) {
+          next.set(targetUserId, {
+            ...target,
+            stageRole: 'listener',
+            isStageSpeaker: false,
+          });
+        }
+        return next;
+      });
+    } catch (err) {
+      console.warn('[MediaContext] Unauthorized stage demotion:', err);
+    }
   }, [activeRoomId, currentUser]);
 
   const lowerParticipantHand = useCallback(async (targetUserId: string) => {
     if (!activeRoomId || !currentUser) return;
-    const res = mockStore.lowerHand(activeRoomId, currentUser.id, targetUserId);
-    if (!res.success) {
-      console.warn('[MediaContext] Unauthorized lowerHand:', res.error);
-      return;
-    }
-
-    if (transportRef.current) {
-      await transportRef.current.sendTargetedStageAction(targetUserId, 'lower-hand');
-    }
-    setRemoteParticipants((prev) => {
-      const next = new Map(prev);
-      const target = next.get(targetUserId);
-      if (target) {
-        next.set(targetUserId, {
-          ...target,
-          isHandRaised: false,
-        });
+    try {
+      await StageService.lowerHand(activeRoomId, targetUserId);
+      if (transportRef.current) {
+        await transportRef.current.sendTargetedStageAction(targetUserId, 'lower-hand');
       }
-      return next;
-    });
+      setRemoteParticipants((prev) => {
+        const next = new Map(prev);
+        const target = next.get(targetUserId);
+        if (target) {
+          next.set(targetUserId, {
+            ...target,
+            isHandRaised: false,
+          });
+        }
+        return next;
+      });
+    } catch (err) {
+      console.warn('[MediaContext] Unauthorized lowerHand:', err);
+    }
   }, [activeRoomId, currentUser]);
 
   // Device settings update

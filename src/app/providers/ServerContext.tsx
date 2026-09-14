@@ -1,29 +1,26 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Server, Channel, ServerMember, ChannelType, Invite } from '../../types';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { Server, Channel, ServerMember, ChannelType, ChannelCategory, Invite } from '../../types';
+import { serverRepository, channelRepository, ResolvedInvite } from '../../lib/repositories';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
-import { mockStore } from '../../lib/supabase/mockStore';
 import { useAuth } from './AuthContext';
 
-export interface ResolvedInvite {
-  invite: Invite;
-  server: Server;
-  inviter?: { displayName: string; avatarUrl?: string };
-  isMember?: boolean;
-  memberCount?: number;
-}
+export type { ResolvedInvite };
 
 interface ServerContextType {
   servers: Server[];
   activeServer: Server | null;
   channels: Channel[];
   allChannels: Channel[];
+  categories: ChannelCategory[];
   activeChannel: Channel | null;
   members: ServerMember[];
   isLoading: boolean;
+  error: string | null;
   selectServer: (serverId: string, fallbackServer?: Server) => void;
   selectChannel: (channelId: string) => void;
   createServer: (name: string, iconUrl?: string) => Promise<Server>;
   createChannel: (serverId: string, name: string, type: ChannelType, topic?: string, categoryId?: string) => Promise<Channel>;
+  createCategory: (serverId: string, name: string) => Promise<ChannelCategory>;
   createInvite: (serverId: string, options?: { maxUses?: number; expiresInHours?: number }) => Promise<Invite>;
   resolveInvite: (code: string, encodedData?: string | null) => Promise<ResolvedInvite | null>;
   acceptInvite: (code: string, encodedData?: string | null) => Promise<{ server: Server; channelId?: string }>;
@@ -33,664 +30,245 @@ interface ServerContextType {
 
 const ServerContext = createContext<ServerContextType | undefined>(undefined);
 
-const mapChannel = (c: any): Channel => ({
-  ...c,
-  id: c.id,
-  serverId: c.serverId || c.server_id,
-  name: c.name,
-  type: c.type,
-  topic: c.topic || '',
-  categoryId: c.categoryId || c.category_id || undefined,
-  position: c.position ?? 0,
-  unreadCount: c.unreadCount || 0,
-  createdAt: c.createdAt || c.created_at,
-});
-
 export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAuth();
   const [servers, setServers] = useState<Server[]>([]);
   const [activeServer, setActiveServer] = useState<Server | null>(null);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [allChannels, setAllChannels] = useState<Channel[]>([]);
+  const [categories, setCategories] = useState<ChannelCategory[]>([]);
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
   const [members, setMembers] = useState<ServerMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     try {
-      if (isSupabaseConfigured && supabase && currentUser) {
-        // Fetch servers user belongs to
-        const { data: serverData } = await supabase
-          .from('servers')
-          .select('*, channels(*)')
-          .order('created_at', { ascending: true });
+      const loadedServers = await serverRepository.getServers();
+      setServers(loadedServers);
 
-        if (serverData && serverData.length > 0) {
-          const loadedServers: Server[] = serverData.map((s: any) => ({
-            id: s.id,
-            name: s.name,
-            iconUrl: s.icon_url,
-            description: s.description,
-            ownerId: s.owner_id,
-            createdAt: s.created_at,
-          }));
-          setServers(loadedServers);
-          const initialServer = loadedServers[0];
-          setActiveServer(initialServer);
+      if (loadedServers.length > 0) {
+        const initial = loadedServers[0];
+        setActiveServer(initial);
 
-          // All accessible channels across all servers
-          const globalChannels = serverData.flatMap((s: any) => (s.channels || []).map(mapChannel));
-          setAllChannels(globalChannels);
+        const globalChannels = await channelRepository.getAllChannels();
+        setAllChannels(globalChannels);
 
-          // Channels for initial server
-          const activeChannels = (serverData[0].channels || []).map(mapChannel);
-          setChannels(activeChannels);
-          if (activeChannels.length > 0) {
-            setActiveChannel(activeChannels[0]);
-          }
+        const serverChans = globalChannels.filter((c) => c.serverId === initial.id);
+        setChannels(serverChans);
+        if (serverChans.length > 0) {
+          setActiveChannel(serverChans[0]);
         }
+
+        const serverCats = await channelRepository.getCategories(initial.id);
+        setCategories(serverCats);
+
+        const serverMembers = await serverRepository.getServerMembers(initial.id);
+        setMembers(serverMembers);
       } else {
-        // Demo mode
-        const allServers = mockStore.getServers();
-        setServers(allServers);
-
-        if (allServers.length > 0) {
-          const initial = allServers[0];
-          setActiveServer(initial);
-
-          const globalChannels = mockStore.getChannels();
-          setAllChannels(globalChannels);
-
-          const serverChannels = globalChannels.filter((c) => c.serverId === initial.id);
-          setChannels(serverChannels);
-          if (serverChannels.length > 0) {
-            setActiveChannel(serverChannels[0]);
-          }
-
-          const serverMembers = mockStore.getServerMembers(initial.id);
-          setMembers(serverMembers);
-        }
+        setActiveServer(null);
+        setChannels([]);
+        setAllChannels([]);
+        setCategories([]);
+        setActiveChannel(null);
+        setMembers([]);
       }
-    } catch (err) {
-      console.error('Error loading servers:', err);
+    } catch (err: any) {
+      console.error('[ServerContext] Error loading servers:', err);
+      setError(err.message || 'Failed to load workspace data');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadData();
+  }, [loadData, currentUser?.id]);
 
-    // Listen for mock store updates
-    const unsubs = [
-      mockStore.subscribe('SERVER_CREATED', (newServer: Server) => {
-        setServers((prev) => (prev.some((s) => s.id === newServer.id) ? prev : [...prev, newServer]));
-      }),
-      mockStore.subscribe('CHANNEL_CREATED', (newChannel: Channel) => {
-        setChannels((prev) => (prev.some((c) => c.id === newChannel.id) ? prev : [...prev, newChannel]));
-      }),
-      mockStore.subscribe('MEMBER_JOINED', (newMember: ServerMember) => {
-        setMembers((prev) => {
-          if (prev.some((m) => m.serverId === newMember.serverId && m.userId === newMember.userId)) {
-            return prev;
-          }
-          const users = mockStore.getAllUsers();
-          const enriched = { ...newMember, user: users.find((u) => u.id === newMember.userId) };
-          return [...prev, enriched];
-        });
-      }),
-    ];
-
-    return () => unsubs.forEach((u) => u());
-  }, [currentUser?.id]);
-
-  // When active server changes, update channels and members
-  const selectServer = (serverId: string, fallbackServer?: Server) => {
-    let target = servers.find((s) => s.id === serverId) || fallbackServer;
-    if (!target) {
-      target = mockStore.getServers().find((s) => s.id === serverId);
-    }
-    if (!target) return;
-
-    setServers((prev) => (prev.some((s) => s.id === target!.id) ? prev : [...prev, target!]));
-    setActiveServer(target);
-
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('channels')
-        .select('*')
-        .eq('server_id', serverId)
-        .order('position', { ascending: true })
-        .then(({ data, error }) => {
-          if (!error && data && data.length > 0) {
-            const mapped = data.map(mapChannel);
-            setChannels(mapped);
-            if (mapped.length > 0) setActiveChannel(mapped[0]);
-          } else {
-            // Fallback to local channels if Supabase channels table is empty or loading
-            const localChans = mockStore.getChannels().filter((c) => c.serverId === serverId);
-            if (localChans.length > 0) {
-              setChannels(localChans);
-              setActiveChannel(localChans[0]);
-            } else {
-              // Guarantee default general channel exists
-              const genChan = mockStore.createChannel(serverId, 'general', 'text', 'Welcome!');
-              setChannels([genChan]);
-              setActiveChannel(genChan);
-            }
-          }
-        });
-
-      // Fetch server members in Supabase
-      supabase
-        .from('server_members')
-        .select('*, profiles:user_id(*)')
-        .eq('server_id', serverId)
-        .then(({ data }) => {
-          if (data && data.length > 0) {
-            const mappedMembers: ServerMember[] = data.map((m: any) => ({
-              serverId: m.server_id,
-              userId: m.user_id,
-              role: m.role || 'member',
-              joinedAt: m.joined_at,
-              user: m.profiles
-                ? {
-                    id: m.profiles.id,
-                    username: m.profiles.username,
-                    displayName: m.profiles.display_name || m.profiles.username,
-                    avatarUrl: m.profiles.avatar_url,
-                    status: m.profiles.status || 'online',
-                    createdAt: m.profiles.created_at,
-                  }
-                : undefined,
-            }));
-            setMembers(mappedMembers);
-          } else {
-            const localMembers = mockStore.getServerMembers(serverId);
-            setMembers(localMembers);
-          }
-        });
-    } else {
-      const allChannels = mockStore.getChannels();
-      const serverChannels = allChannels.filter((c) => c.serverId === serverId);
-      setChannels(serverChannels);
-      if (serverChannels.length > 0) {
-        setActiveChannel(serverChannels[0]);
-      } else {
-        const genChan = mockStore.createChannel(serverId, 'general', 'text', 'Welcome!');
-        setChannels([genChan]);
-        setActiveChannel(genChan);
-      }
-
-      const serverMembers = mockStore.getServerMembers(serverId);
-      setMembers(serverMembers);
-    }
-  };
-
-  const selectChannel = (channelId: string) => {
-    const target = channels.find((c) => c.id === channelId);
-    if (target) {
-      setActiveChannel(target);
-    }
-  };
-
-  const createServer = async (name: string, iconUrl?: string): Promise<Server> => {
-    if (isSupabaseConfigured && supabase && currentUser) {
-      const { data: server, error } = await supabase
-        .from('servers')
-        .insert({
-          name,
-          icon_url: iconUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${name}`,
-          owner_id: currentUser.id,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-
-      // Add as owner member
-      await supabase.from('server_members').insert({
-        server_id: server.id,
-        user_id: currentUser.id,
-        role: 'owner',
-      });
-
-      // Add default text channel
-      const { data: generalChan } = await supabase
-        .from('channels')
-        .insert({
-          server_id: server.id,
-          name: 'general',
-          type: 'text',
-          position: 0,
-        })
-        .select()
-        .single();
-
-      const newServerObj: Server = {
-        id: server.id,
-        name: server.name,
-        iconUrl: server.icon_url,
-        description: server.description,
-        ownerId: server.owner_id,
-        createdAt: server.created_at,
-      };
-
-      setServers((prev) => [...prev, newServerObj]);
-      setActiveServer(newServerObj);
-      if (generalChan) {
-        const mappedChan = mapChannel(generalChan);
-        setChannels([mappedChan]);
-        setActiveChannel(mappedChan);
-      }
-      return newServerObj;
-    } else {
-      const newServer = mockStore.createServer(name, iconUrl);
-      setServers((prev) => [...prev, newServer]);
-      selectServer(newServer.id);
-      return newServer;
-    }
-  };
-
-  const createChannel = async (
-    serverId: string,
-    name: string,
-    type: ChannelType,
-    topic?: string,
-    categoryId?: string
-  ): Promise<Channel> => {
-    if (isSupabaseConfigured && supabase) {
-      const insertPayload: Record<string, any> = {
-        server_id: serverId,
-        name: name.toLowerCase().replace(/\s+/g, '-'),
-        type,
-        topic: topic || '',
-        position: channels.length,
-      };
-
-      // Only include category_id if provided
-      if (categoryId) {
-        insertPayload.category_id = categoryId;
-      }
-
-      let { data: channel, error } = await supabase
-        .from('channels')
-        .insert(insertPayload)
-        .select()
-        .single();
-
-      // If category_id column does not exist in schema cache, retry without it
-      if (error && (error.message?.includes('category_id') || error.code === 'PGRST204')) {
-        delete insertPayload.category_id;
-        const retryResult = await supabase
-          .from('channels')
-          .insert(insertPayload)
-          .select()
-          .single();
-        channel = retryResult.data;
-        error = retryResult.error;
-      }
-
-      if (error) throw error;
-
-      const mappedChan = mapChannel(channel);
-      setChannels((prev) => [...prev, mappedChan]);
-      setAllChannels((prev) => (prev.some((c) => c.id === mappedChan.id) ? prev : [...prev, mappedChan]));
-      setActiveChannel(mappedChan);
-      return mappedChan;
-    } else {
-      const newChan = mockStore.createChannel(serverId, name, type, topic, categoryId);
-      setChannels((prev) => [...prev, newChan]);
-      setAllChannels((prev) => (prev.some((c) => c.id === newChan.id) ? prev : [...prev, newChan]));
-      setActiveChannel(newChan);
-      return newChan;
-    }
-  };
-
-  const createInvite = async (
-    serverId: string,
-    options?: { maxUses?: number; expiresInHours?: number }
-  ): Promise<Invite> => {
-    const creatorId = currentUser?.id || 'demo-user';
-    if (isSupabaseConfigured && supabase && currentUser) {
-      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const expiresAt = options?.expiresInHours
-        ? new Date(Date.now() + options.expiresInHours * 3600000).toISOString()
-        : null;
-
-      const { data, error } = await supabase
-        .from('invites')
-        .insert({
-          server_id: serverId,
-          code,
-          creator_id: currentUser.id,
-          max_uses: options?.maxUses || null,
-          expires_at: expiresAt,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.warn('Supabase invite creation error, falling back to local:', error);
-        return mockStore.createInvite(serverId, creatorId, options?.maxUses, options?.expiresInHours);
-      }
-
-      return {
-        id: data.id,
-        serverId: data.server_id,
-        code: data.code,
-        creatorId: data.creator_id,
-        maxUses: data.max_uses,
-        expiresAt: data.expires_at,
-        usesCount: data.uses_count || 0,
-        createdAt: data.created_at,
-      };
-    } else {
-      return mockStore.createInvite(serverId, creatorId, options?.maxUses, options?.expiresInHours);
-    }
-  };
-
-  const resolveInvite = async (
-    code: string,
-    encodedData?: string | null
-  ): Promise<ResolvedInvite | null> => {
-    const cleanCode = (code || '').trim().toUpperCase();
-    if (!cleanCode) return null;
-
-    // 1. If Supabase configured, query database
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { data: invData, error: invErr } = await supabase
-          .from('invites')
-          .select('*')
-          .eq('code', cleanCode)
-          .maybeSingle();
-
-        if (invData) {
-          const inviteObj: Invite = {
-            id: invData.id,
-            serverId: invData.server_id,
-            code: invData.code,
-            creatorId: invData.creator_id,
-            expiresAt: invData.expires_at,
-            usesCount: invData.uses_count || 0,
-            maxUses: invData.max_uses,
-            createdAt: invData.created_at,
-          };
-
-          // Try to fetch server from Supabase
-          let serverObj: Server | null = null;
-          const { data: sData } = await supabase
-            .from('servers')
-            .select('*')
-            .eq('id', invData.server_id)
-            .maybeSingle();
-
-          if (sData) {
-            serverObj = {
-              id: sData.id,
-              name: sData.name,
-              iconUrl: sData.icon_url,
-              description: sData.description,
-              ownerId: sData.owner_id,
-              createdAt: sData.created_at,
-            };
-          } else if (encodedData) {
-            try {
-              const decoded = JSON.parse(decodeURIComponent(escape(atob(encodedData))));
-              if (decoded && decoded.name) {
-                serverObj = {
-                  id: decoded.id || invData.server_id,
-                  name: decoded.name,
-                  iconUrl: decoded.iconUrl,
-                  description: decoded.description,
-                  ownerId: decoded.ownerId,
-                  createdAt: decoded.createdAt || new Date().toISOString(),
-                };
-              }
-            } catch {}
-          } else {
-            // Check local store/state if already cached
-            serverObj = servers.find((s) => s.id === invData.server_id) || mockStore.getServers().find((s) => s.id === invData.server_id) || null;
-          }
-
-          if (serverObj) {
-            let isMember = false;
-            if (currentUser) {
-              const { data: memData } = await supabase
-                .from('server_members')
-                .select('user_id')
-                .eq('server_id', serverObj.id)
-                .eq('user_id', currentUser.id)
-                .maybeSingle();
-              isMember = Boolean(memData);
-            }
-
-            const { count: memberCount } = await supabase
-              .from('server_members')
-              .select('*', { count: 'exact', head: true })
-              .eq('server_id', serverObj.id);
-
-            return {
-              invite: inviteObj,
-              server: serverObj,
-              isMember,
-              memberCount: memberCount || 1,
-            };
-          }
-        }
-      } catch (e) {
-        console.warn('Supabase invite resolve error:', e);
-      }
-    }
-
-    // 2. Demo / mock store resolution
-    const invite = mockStore.getInviteByCode(cleanCode);
-    let server = invite ? mockStore.getServers().find((s) => s.id === invite.serverId) : null;
-
-    // Fallback: If server is not in local store, try decoding encodedData (cross-browser demo support)
-    if ((!invite || !server) && encodedData) {
-      try {
-        const decoded = JSON.parse(decodeURIComponent(escape(atob(encodedData))));
-        if (decoded && decoded.id && decoded.name) {
-          server = {
-            id: decoded.id,
-            name: decoded.name,
-            iconUrl: decoded.iconUrl || `https://api.dicebear.com/7.x/identicon/svg?seed=${decoded.name}`,
-            description: decoded.description || `${decoded.name} community`,
-            ownerId: decoded.ownerId || 'owner',
-            createdAt: decoded.createdAt || new Date().toISOString(),
-          };
-          mockStore.addServer(server);
-
-          // Ensure default channels exist
-          const existingChans = mockStore.getChannels().filter((c) => c.serverId === server!.id);
-          if (existingChans.length === 0) {
-            mockStore.createChannel(server.id, 'general', 'text', `Welcome to ${server.name}!`);
-            mockStore.createChannel(server.id, 'General Voice', 'voice');
-          }
-
-          mockStore.createInvite(server.id, server.ownerId);
-        }
-      } catch (e) {
-        console.warn('Failed to parse encoded invite payload:', e);
-      }
-    }
-
-    if (server) {
-      const syntheticInvite = invite || {
-        id: `inv-${Date.now()}`,
-        serverId: server.id,
-        code: cleanCode,
-        creatorId: server.ownerId,
-        usesCount: 0,
-        createdAt: new Date().toISOString(),
-      };
-
-      const users = mockStore.getAllUsers();
-      const inviterUser = users.find((u) => u.id === syntheticInvite.creatorId);
-      const members = mockStore.getServerMembers(server.id);
-      const effectiveUserId = currentUser?.id || mockStore.getCurrentUser()?.id;
-      const isMember = effectiveUserId ? members.some((m) => m.userId === effectiveUserId) : false;
-
-      return {
-        invite: syntheticInvite,
-        server,
-        inviter: inviterUser
-          ? { displayName: inviterUser.displayName, avatarUrl: inviterUser.avatarUrl }
-          : undefined,
-        isMember,
-        memberCount: Math.max(members.length, 1),
-      };
-    }
-
-    return null;
-  };
-
-  const acceptInvite = async (
-    code: string,
-    encodedData?: string | null
-  ): Promise<{ server: Server; channelId?: string }> => {
-    const resolved = await resolveInvite(code, encodedData);
-    if (!resolved) {
-      throw new Error('This invite is invalid or has expired.');
-    }
-
-    const { invite, server } = resolved;
-
-    // Check expiration
-    if (invite.expiresAt && new Date(invite.expiresAt).getTime() < Date.now()) {
-      throw new Error('This invite has expired.');
-    }
-    // Check max uses
-    if (invite.maxUses && invite.usesCount >= invite.maxUses) {
-      throw new Error('This invite has reached its maximum number of uses.');
-    }
-
-    let user = currentUser;
-    if (!user) {
-      user = mockStore.getCurrentUser();
-    }
-    if (!user) {
-      throw new Error('Please log in or enter your name to accept this invite.');
-    }
-
-    if (isSupabaseConfigured && supabase) {
-      if (user) {
+  // When active server changes, fetch its channels, categories, and members
+  const selectServer = useCallback(
+    async (serverId: string, fallbackServer?: Server) => {
+      let target = servers.find((s) => s.id === serverId) || fallbackServer;
+      if (!target) {
         try {
-          await supabase.from('server_members').upsert({
-            server_id: server.id,
-            user_id: user.id,
-            role: 'member',
-            joined_at: new Date().toISOString(),
-          });
-        } catch (err) {
-          console.warn('Supabase join server_members error:', err);
-        }
-
-        try {
-          await supabase
-            .from('invites')
-            .update({ uses_count: (invite.usesCount || 0) + 1 })
-            .eq('id', invite.id);
+          const fresh = await serverRepository.getServers();
+          target = fresh.find((s) => s.id === serverId);
         } catch {}
       }
-    }
+      if (!target) return;
 
-    // Also persist in local store for seamless multi-tab or demo sync
-    mockStore.addServerMember(server.id, user.id, 'member');
-    mockStore.incrementInviteUses(invite.code);
-
-    // Ensure server is in local servers state
-    setServers((prev) => {
-      if (prev.some((s) => s.id === server.id)) return prev;
-      return [...prev, server];
-    });
-
-    selectServer(server.id, server);
-
-    // Find general channel or first channel
-    let firstChannelId: string | undefined;
-    if (isSupabaseConfigured && supabase) {
-      const { data: chanData } = await supabase
-        .from('channels')
-        .select('id, name')
-        .eq('server_id', server.id)
-        .order('position', { ascending: true });
-      if (chanData && chanData.length > 0 && chanData[0]?.id) {
-        const cId = String(chanData[0].id);
-        firstChannelId = cId;
-        selectChannel(cId);
-      }
-    } else {
-      const serverChannels = mockStore.getChannels().filter((c) => c.serverId === server.id);
-      if (serverChannels.length > 0 && serverChannels[0]?.id) {
-        const cId = String(serverChannels[0].id);
-        firstChannelId = cId;
-        selectChannel(cId);
-      }
-    }
-
-    return { server, channelId: firstChannelId };
-  };
-
-  const joinServer = async (serverId: string): Promise<Server> => {
-    let target =
-      servers.find((s) => s.id === serverId) ||
-      mockStore.getServers().find((s) => s.id === serverId);
-
-    if (isSupabaseConfigured && supabase && currentUser) {
-      if (!target) {
-        const { data: sData } = await supabase
-          .from('servers')
-          .select('*')
-          .eq('id', serverId)
-          .maybeSingle();
-        if (sData) {
-          target = {
-            id: sData.id,
-            name: sData.name,
-            iconUrl: sData.icon_url,
-            description: sData.description,
-            ownerId: sData.owner_id,
-            createdAt: sData.created_at,
-          };
-        }
-      }
-
-      // Authoritative security check: user must be existing member or owner
-      const { data: memData } = await supabase
-        .from('server_members')
-        .select('user_id')
-        .eq('server_id', serverId)
-        .eq('user_id', currentUser.id)
-        .maybeSingle();
-
-      const isOwner = target?.ownerId === currentUser.id;
-
-      if (!memData && !isOwner) {
-        throw new Error('Joining a workspace requires a valid invite code.');
-      }
-    } else {
-      const uId = currentUser?.id || mockStore.getCurrentUser()?.id || 'demo-user';
-      const localMembers = mockStore.getServerMembers(serverId);
-      const isLocalMember = localMembers.some((m) => m.userId === uId);
-      if (!isLocalMember && target?.ownerId !== uId) {
-        throw new Error('Joining a workspace requires a valid invite link.');
-      }
-    }
-
-    if (target) {
       setServers((prev) => (prev.some((s) => s.id === target!.id) ? prev : [...prev, target!]));
-      selectServer(target.id, target);
-      return target;
-    }
-    throw new Error('Server not found');
-  };
+      setActiveServer(target);
 
-  const refreshServers = async () => {
+      try {
+        const [chans, cats, mems] = await Promise.all([
+          channelRepository.getChannels(target.id),
+          channelRepository.getCategories(target.id),
+          serverRepository.getServerMembers(target.id),
+        ]);
+
+        setChannels(chans);
+        setCategories(cats);
+        setMembers(mems);
+
+        if (chans.length > 0) {
+          setActiveChannel(chans[0]);
+        } else {
+          setActiveChannel(null);
+        }
+      } catch (err) {
+        console.error('[ServerContext] Failed to load server details:', err);
+      }
+    },
+    [servers]
+  );
+
+  const selectChannel = useCallback(
+    (channelId: string) => {
+      const target = channels.find((c) => c.id === channelId) || allChannels.find((c) => c.id === channelId);
+      if (target) {
+        setActiveChannel(target);
+      }
+    },
+    [channels, allChannels]
+  );
+
+  const createServer = useCallback(
+    async (name: string, iconUrl?: string): Promise<Server> => {
+      if (!currentUser) throw new Error('Sign in required to create a workspace.');
+      const newServer = await serverRepository.createServer(name, currentUser.id, iconUrl);
+      setServers((prev) => [...prev, newServer]);
+      setActiveServer(newServer);
+      if (newServer.channels && newServer.channels.length > 0) {
+        setChannels(newServer.channels);
+        setActiveChannel(newServer.channels[0]);
+        setAllChannels((prev) => [...prev, ...newServer.channels!]);
+      }
+      return newServer;
+    },
+    [currentUser]
+  );
+
+  const createChannel = useCallback(
+    async (
+      serverId: string,
+      name: string,
+      type: ChannelType,
+      topic?: string,
+      categoryId?: string
+    ): Promise<Channel> => {
+      const chan = await channelRepository.createChannel(serverId, name, type, topic, categoryId);
+      setChannels((prev) => [...prev, chan]);
+      setAllChannels((prev) => (prev.some((c) => c.id === chan.id) ? prev : [...prev, chan]));
+      setActiveChannel(chan);
+      return chan;
+    },
+    []
+  );
+
+  const createCategory = useCallback(
+    async (serverId: string, name: string): Promise<ChannelCategory> => {
+      const cat = await channelRepository.createCategory(serverId, name);
+      setCategories((prev) => [...prev, cat]);
+      return cat;
+    },
+    []
+  );
+
+  const createInvite = useCallback(
+    async (
+      serverId: string,
+      options?: { maxUses?: number; expiresInHours?: number }
+    ): Promise<Invite> => {
+      if (!currentUser) throw new Error('Sign in required to create an invite.');
+      return serverRepository.createInvite(serverId, currentUser.id, options);
+    },
+    [currentUser]
+  );
+
+  const resolveInvite = useCallback(
+    async (code: string, _encodedData?: string | null): Promise<ResolvedInvite | null> => {
+      return serverRepository.resolveInvite(code);
+    },
+    []
+  );
+
+  const acceptInvite = useCallback(
+    async (code: string, _encodedData?: string | null): Promise<{ server: Server; channelId?: string }> => {
+      const res = await serverRepository.acceptInvite(code);
+      setServers((prev) => (prev.some((s) => s.id === res.server.id) ? prev : [...prev, res.server]));
+      await selectServer(res.server.id, res.server);
+      if (res.channelId) {
+        selectChannel(res.channelId);
+      }
+      return res;
+    },
+    [selectServer, selectChannel]
+  );
+
+  const joinServer = useCallback(
+    async (serverId: string): Promise<Server> => {
+      let target = servers.find((s) => s.id === serverId);
+      if (!target) {
+        const fresh = await serverRepository.getServers();
+        target = fresh.find((s) => s.id === serverId);
+      }
+      if (!target) {
+        throw new Error('Workspace not found or invite required to join.');
+      }
+      await selectServer(target.id, target);
+      return target;
+    },
+    [servers, selectServer]
+  );
+
+  const refreshServers = useCallback(async () => {
     await loadData();
-  };
+  }, [loadData]);
+
+  // Realtime updates for servers, channels, and memberships
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !currentUser) return;
+
+    const sub = supabase
+      .channel('workspace_realtime_sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'channels' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const raw = payload.new as any;
+            const chan: Channel = {
+              id: raw.id,
+              serverId: raw.server_id,
+              name: raw.name,
+              type: raw.type,
+              topic: raw.topic || '',
+              categoryId: raw.category_id || undefined,
+              position: raw.position || 0,
+              createdAt: raw.created_at,
+            };
+            setAllChannels((prev) => (prev.some((c) => c.id === chan.id) ? prev : [...prev, chan]));
+            if (activeServer && chan.serverId === activeServer.id) {
+              setChannels((prev) => (prev.some((c) => c.id === chan.id) ? prev : [...prev, chan]));
+            }
+          } else if (payload.eventType === 'DELETE') {
+            const delId = (payload.old as any)?.id;
+            if (delId) {
+              setAllChannels((prev) => prev.filter((c) => c.id !== delId));
+              setChannels((prev) => prev.filter((c) => c.id !== delId));
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (supabase) supabase.removeChannel(sub);
+    };
+  }, [currentUser?.id, activeServer?.id]);
 
   return (
     <ServerContext.Provider
@@ -699,13 +277,16 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         activeServer,
         channels,
         allChannels,
+        categories,
         activeChannel,
         members,
         isLoading,
+        error,
         selectServer,
         selectChannel,
         createServer,
         createChannel,
+        createCategory,
         createInvite,
         resolveInvite,
         acceptInvite,

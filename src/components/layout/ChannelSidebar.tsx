@@ -22,7 +22,6 @@ import {
 import { useServer } from '../../app/providers/ServerContext';
 import { useMedia } from '../../app/providers/MediaContext';
 import { useInbox } from '../../app/providers/InboxContext';
-import { mockStore } from '../../lib/supabase/mockStore';
 import { Channel, ChannelType } from '../../types';
 import { UserBar } from './UserBar';
 import { ActiveCallBar } from './ActiveCallBar';
@@ -48,7 +47,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   isCollapsed = false,
   onToggleCollapse,
 }) => {
-  const { activeServer, channels, activeChannel, selectChannel } = useServer();
+  const { activeServer, channels, activeChannel, selectChannel, categories } = useServer();
   const { activeRoomId, participants, leaveVoiceRoom, openPreJoin } = useMedia();
   const { unreadByChannel, markChannelRead, markAllRead } = useInbox();
 
@@ -126,10 +125,9 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
     });
   };
 
-  // Get categories for current server
-  const allCategories = mockStore.getCategories();
-  const serverCategories = activeServer
-    ? allCategories.filter((cat) => cat.serverId === activeServer.id).sort((a, b) => a.position - b.position)
+  // Get categories for current server from ServerContext
+  const serverCategories = categories
+    ? [...categories].sort((a, b) => a.position - b.position)
     : [];
 
   // Group channels by categoryId

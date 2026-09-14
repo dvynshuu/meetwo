@@ -3,8 +3,7 @@ import { Mic, MicOff, Video, VideoOff, PhoneOff, ArrowUpRight, Radio, Volume2 } 
 import { useMedia } from '../../app/providers/MediaContext';
 import { useServer } from '../../app/providers/ServerContext';
 import { Tooltip } from '../ui/Tooltip';
-import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
-import { mockStore } from '../../lib/supabase/mockStore';
+import { channelRepository } from '../../lib/repositories';
 
 interface ActiveCallBarProps {
   onReturnToCall?: () => void;
@@ -52,41 +51,27 @@ export const ActiveCallBar: React.FC<ActiveCallBarProps> = ({ onReturnToCall }) 
       return;
     }
 
-    // 2. Check in mockStore
-    const localChannel = mockStore.getChannels().find((c) => c.id === activeRoomId);
-    if (localChannel) {
-      setCallMeta({
-        channelId: localChannel.id,
-        serverId: localChannel.serverId,
-        channelName: localChannel.name,
-        isStage: localChannel.type === 'stage',
-      });
-      return;
-    }
+    // 2. Fallback to channelRepository if not yet in local context
+    let isCancelled = false;
+    channelRepository
+      .getAllChannels()
+      .then((chans) => {
+        if (isCancelled) return;
+        const found = chans.find((c) => c.id === activeRoomId);
+        if (found) {
+          setCallMeta({
+            channelId: found.id,
+            serverId: found.serverId,
+            channelName: found.name,
+            isStage: found.type === 'stage',
+          });
+        }
+      })
+      .catch(() => {});
 
-    // 3. Check via Supabase if configured
-    const client = supabase;
-    if (isSupabaseConfigured && client) {
-      const fetchChannel = async () => {
-        try {
-          const { data } = await client
-            .from('channels')
-            .select('id, name, type, server_id')
-            .eq('id', activeRoomId)
-            .maybeSingle();
-
-          if (data) {
-            setCallMeta({
-              channelId: data.id,
-              serverId: data.server_id,
-              channelName: data.name,
-              isStage: data.type === 'stage',
-            });
-          }
-        } catch {}
-      };
-      fetchChannel();
-    }
+    return () => {
+      isCancelled = true;
+    };
   }, [activeRoomId, channels, allChannels]);
 
   if (!activeRoomId) return null;

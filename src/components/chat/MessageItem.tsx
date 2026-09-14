@@ -4,7 +4,6 @@ import { Avatar } from '../ui/Avatar';
 import { useAuth } from '../../app/providers/AuthContext';
 import { useChat } from '../../app/providers/ChatContext';
 import { BookmarkService } from '../../lib/services/bookmarkService';
-import { mockStore } from '../../lib/supabase/mockStore';
 import {
   Smile,
   Reply,

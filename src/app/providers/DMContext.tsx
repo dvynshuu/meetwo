@@ -49,75 +49,83 @@ export const DMProvider: React.FC<{ children: React.ReactNode }> = ({ children }
       if (isMounted) setFriends(fr);
     });
 
-    // Realtime subscription for incoming direct messages
-    let channel: any = null;
-    if (isSupabaseConfigured && supabase) {
-      channel = supabase
-        .channel(`user_dms:${currentUser.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'dm_messages',
-          },
-          async (payload) => {
-            const newRow = payload.new as any;
-            if (!newRow || newRow.author_id === currentUser.id) return;
-
-            const { data: authorProf } = await supabase!
-              .from('profiles')
-              .select('*')
-              .eq('id', newRow.author_id)
-              .maybeSingle();
-
-            const incomingMsg: DMMessage = {
-              id: newRow.id,
-              conversationId: newRow.conversation_id,
-              authorId: newRow.author_id,
-              content: newRow.content,
-              createdAt: newRow.created_at,
-              author: authorProf
-                ? {
-                    id: authorProf.id,
-                    username: authorProf.username,
-                    displayName: authorProf.display_name,
-                    avatarUrl: authorProf.avatar_url,
-                    status: authorProf.status || 'online',
-                    createdAt: authorProf.created_at,
-                  }
-                : undefined,
-            };
-
-            setDmMessages((prev) => ({
-              ...prev,
-              [newRow.conversation_id]: [...(prev[newRow.conversation_id] || []), incomingMsg],
-            }));
-
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === newRow.conversation_id
-                  ? {
-                      ...c,
-                      lastMessage: incomingMsg,
-                      unreadCount:
-                        activeConversationId === c.id ? 0 : (c.unreadCount || 0) + 1,
-                    }
-                  : c
-              )
-            );
-          }
-        )
-        .subscribe();
-    }
-
     return () => {
       isMounted = false;
-      if (channel && supabase) {
+    };
+  }, [currentUser?.id]);
+
+  // STABLE Realtime subscription: depends strictly on currentUser.id
+  // Changing activeConversationId NEVER tears down or reconnects the global DM subscription
+  useEffect(() => {
+    if (!currentUser || !isSupabaseConfigured || !supabase) return;
+
+    const channel = supabase
+      .channel(`user_dm_messages:${currentUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'dm_messages',
+        },
+        async (payload) => {
+          const newRow = payload.new as any;
+          if (!newRow || newRow.author_id === currentUser.id) return;
+
+          // Fetch author profile
+          const { data: authorProf } = await supabase!
+            .from('profiles')
+            .select('*')
+            .eq('id', newRow.author_id)
+            .maybeSingle();
+
+          const incomingMsg: DMMessage = {
+            id: newRow.id,
+            conversationId: newRow.conversation_id,
+            authorId: newRow.author_id,
+            content: newRow.content,
+            createdAt: newRow.created_at,
+            author: authorProf
+              ? {
+                  id: authorProf.id,
+                  username: authorProf.username,
+                  displayName: authorProf.display_name,
+                  avatarUrl: authorProf.avatar_url,
+                  status: authorProf.status || 'online',
+                  createdAt: authorProf.created_at,
+                }
+              : undefined,
+          };
+
+          setDmMessages((prev) => {
+            const list = prev[newRow.conversation_id] || [];
+            if (list.some((m) => m.id === incomingMsg.id)) return prev;
+            return {
+              ...prev,
+              [newRow.conversation_id]: [...list, incomingMsg],
+            };
+          });
+
+          setConversations((prev) =>
+            prev.map((c) => {
+              if (c.id !== newRow.conversation_id) return c;
+              return {
+                ...c,
+                lastMessage: incomingMsg,
+                unreadCount: (c.unreadCount || 0) + 1,
+              };
+            })
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (supabase) {
         supabase.removeChannel(channel);
       }
     };
-  }, [currentUser?.id, activeConversationId]);
+  }, [currentUser?.id]);
 
   // Load messages whenever active conversation changes
   useEffect(() => {

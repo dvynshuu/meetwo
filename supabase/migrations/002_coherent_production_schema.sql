@@ -1,5 +1,7 @@
 -- ====================================================================
--- MEETWO V3 PRODUCTION CANONICAL POSTGRES SCHEMA & REALTIME CONFIGURATION
+-- MEETWO PRODUCTION SCHEMA MIGRATION: 002_coherent_production_schema.sql
+-- Comprehensive, Idempotent, Production-Hardened Database Schema
+-- Run this in Supabase Dashboard -> SQL Editor (or via Supabase CLI migration)
 -- ====================================================================
 
 -- 1. Enable Required Extensions
@@ -36,10 +38,14 @@ CREATE TABLE IF NOT EXISTS public.servers (
 CREATE TABLE IF NOT EXISTS public.server_members (
   server_id UUID REFERENCES public.servers(id) ON DELETE CASCADE,
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
-  role TEXT DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'moderator', 'member')),
+  role TEXT DEFAULT 'member',
   joined_at TIMESTAMPTZ DEFAULT NOW(),
   PRIMARY KEY (server_id, user_id)
 );
+
+ALTER TABLE public.server_members DROP CONSTRAINT IF EXISTS server_members_role_check;
+ALTER TABLE public.server_members ADD CONSTRAINT server_members_role_check
+  CHECK (role IN ('owner', 'admin', 'moderator', 'member'));
 
 -- Categories Table
 CREATE TABLE IF NOT EXISTS public.categories (
@@ -56,11 +62,15 @@ CREATE TABLE IF NOT EXISTS public.channels (
   server_id UUID NOT NULL REFERENCES public.servers(id) ON DELETE CASCADE,
   category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('text', 'voice', 'stage', 'forum', 'announcement')),
+  type TEXT NOT NULL,
   topic TEXT DEFAULT '',
   position INT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE public.channels DROP CONSTRAINT IF EXISTS channels_type_check;
+ALTER TABLE public.channels ADD CONSTRAINT channels_type_check
+  CHECK (type IN ('text', 'voice', 'stage', 'forum', 'announcement'));
 
 -- Messages Table
 CREATE TABLE IF NOT EXISTS public.messages (
@@ -266,6 +276,8 @@ CREATE INDEX IF NOT EXISTS idx_friend_requests_receiver ON public.friend_request
 CREATE INDEX IF NOT EXISTS idx_read_states_user ON public.read_states(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON public.notifications(user_id, is_read, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_stage_states_channel ON public.stage_states(channel_id);
+
+-- Full-Text search indexes for high-speed message search
 CREATE INDEX IF NOT EXISTS idx_messages_content_trgm ON public.messages USING gin(to_tsvector('english', content));
 
 -- --------------------------------------------------------------------
@@ -276,7 +288,7 @@ VALUES (
   'attachments',
   'attachments',
   true,
-  26214400,
+  26214400, -- 25MB
   ARRAY[
     'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
     'video/mp4', 'video/webm', 'audio/mpeg', 'audio/ogg', 'audio/wav',
@@ -335,9 +347,10 @@ RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS
 $$;
 
 -- --------------------------------------------------------------------
--- 8. Secure RPC Functions
+-- 8. Secure RPC Functions (Atomic Server-Side Authorization)
 -- --------------------------------------------------------------------
 
+-- Secure Invite Join: Validates code, expiration, max uses atomically
 CREATE OR REPLACE FUNCTION public.join_server_with_invite(p_code TEXT)
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -354,6 +367,7 @@ BEGIN
     RAISE EXCEPTION 'Authentication required to join server';
   END IF;
 
+  -- Select and lock invite row
   SELECT * INTO v_invite
   FROM public.invites
   WHERE UPPER(code) = UPPER(TRIM(p_code))
@@ -363,23 +377,28 @@ BEGIN
     RAISE EXCEPTION 'INVITE_NOT_FOUND: Invalid invite code';
   END IF;
 
+  -- Check expiration
   IF v_invite.expires_at IS NOT NULL AND v_invite.expires_at < NOW() THEN
     RAISE EXCEPTION 'INVITE_EXPIRED: This invite has expired';
   END IF;
 
+  -- Check max uses
   IF v_invite.max_uses IS NOT NULL AND v_invite.uses_count >= v_invite.max_uses THEN
     RAISE EXCEPTION 'INVITE_EXHAUSTED: This invite has reached its maximum uses';
   END IF;
 
+  -- Check server exists
   SELECT * INTO v_server FROM public.servers WHERE id = v_invite.server_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'SERVER_NOT_FOUND: Workspace does not exist';
   END IF;
 
+  -- Add membership (idempotent upsert)
   INSERT INTO public.server_members (server_id, user_id, role, joined_at)
   VALUES (v_invite.server_id, v_user_id, 'member', NOW())
   ON CONFLICT (server_id, user_id) DO NOTHING;
 
+  -- Increment use count
   UPDATE public.invites
   SET uses_count = uses_count + 1
   WHERE id = v_invite.id;
@@ -393,6 +412,7 @@ BEGIN
 END;
 $$;
 
+-- Stage Hand Raising RPC
 CREATE OR REPLACE FUNCTION public.raise_stage_hand(p_channel_id UUID)
 RETURNS VOID
 LANGUAGE plpgsql
@@ -422,6 +442,7 @@ BEGIN
 END;
 $$;
 
+-- Stage Lower Hand RPC
 CREATE OR REPLACE FUNCTION public.lower_stage_hand(p_channel_id UUID, p_target_user_id UUID DEFAULT NULL)
 RETURNS VOID
 LANGUAGE plpgsql
@@ -440,6 +461,7 @@ BEGIN
 
   v_target_id := COALESCE(p_target_user_id, v_user_id);
 
+  -- If moderating another user, verify moderator/admin/owner or stage host
   IF v_target_id != v_user_id THEN
     SELECT * INTO v_channel FROM public.channels WHERE id = p_channel_id;
     IF NOT public.is_server_admin_or_owner(v_channel.server_id, v_user_id) THEN
@@ -457,6 +479,7 @@ BEGIN
 END;
 $$;
 
+-- Stage Moderate Speaker RPC (Invite / Demote)
 CREATE OR REPLACE FUNCTION public.moderate_stage_speaker(
   p_channel_id UUID,
   p_target_user_id UUID,
@@ -537,15 +560,18 @@ DECLARE
   v_actor_name TEXT;
   v_mentioned_user RECORD;
 BEGIN
+  -- Fetch channel and server info
   SELECT c.*, s.name AS server_name INTO v_channel
   FROM public.channels c
   JOIN public.servers s ON s.id = c.server_id
   WHERE c.id = NEW.channel_id;
 
+  -- Fetch actor display name
   SELECT COALESCE(display_name, username) INTO v_actor_name
   FROM public.profiles
   WHERE id = NEW.author_id;
 
+  -- 1. Handle Replies
   IF NEW.reply_to_id IS NOT NULL THEN
     SELECT * INTO v_reply_msg FROM public.messages WHERE id = NEW.reply_to_id;
     IF FOUND AND v_reply_msg.author_id != NEW.author_id THEN
@@ -569,6 +595,7 @@ BEGIN
     END IF;
   END IF;
 
+  -- 2. Handle Username Mentions (@username)
   FOR v_mentioned_user IN
     SELECT p.id, p.username
     FROM public.profiles p
@@ -605,7 +632,7 @@ CREATE TRIGGER on_message_created_notify
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_message_notifications();
 
 -- --------------------------------------------------------------------
--- 11. Row Level Security (RLS)
+-- 11. Row Level Security (RLS) - Hardened Configuration
 -- --------------------------------------------------------------------
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.servers ENABLE ROW LEVEL SECURITY;
@@ -658,7 +685,7 @@ DROP POLICY IF EXISTS "Server owners can delete servers" ON public.servers;
 CREATE POLICY "Server owners can delete servers"
   ON public.servers FOR DELETE USING (auth.uid() = owner_id);
 
--- Server Members Policies (Locked down)
+-- Server Members Policies (Secured: No arbitrary open INSERT)
 DROP POLICY IF EXISTS "Server members can view memberships in their servers" ON public.server_members;
 CREATE POLICY "Server members can view memberships in their servers"
   ON public.server_members FOR SELECT USING (
@@ -671,7 +698,9 @@ DROP POLICY IF EXISTS "Users can join servers" ON public.server_members;
 DROP POLICY IF EXISTS "Server owners can add initial owner membership" ON public.server_members;
 CREATE POLICY "Server owners can add initial owner membership"
   ON public.server_members FOR INSERT WITH CHECK (
-    auth.uid() = user_id AND public.is_server_owner(server_id, auth.uid())
+    auth.uid() = user_id AND (
+      public.is_server_owner(server_id, auth.uid())
+    )
   );
 
 DROP POLICY IF EXISTS "Users can leave or owners can remove members" ON public.server_members;
@@ -770,7 +799,7 @@ CREATE POLICY "Members can upload attachments"
     )
   );
 
--- Invites Policies (Locked down)
+-- Invites Policies (Secured: No arbitrary open UPDATE)
 DROP POLICY IF EXISTS "Invites viewable by anyone" ON public.invites;
 CREATE POLICY "Invites viewable by anyone"
   ON public.invites FOR SELECT USING (true);
@@ -950,6 +979,7 @@ ALTER TABLE public.notifications REPLICA IDENTITY FULL;
 ALTER TABLE public.stage_states REPLICA IDENTITY FULL;
 ALTER TABLE public.read_states REPLICA IDENTITY FULL;
 
+-- Add tables to realtime publication if not already present
 DO $$
 BEGIN
   BEGIN
@@ -989,4 +1019,5 @@ BEGIN
   EXCEPTION WHEN duplicate_object THEN END;
 END $$;
 
+-- Reload schema cache
 NOTIFY pgrst, 'reload schema';

@@ -27,6 +27,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
+  const isProduction =
+    (import.meta as any).env?.VITE_APP_ENV === 'production' ||
+    (import.meta as any).env?.PROD;
+
   // Load messages whenever active channel changes
   useEffect(() => {
     if (!activeChannel || activeChannel.type === 'voice') {
@@ -250,6 +254,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       };
     } else {
+      if (isProduction) return;
       // Demo store multi-tab subscriptions
       const unsubs = [
         mockStore.subscribe('NEW_MESSAGE', (newMsg: Message) => {

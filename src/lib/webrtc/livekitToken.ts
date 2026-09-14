@@ -1,9 +1,10 @@
 /**
- * Meetwo V3.2 - High-Performance LiveKit Token Provider
+ * Meetwo V3 Production - LiveKit Token Provider
  * Features:
- * - Sub-millisecond in-memory token caching (20-hour TTL)
- * - Fast-fail AbortController (2.5s network timeout)
- * - Multi-tiered endpoint fallback (Cloudflare Pages Function -> Supabase Edge Function -> Dev static)
+ * - Sub-millisecond in-memory token caching with TTL
+ * - Fast-fail AbortController (3s timeout)
+ * - Authenticated Supabase JWT pass-through
+ * - Authoritative room authorization error propagation
  */
 
 import { supabase, isSupabaseConfigured } from '../supabase/client';
@@ -19,12 +20,8 @@ interface CachedToken {
   expiresAt: number;
 }
 
-// In-memory cache keyed by "roomId:userId" to prevent redundant network fetches
 const tokenCache = new Map<string, CachedToken>();
 
-/**
- * Invalidate cached token for a specific room or clear entire cache.
- */
 export function invalidateLiveKitToken(roomId?: string, userId?: string): void {
   if (roomId && userId) {
     tokenCache.delete(`${roomId}:${userId}`);
@@ -42,7 +39,7 @@ export function invalidateLiveKitToken(roomId?: string, userId?: string): void {
 export async function getLiveKitToken(params: TokenRequestParams): Promise<string | null> {
   const cacheKey = `${params.roomId}:${params.userId}`;
 
-  // 1. Check in-memory cache (0ms instant return if valid)
+  // 1. Check in-memory cache
   const cached = tokenCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) {
     return cached.token;
@@ -53,7 +50,7 @@ export async function getLiveKitToken(params: TokenRequestParams): Promise<strin
   const staticToken = env.VITE_LIVEKIT_TOKEN;
   const supabaseUrl = env.VITE_SUPABASE_URL;
 
-  // 2. Candidate token endpoints (prioritizing same-origin Cloudflare Pages Function)
+  // Candidate token endpoints
   const candidateEndpoints: string[] = [];
   if (tokenEndpoint) candidateEndpoints.push(tokenEndpoint);
   candidateEndpoints.push('/api/livekit-token');
@@ -61,7 +58,7 @@ export async function getLiveKitToken(params: TokenRequestParams): Promise<strin
     candidateEndpoints.push(`${supabaseUrl}/functions/v1/livekit-token`);
   }
 
-  // Get current Supabase session token for authenticated authorization
+  // Retrieve current Supabase session token
   let authToken: string | null = null;
   try {
     if (isSupabaseConfigured && supabase) {
@@ -77,10 +74,11 @@ export async function getLiveKitToken(params: TokenRequestParams): Promise<strin
     headers['Authorization'] = `Bearer ${authToken}`;
   }
 
+  let lastError: string | null = null;
+
   for (const endpoint of candidateEndpoints) {
-    // 2.5s timeout controller to prevent connection hangs on slow networks
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
 
     try {
       const response = await fetch(endpoint, {
@@ -99,23 +97,37 @@ export async function getLiveKitToken(params: TokenRequestParams): Promise<strin
       if (response.ok) {
         const data = await response.json();
         if (data && data.token) {
-          // Cache token for 20 hours (tokens expire in 24 hours)
           tokenCache.set(cacheKey, {
             token: data.token,
-            expiresAt: Date.now() + 20 * 60 * 60 * 1000,
+            expiresAt: Date.now() + 5 * 60 * 60 * 1000,
           });
           return data.token;
         }
+      } else {
+        const errJson = await response.json().catch(() => null);
+        lastError = errJson?.error || `HTTP ${response.status}: ${response.statusText}`;
+        console.warn(`[LiveKitToken] Token request to ${endpoint} returned ${response.status}:`, lastError);
+
+        // If forbidden or unauthorized, don't fall through to other endpoints
+        if (response.status === 401 || response.status === 403) {
+          throw new Error(lastError || 'Access denied to voice/video room.');
+        }
       }
-    } catch {
+    } catch (e: any) {
       clearTimeout(timeoutId);
-      // Fast fallback to next candidate endpoint
+      if (e.message?.includes('Access denied') || e.message?.includes('FORBIDDEN') || e.message?.includes('UNAUTHORIZED')) {
+        throw e;
+      }
     }
   }
 
-  // 3. Pre-configured static token (e.g. for staging or local testing)
+  // Pre-configured static token (local development fallback only)
   if (staticToken && staticToken !== 'your-livekit-token') {
     return staticToken;
+  }
+
+  if (lastError) {
+    throw new Error(`LIVEKIT_TOKEN_ERROR: ${lastError}`);
   }
 
   return null;

@@ -1,71 +1,64 @@
 # Meetwo — Security & Authentication Architecture
 
-Meetwo implements defense-in-depth across authentication, real-time media negotiation, workspace membership, and file storage.
+Meetwo implements defense-in-depth across authentication, real-time media negotiation, workspace membership, and database access.
 
 ---
 
-## 1. LiveKit Token Endpoint Security (`functions/api/livekit-token.ts`)
+## 1. Authoritative LiveKit SFU Token Security (`functions/api/livekit-token.ts`)
 
-In production, Meetwo connects to LiveKit SFU (`wss://meetwo-yaledeyd.livekit.cloud`). Media tokens granting room join permissions are generated exclusively through a secured Cloudflare Pages Function endpoint (`/api/livekit-token`).
+In production, Meetwo connects to LiveKit SFU (`wss://meetwo-yaledeyd.livekit.cloud`). Media tokens are generated exclusively through a secured Cloudflare Pages Function endpoint (`/api/livekit-token`).
 
 ### Security Controls:
-1. **Authorization Header Enforcement**:
-   - Every token request must supply an `Authorization: Bearer <supabase_access_token>` header.
-   - Unauthenticated callers receive HTTP 401 Unauthorized immediately.
-2. **Authoritative JWT Verification**:
-   - The endpoint contacts the Supabase Auth server (`${SUPABASE_URL}/auth/v1/user`) to verify the JWT signature, claims, and active user status.
-3. **Identity Match Verification**:
-   - The token endpoint checks that the `identity` requested in the POST payload matches the authenticated user ID (`user.id`).
-   - Callers cannot impersonate other users or acquire tokens under arbitrary identities.
-4. **Restricted Room Scopes**:
-   - Generated tokens grant access solely to the requested `roomId` with a bounded TTL.
-   - API secret keys (`LIVEKIT_API_SECRET`) are stored in server-side environment variables and are never bundled into the client build.
+1. **Zero Development Backdoors**:
+   - The insecure `identity.startsWith('dev-')` mock token bypass has been permanently removed.
+   - Every request requires a valid Supabase JWT bearer token.
+2. **Authoritative JWT Cryptographic Verification**:
+   - The endpoint validates caller identity by calling `${SUPABASE_URL}/auth/v1/user` with the caller's bearer token.
+   - The token's user identity (`user.id`) MUST match the requested participant identity. Impersonation is rejected with HTTP 403.
+3. **Room Authorization Enforcement**:
+   - Before issuing a token, the endpoint verifies the caller has permission to enter `roomId`:
+     - For server channels: queries PostgreSQL to confirm the caller is an active member in `server_members` for the channel's server.
+     - For direct message conversations: queries PostgreSQL to confirm the caller is listed in `dm_participants` for that conversation.
+   - Non-members are rejected with HTTP 403 Forbidden.
+4. **Scoped Stage Grants**:
+   - For stage channels, tokens issued to general audience members explicitly set `canPublish: false`.
+   - Only approved stage speakers and hosts receive `canPublish: true`.
+5. **Secret Protection**:
+   - `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` reside solely in server environment variables and are never exposed to the client.
 
 ---
 
 ## 2. Authentication & Session Lifecycle (`src/app/providers/AuthContext.tsx`)
 
 1. **Production Identity Truth**:
-   - In production (`isSupabaseConfigured === true`), users authenticate via Supabase Auth (Email/Password or magic link).
-   - The `onAuthStateChange` listener synchronizes login, logout, and token refresh events across browser tabs.
-2. **Zero Guest Personas on Logout**:
-   - When a user logs out, the Supabase session is destroyed and `currentUser` is set to `null`.
-   - The application does not silently invent fake "Guest" or mock personas in production.
-3. **Calm Production Auth Gate (`AuthScreen.tsx`)**:
-   - Unauthenticated visitors in production are greeted with a calm, high-craft authentication screen styled in Meetwo's Mineral Graphite aesthetic.
-   - Application views and data remain protected behind the authentication gate.
+   - In production (`isSupabaseConfigured === true`), authentication is backed by Supabase Auth (`auth.users`).
+   - Sessions are restored on page reload; auth state changes broadcast across tabs.
+2. **Zero Fake Personas on Logout**:
+   - Logging out completely destroys the Supabase session and resets `currentUser` to `null`.
+   - No mock user or fallback persona is substituted in production.
+3. **Protected Navigation Gate**:
+   - Unauthenticated visitors are presented with `AuthScreen.tsx` styled in Meetwo's Obsidian aesthetic.
+   - Application workspaces, calls, and chat views are guarded behind authenticated state.
 
 ---
 
-## 3. Workspace Invites & Membership Protection (`src/app/providers/ServerContext.tsx`)
+## 3. Workspace Invites & Membership Protection
 
-1. **No Direct Server Injection**:
-   - `joinServer(serverId)` requires authoritative proof of membership:
-     - The user must already exist in `server_members` for that `serverId`, or
-     - The user must be the recorded `owner_id`.
-   - Bypassing this check via raw server IDs throws an unauthorized error.
-2. **Invite Code Resolution**:
-   - New members join exclusively through validated invite links (`/invite/:code`).
-   - Invites are checked for expiration (`expires_at`) and usage capacity (`uses_count >= max_uses`).
-
----
-
-## 4. Storage & Attachment Security (`src/lib/services/storageService.ts`)
-
-1. **Size Limits**:
-   - Attachments are strictly validated client-side and capped at 25MB before upload.
-2. **Storage Isolation**:
-   - User uploads are organized by unique path prefixes (`attachments/${Date.now()}_${sanitizedFilename}`) to prevent path traversal and file collisions.
-3. **Safe Fallback**:
-   - If the storage bucket is inaccessible or restricted, files fall back safely to data URLs without exposing server internals.
+1. **Atomic PostgreSQL RPC (`join_server_with_invite`)**:
+   - Client direct `INSERT` onto `server_members` is restricted to server creators creating their workspace.
+   - All other joins must execute `join_server_with_invite(p_code)` with a valid, non-expired invite code.
+   - Direct `UPDATE` of `invites.uses_count` is revoked from public roles and executed exclusively inside the atomic RPC.
+2. **RLS Row-Level Security**:
+   - Server channels, messages, and stage states are restricted to verified `server_members`.
+   - DM conversations and messages are restricted to `dm_participants`.
 
 ---
 
-## 5. Media Privacy & Hardware Security (`src/lib/webrtc/`)
+## 4. File Storage Security (`src/lib/services/storageService.ts`)
 
-1. **Track Teardown on Leave**:
-   - When a user leaves a call or closes the browser tab, all media tracks (`MediaStreamTrack.stop()`) are explicitly terminated, releasing the hardware camera and microphone locks immediately.
-2. **Hardware-Level Muting**:
-   - Muting disables track transmission at the WebRTC sender level (`track.enabled = false`), ensuring zero audio/video packets leave the device while muted.
-3. **Server-Authoritative Stage Moderation**:
-   - Listeners in Stage channels cannot self-promote to speaker. All speaking permissions are validated through stage state management and moderation checks.
+1. **Strict Client-Side Validation**:
+   - Files exceeding 25MB are rejected prior to network transmission.
+2. **MIME & Name Sanitization**:
+   - File extensions and names are sanitized to prevent directory traversal attacks.
+3. **Secure Bucket Policy**:
+   - Supabase Storage bucket `attachments` enforces authenticated uploads and public reads for channel participants.

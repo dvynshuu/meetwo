@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { TypingUser, UserStatus } from '../../types';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { mockStore } from '../../lib/supabase/mockStore';
@@ -17,6 +17,11 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const { currentUser } = useAuth();
   const [typingMap, setTypingMap] = useState<Map<string, TypingUser>>(new Map());
   const [userStatuses, setUserStatuses] = useState<Map<string, UserStatus>>(new Map());
+  const presenceChannelRef = useRef<any>(null);
+
+  const isProduction =
+    (import.meta as any).env?.VITE_APP_ENV === 'production' ||
+    (import.meta as any).env?.PROD;
 
   // Clean up typing indicators older than 3 seconds
   useEffect(() => {
@@ -38,12 +43,13 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => clearInterval(interval);
   }, []);
 
-  // Listen to typing & presence events
+  // Listen to typing & presence events using a single persistent channel
   useEffect(() => {
     if (isSupabaseConfigured && supabase) {
       const presenceChannel = supabase.channel('global_presence', {
         config: { presence: { key: currentUser?.id || 'anon' } },
       });
+      presenceChannelRef.current = presenceChannel;
 
       presenceChannel
         .on('presence', { event: 'sync' }, () => {
@@ -82,11 +88,12 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         });
 
       return () => {
+        presenceChannelRef.current = null;
         if (supabase) {
           supabase.removeChannel(presenceChannel);
         }
       };
-    } else {
+    } else if (!isProduction) {
       // Local/Demo cross-tab listener
       const unsubs = [
         mockStore.subscribe('USER_TYPING', (payload: any) => {
@@ -107,7 +114,7 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       return () => unsubs.forEach((u) => u());
     }
-  }, [currentUser?.id, currentUser?.status]);
+  }, [currentUser?.id, currentUser?.status, isProduction]);
 
   const sendTyping = useCallback(
     (channelId: string) => {
@@ -119,17 +126,17 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         channelId,
       };
 
-      if (isSupabaseConfigured && supabase) {
-        supabase.channel('global_presence').send({
+      if (isSupabaseConfigured && presenceChannelRef.current) {
+        presenceChannelRef.current.send({
           type: 'broadcast',
           event: 'user_typing',
           payload,
         });
-      } else {
+      } else if (!isProduction) {
         mockStore.emit('USER_TYPING', payload);
       }
     },
-    [currentUser]
+    [currentUser, isProduction]
   );
 
   const getUserStatus = useCallback(

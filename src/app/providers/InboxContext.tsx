@@ -1,11 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { InboxItem, Message } from '../../types';
+import { InboxItem } from '../../types';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
-import { mockStore } from '../../lib/supabase/mockStore';
+import { NotificationService, NotificationItem } from '../../lib/services/notificationService';
 import { ReadStateService } from '../../lib/services/readStateService';
 import { useAuth } from './AuthContext';
-
-const INBOX_STORAGE_KEY = 'mw:inbox:items';
 
 export interface ChannelUnreadState {
   count: number;
@@ -20,176 +18,117 @@ interface InboxContextType {
   markRead: (id: string) => void;
   markAllRead: () => void;
   markChannelRead: (channelId: string) => void;
+  refreshInbox: () => Promise<void>;
 }
 
 const InboxContext = createContext<InboxContextType | undefined>(undefined);
 
+const mapNotificationToInboxItem = (n: NotificationItem): InboxItem => ({
+  id: n.id,
+  type: n.type === 'reply' ? 'reply' : n.type === 'mention' ? 'mention' : 'unread',
+  channelId: n.channelId || '',
+  serverId: n.serverId || '',
+  messageId: n.sourceId || '',
+  content: n.content,
+  authorName: n.metadata?.actorName || 'Member',
+  authorAvatar: n.metadata?.avatarUrl,
+  channelName: n.metadata?.channelName || 'general',
+  serverName: n.metadata?.serverName || 'Workspace',
+  timestamp: n.createdAt,
+  isRead: n.isRead,
+});
+
 export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAuth();
-
-  const [inboxItems, setInboxItems] = useState<InboxItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(INBOX_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
+  const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
   const [channelUnreadMap, setChannelUnreadMap] = useState<Record<string, ChannelUnreadState>>({});
 
-  // Persist inbox items
-  useEffect(() => {
+  const loadNotifications = useCallback(async () => {
+    if (!currentUser) {
+      setInboxItems([]);
+      return;
+    }
+
     try {
-      localStorage.setItem(INBOX_STORAGE_KEY, JSON.stringify(inboxItems));
-    } catch (e) {
-      console.warn('Failed to save inbox items:', e);
+      const items = await NotificationService.getNotifications(currentUser.id);
+      setInboxItems(items.map(mapNotificationToInboxItem));
+    } catch (err) {
+      console.warn('[InboxContext] Error loading notifications:', err);
     }
-  }, [inboxItems]);
+  }, [currentUser]);
 
-  // Real-time listener for incoming messages (Supabase + Dev mockStore)
   useEffect(() => {
-    if (!currentUser) return;
+    loadNotifications();
+  }, [loadNotifications]);
 
-    const username = currentUser.username || '';
-    const displayName = currentUser.displayName || '';
+  // Real-time listener for incoming notifications
+  useEffect(() => {
+    if (!currentUser || !isSupabaseConfigured || !supabase) return;
 
-    const handleIncomingMessage = async (
-      channelId: string,
-      messageId: string,
-      content: string,
-      authorId: string,
-      authorName: string,
-      authorAvatar?: string,
-      replyToAuthorId?: string
-    ) => {
-      if (authorId === currentUser.id) return;
+    const notifSub = supabase
+      .channel(`user_notifications:${currentUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const raw = payload.new as any;
+            const notif: NotificationItem = {
+              id: raw.id,
+              userId: raw.user_id,
+              type: raw.type,
+              sourceId: raw.source_id,
+              actorId: raw.actor_id,
+              serverId: raw.server_id,
+              channelId: raw.channel_id,
+              conversationId: raw.conversation_id,
+              content: raw.content,
+              metadata: raw.metadata || {},
+              isRead: Boolean(raw.is_read),
+              createdAt: raw.created_at,
+            };
+            const mapped = mapNotificationToInboxItem(notif);
+            setInboxItems((prev) => {
+              if (prev.some((i) => i.id === mapped.id)) return prev;
+              return [mapped, ...prev];
+            });
 
-      const isMention =
-        Boolean(username && content.includes(`@${username}`)) ||
-        Boolean(displayName && content.includes(`@${displayName}`)) ||
-        content.includes('@everyone') ||
-        content.includes('@here');
-
-      const isReply = Boolean(replyToAuthorId && replyToAuthorId === currentUser.id);
-
-      // Check channel info
-      let serverId = '';
-      let serverName = 'Workspace';
-      let channelName = 'general';
-
-      if (isSupabaseConfigured && supabase) {
-        try {
-          const { data: chanData } = await supabase
-            .from('channels')
-            .select('id, name, server_id, server:servers(id, name)')
-            .eq('id', channelId)
-            .maybeSingle();
-
-          if (chanData) {
-            channelName = chanData.name || 'general';
-            serverId = chanData.server_id || '';
-            serverName = (chanData.server as any)?.name || 'Workspace';
-          }
-        } catch {}
-      } else {
-        const chan = mockStore.getChannels().find((c) => c.id === channelId);
-        const server = chan ? mockStore.getServers().find((s) => s.id === chan.serverId) : undefined;
-        channelName = chan?.name || 'chat';
-        serverId = chan?.serverId || '';
-        serverName = server?.name || 'Workspace';
-      }
-
-      if (isMention || isReply) {
-        const newItem: InboxItem = {
-          id: `inbox-${messageId}`,
-          type: isMention ? 'mention' : 'reply',
-          channelId,
-          serverId,
-          messageId,
-          content,
-          authorName,
-          authorAvatar,
-          channelName,
-          serverName,
-          timestamp: new Date().toISOString(),
-          isRead: false,
-        };
-
-        setInboxItems((prev) => {
-          if (prev.some((i) => i.id === newItem.id)) return prev;
-          return [newItem, ...prev];
-        });
-      }
-
-      // Update channel unread state
-      setChannelUnreadMap((prev) => {
-        const existing = prev[channelId] || { count: 0, hasMention: false };
-        return {
-          ...prev,
-          [channelId]: {
-            count: existing.count + 1,
-            hasMention: existing.hasMention || isMention,
-          },
-        };
-      });
-    };
-
-    // 1. Supabase Realtime Listener
-    let globalMsgChannel: any = null;
-    if (isSupabaseConfigured && supabase) {
-      globalMsgChannel = supabase
-        .channel('global_inbox_messages')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'messages',
-          },
-          async (payload) => {
-            const row = payload.new as any;
-            if (!row || row.author_id === currentUser.id) return;
-
-            const { data: authorProf } = await supabase!
-              .from('profiles')
-              .select('*')
-              .eq('id', row.author_id)
-              .maybeSingle();
-
-            handleIncomingMessage(
-              row.channel_id,
-              row.id,
-              row.content,
-              row.author_id,
-              authorProf?.display_name || authorProf?.username || 'Member',
-              authorProf?.avatar_url,
-              row.reply_to_id
+            if (mapped.channelId) {
+              setChannelUnreadMap((prev) => {
+                const existing = prev[mapped.channelId] || { count: 0, hasMention: false };
+                return {
+                  ...prev,
+                  [mapped.channelId]: {
+                    count: existing.count + 1,
+                    hasMention: existing.hasMention || mapped.type === 'mention',
+                  },
+                };
+              });
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as any;
+            setInboxItems((prev) =>
+              prev.map((i) => (i.id === updated.id ? { ...i, isRead: Boolean(updated.is_read) } : i))
             );
+          } else if (payload.eventType === 'DELETE') {
+            const delId = (payload.old as any)?.id;
+            if (delId) {
+              setInboxItems((prev) => prev.filter((i) => i.id !== delId));
+            }
           }
-        )
-        .subscribe();
-    }
-
-    // 2. Dev MockStore Listener
-    const unsubscribeMock = mockStore.on('NEW_MESSAGE', (msg: Message) => {
-      handleIncomingMessage(
-        msg.channelId,
-        msg.id,
-        msg.content,
-        msg.authorId,
-        msg.author?.displayName || msg.author?.username || 'User',
-        msg.author?.avatarUrl
-      );
-    });
+        }
+      )
+      .subscribe();
 
     return () => {
-      if (globalMsgChannel && supabase) {
-        supabase.removeChannel(globalMsgChannel);
-      }
-      unsubscribeMock();
+      if (supabase) supabase.removeChannel(notifSub);
     };
-  }, [currentUser]);
+  }, [currentUser?.id]);
 
   const unreadMentionCount = useMemo(() => {
     return inboxItems.filter((i) => !i.isRead && (i.type === 'mention' || i.type === 'reply')).length;
@@ -203,12 +142,16 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setInboxItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, isRead: true } : item))
     );
+    NotificationService.markAsRead(id).catch(() => {});
   }, []);
 
   const markAllRead = useCallback(() => {
     setInboxItems((prev) => prev.map((item) => ({ ...item, isRead: true })));
     setChannelUnreadMap({});
-  }, []);
+    if (currentUser) {
+      NotificationService.markAllAsRead(currentUser.id).catch(() => {});
+    }
+  }, [currentUser]);
 
   const markChannelRead = useCallback(
     (channelId: string) => {
@@ -239,6 +182,7 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         markRead,
         markAllRead,
         markChannelRead,
+        refreshInbox: loadNotifications,
       }}
     >
       {children}

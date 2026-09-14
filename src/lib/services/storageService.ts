@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../supabase/client';
 import { Attachment } from '../../types';
+import { ServiceError } from '../repositories/types';
 
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25MB maximum file upload
 const ALLOWED_MIME_TYPES = [
@@ -49,7 +50,8 @@ export class StorageService {
   }
 
   /**
-   * Uploads file to Supabase Storage bucket or generates a safe data/object URL for dev.
+   * Uploads file to Supabase Storage bucket.
+   * Throws explicit ServiceError on failure; never silently converts failed uploads to temporary blobs.
    */
   public static async uploadAttachment(
     file: File,
@@ -58,7 +60,7 @@ export class StorageService {
   ): Promise<Attachment> {
     const validation = this.validateFile(file);
     if (!validation.valid) {
-      throw new Error(validation.error);
+      throw new ServiceError('VALIDATION_FAILED', validation.error || 'Invalid file');
     }
 
     const fileExt = file.name.split('.').pop() || 'bin';
@@ -68,43 +70,47 @@ export class StorageService {
     if (onProgress) onProgress(20);
 
     if (isSupabaseConfigured && supabase) {
-      try {
-        const { data, error } = await supabase.storage
-          .from(this.bucketName)
-          .upload(storagePath, file, {
-            cacheControl: '3600',
-            upsert: false,
-          });
+      const { data, error } = await supabase.storage
+        .from(this.bucketName)
+        .upload(storagePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
 
-        if (onProgress) onProgress(70);
+      if (onProgress) onProgress(70);
 
-        if (error) {
-          console.warn('[StorageService] Bucket upload returned error, falling back to public url resolver:', error);
-        }
-
-        // Retrieve public URL for uploaded object
-        const { data: publicUrlData } = supabase.storage
-          .from(this.bucketName)
-          .getPublicUrl(storagePath);
-
-        const permanentUrl = publicUrlData?.publicUrl;
-        if (onProgress) onProgress(100);
-
-        if (permanentUrl) {
-          return {
-            id: uniqueId,
-            fileName: file.name,
-            fileUrl: permanentUrl,
-            fileSize: file.size,
-            contentType: file.type || 'application/octet-stream',
-          };
-        }
-      } catch (err) {
-        console.warn('[StorageService] Storage exception:', err);
+      if (error) {
+        throw new ServiceError('UPLOAD_FAILED', `Failed to upload attachment: ${error.message}`, error);
       }
+
+      const { data: publicUrlData } = supabase.storage
+        .from(this.bucketName)
+        .getPublicUrl(storagePath);
+
+      const permanentUrl = publicUrlData?.publicUrl;
+      if (onProgress) onProgress(100);
+
+      if (permanentUrl) {
+        return {
+          id: uniqueId,
+          fileName: file.name,
+          fileUrl: permanentUrl,
+          fileSize: file.size,
+          contentType: file.type || 'application/octet-stream',
+        };
+      }
+      throw new ServiceError('UPLOAD_FAILED', 'Could not resolve public URL for uploaded attachment.');
     }
 
-    // Isolated Dev / Demo fallback (data URL to ensure cross-render persistence)
+    // Local / Offline demo mode (only when Supabase is explicitly not configured)
+    const isProduction =
+      (import.meta as any).env?.VITE_APP_ENV === 'production' ||
+      (import.meta as any).env?.PROD;
+
+    if (isProduction) {
+      throw new ServiceError('STORAGE_NOT_CONFIGURED', 'Supabase storage is not configured for production.');
+    }
+
     const dataUrl = await this.readAsDataUrl(file);
     if (onProgress) onProgress(100);
 

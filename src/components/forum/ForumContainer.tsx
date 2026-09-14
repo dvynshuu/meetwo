@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useServer } from '../../app/providers/ServerContext';
 import { useAuth } from '../../app/providers/AuthContext';
 import { ForumService, ForumReply } from '../../lib/services/forumService';
-import { mockStore } from '../../lib/supabase/mockStore';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { ForumPost } from '../../types';
 import { Avatar } from '../ui/Avatar';
 import { Modal } from '../ui/Modal';
@@ -53,10 +53,29 @@ export const ForumContainer: React.FC = () => {
     loadPosts();
     setSelectedPost(null);
 
-    const unsub = mockStore.subscribe('FORUM_POST_CREATED', () => {
-      loadPosts();
-    });
-    return () => unsub();
+    if (isSupabaseConfigured && supabase && activeChannel?.id) {
+      const chan = supabase
+        .channel(`forum:${activeChannel.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'forum_posts',
+            filter: `channel_id=eq.${activeChannel.id}`,
+          },
+          () => {
+            loadPosts();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        if (supabase) {
+          supabase.removeChannel(chan);
+        }
+      };
+    }
   }, [activeChannel?.id]);
 
   // When opening a post, fetch real replies
