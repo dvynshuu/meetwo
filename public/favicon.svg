@@ -1,20 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" fill="none">
-  <!-- meetwo base tile: mineral obsidian -->
-  <rect width="120" height="120" rx="28" fill="#0A0C10"/>
-  <rect x="1" y="1" width="118" height="118" rx="27" stroke="rgba(255, 255, 255, 0.08)" stroke-width="1.5"/>
+  <!-- meetwo base tile: Linear near-black canvas -->
+  <rect width="120" height="120" rx="28" fill="#010102"/>
+  <rect x="1" y="1" width="118" height="118" rx="27" stroke="#23252a" stroke-width="1.5"/>
 
-  <!-- meetwo icon: two converging human connection arcs & focal nodes -->
+  <!-- meetwo icon: two converging human connection arcs & focal nodes in Linear Lavender -->
   <g transform="translate(60, 60)">
     <!-- Primary focal arc (left) -->
     <path d="M-22 18 C-36 18 -42 6 -42 -8 C-42 -24 -28 -34 -12 -34 C4 -34 14 -20 14 -4" 
-          stroke="#10E7B2" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+          stroke="#5e6ad2" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
     
     <!-- Secondary focal arc (right) - intersecting and converging -->
     <path d="M22 -18 C36 -18 42 -6 42 8 C42 24 28 34 12 34 C-4 34 -14 20 -14 4" 
-          stroke="#10E7B2" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.85"/>
+          stroke="#828fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.9"/>
 
     <!-- Central human focal connection points -->
-    <circle cx="-14" cy="4" r="5.5" fill="#38BDF8"/>
-    <circle cx="14" cy="-4" r="5.5" fill="#10E7B2"/>
+    <circle cx="-14" cy="4" r="5.5" fill="#828fff"/>
+    <circle cx="14" cy="-4" r="5.5" fill="#5e6ad2"/>
   </g>
 </svg>

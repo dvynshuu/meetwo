@@ -44,9 +44,9 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
         style={{
           marginTop: 8,
           maxWidth: 420,
-          background: 'var(--bg-surface-elevated, #161a23)',
-          border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))',
-          borderRadius: 8,
+          background: 'var(--surface-1)',
+          border: '1px solid var(--hairline)',
+          borderRadius: 'var(--radius-lg)',
           padding: '12px 16px',
           display: 'flex',
           alignItems: 'center',
@@ -113,14 +113,14 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
       style={{
         marginTop: 8,
         maxWidth: 440,
-        background: 'var(--bg-surface-elevated, #161a23)',
-        border: '1px solid var(--border-medium, rgba(255, 255, 255, 0.12))',
-        borderRadius: 10,
+        background: 'var(--surface-1)',
+        border: '1px solid var(--hairline)',
+        borderRadius: 'var(--radius-lg)',
         padding: '14px 16px',
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
+        boxShadow: 'var(--shadow-md)',
       }}
     >
       <div
@@ -129,7 +129,7 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
           fontWeight: 700,
           textTransform: 'uppercase',
           letterSpacing: '0.06em',
-          color: 'var(--text-muted, #8b949e)',
+          color: 'var(--ink-subtle)',
         }}
       >
         You've been invited to join a server
@@ -139,16 +139,15 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
         {/* Server Icon */}
         <div
           style={{
-            width: 50,
-            height: 50,
-            borderRadius: 14,
+            width: 48,
+            height: 48,
+            borderRadius: 'var(--radius-md)',
             overflow: 'hidden',
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            background: 'var(--accent-gradient)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
           }}
         >
           {server.iconUrl ? (
@@ -179,7 +178,7 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
             >
               {server.name}
             </span>
-            <ShieldCheck size={15} style={{ color: 'var(--accent, #6366f1)', flexShrink: 0 }} />
+            <ShieldCheck size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
           </div>
 
           <div
@@ -197,7 +196,7 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 5,
-                color: '#22c55e',
+                color: 'var(--semantic-success)',
                 fontWeight: 500,
               }}
             >
@@ -206,8 +205,7 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
                   width: 7,
                   height: 7,
                   borderRadius: '50%',
-                  background: '#22c55e',
-                  boxShadow: '0 0 4px #22c55e',
+                  background: 'var(--semantic-success)',
                 }}
               />
               1 Online

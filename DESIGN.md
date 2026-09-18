@@ -1,286 +1,548 @@
-# meetwo — Design System & UI/UX Architecture
+---
+version: alpha
+name: Linear-design-analysis
+description: "A near-black product-focused marketing canvas built around #010102 (the deepest dark surface of any tool in this collection), light gray text (#f7f8f8), and the signature Linear lavender-blue (#5e6ad2) used as the single chromatic accent. The system reads as software-craft documentation: dense, technical, and quietly luxurious. Display type is set in the Linear custom sans (SF Pro Display fallback) at 500–700 with measured negative tracking. Cards live as charcoal panels (#0f1011) with hairline borders. The accent lavender appears on the brand mark, focus rings, and a few intentional CTAs — never decoratively. Page rhythm leans on product UI screenshots framed in dark panels rather than atmospheric color."
 
-`meetwo` is a calm, modern, and human communication platform designed for small teams and private groups (2–6 people). It strictly rejects the frantic, hyper-gamified aesthetics of gaming chat apps (neon glows, purple gradients, pill-shaped UI everywhere, floating blobs) in favor of an architectural, focused, and quiet digital environment.
+colors:
+  primary: "#5e6ad2"
+  on-primary: "#ffffff"
+  primary-hover: "#828fff"
+  primary-focus: "#5e69d1"
+  ink: "#f7f8f8"
+  ink-muted: "#d0d6e0"
+  ink-subtle: "#8a8f98"
+  ink-tertiary: "#62666d"
+  canvas: "#010102"
+  surface-1: "#0f1011"
+  surface-2: "#141516"
+  surface-3: "#18191a"
+  surface-4: "#191a1b"
+  hairline: "#23252a"
+  hairline-strong: "#34343a"
+  hairline-tertiary: "#3e3e44"
+  inverse-canvas: "#ffffff"
+  inverse-surface-1: "#f5f6f6"
+  inverse-surface-2: "#f6f7f7"
+  inverse-ink: "#000000"
+  brand-secure: "#7a7fad"
+  semantic-success: "#27a644"
+  semantic-overlay: "#000000"
 
+typography:
+  display-xl:
+    fontFamily: Linear Display
+    fontSize: 80px
+    fontWeight: 600
+    lineHeight: 1.05
+    letterSpacing: -3.0px
+  display-lg:
+    fontFamily: Linear Display
+    fontSize: 56px
+    fontWeight: 600
+    lineHeight: 1.10
+    letterSpacing: -1.8px
+  display-md:
+    fontFamily: Linear Display
+    fontSize: 40px
+    fontWeight: 600
+    lineHeight: 1.15
+    letterSpacing: -1.0px
+  headline:
+    fontFamily: Linear Display
+    fontSize: 28px
+    fontWeight: 600
+    lineHeight: 1.20
+    letterSpacing: -0.6px
+  card-title:
+    fontFamily: Linear Display
+    fontSize: 22px
+    fontWeight: 500
+    lineHeight: 1.25
+    letterSpacing: -0.4px
+  subhead:
+    fontFamily: Linear Display
+    fontSize: 20px
+    fontWeight: 400
+    lineHeight: 1.40
+    letterSpacing: -0.2px
+  body-lg:
+    fontFamily: Linear Text
+    fontSize: 18px
+    fontWeight: 400
+    lineHeight: 1.50
+    letterSpacing: -0.1px
+  body:
+    fontFamily: Linear Text
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.50
+    letterSpacing: -0.05px
+  body-sm:
+    fontFamily: Linear Text
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.50
+    letterSpacing: 0
+  caption:
+    fontFamily: Linear Text
+    fontSize: 12px
+    fontWeight: 400
+    lineHeight: 1.40
+    letterSpacing: 0
+  button:
+    fontFamily: Linear Text
+    fontSize: 14px
+    fontWeight: 500
+    lineHeight: 1.20
+    letterSpacing: 0
+  eyebrow:
+    fontFamily: Linear Text
+    fontSize: 13px
+    fontWeight: 500
+    lineHeight: 1.30
+    letterSpacing: 0.4px
+  mono:
+    fontFamily: Linear Mono
+    fontSize: 13px
+    fontWeight: 400
+    lineHeight: 1.50
+    letterSpacing: 0
+
+rounded:
+  xs: 4px
+  sm: 6px
+  md: 8px
+  lg: 12px
+  xl: 16px
+  xxl: 24px
+  pill: 9999px
+  full: 9999px
+
+spacing:
+  xxs: 4px
+  xs: 8px
+  sm: 12px
+  md: 16px
+  lg: 24px
+  xl: 32px
+  xxl: 48px
+  section: 96px
+
+components:
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.button}"
+    rounded: "{rounded.md}"
+    padding: 8px 14px
+  button-primary-pressed:
+    backgroundColor: "{colors.primary-focus}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.button}"
+    rounded: "{rounded.md}"
+  button-primary-hover:
+    backgroundColor: "{colors.primary-hover}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.button}"
+    rounded: "{rounded.md}"
+  button-secondary:
+    backgroundColor: "{colors.surface-1}"
+    textColor: "{colors.ink}"
+    typography: "{typography.button}"
+    rounded: "{rounded.md}"
+    padding: 8px 14px
+  button-tertiary:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.button}"
+    rounded: "{rounded.md}"
+    padding: 8px 14px
+  button-inverse:
+    backgroundColor: "{colors.inverse-canvas}"
+    textColor: "{colors.inverse-ink}"
+    typography: "{typography.button}"
+    rounded: "{rounded.md}"
+    padding: 8px 14px
+  pricing-card:
+    backgroundColor: "{colors.surface-1}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+    rounded: "{rounded.lg}"
+    padding: 24px
+  pricing-card-featured:
+    backgroundColor: "{colors.surface-2}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+    rounded: "{rounded.lg}"
+    padding: 24px
+  feature-card:
+    backgroundColor: "{colors.surface-1}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+    rounded: "{rounded.lg}"
+    padding: 24px
+  product-screenshot-card:
+    backgroundColor: "{colors.surface-1}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+    rounded: "{rounded.xl}"
+    padding: 24px
+  testimonial-card:
+    backgroundColor: "{colors.surface-1}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body-lg}"
+    rounded: "{rounded.lg}"
+    padding: 32px
+  customer-logo-tile:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink-subtle}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.xs}"
+    padding: 16px
+  text-input:
+    backgroundColor: "{colors.surface-1}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+    rounded: "{rounded.md}"
+    padding: 8px 12px
+  text-input-focused:
+    backgroundColor: "{colors.surface-1}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+    rounded: "{rounded.md}"
+    padding: 8px 12px
+  pricing-tab-default:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink-subtle}"
+    typography: "{typography.button}"
+    rounded: "{rounded.pill}"
+    padding: 6px 14px
+  pricing-tab-selected:
+    backgroundColor: "{colors.surface-2}"
+    textColor: "{colors.ink}"
+    typography: "{typography.button}"
+    rounded: "{rounded.pill}"
+    padding: 6px 14px
+  cta-banner:
+    backgroundColor: "{colors.surface-1}"
+    textColor: "{colors.ink}"
+    typography: "{typography.headline}"
+    rounded: "{rounded.lg}"
+    padding: 48px
+  changelog-row:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+    rounded: "{rounded.xs}"
+    padding: 24px 0
+  status-badge:
+    backgroundColor: "{colors.surface-2}"
+    textColor: "{colors.ink-muted}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.pill}"
+    padding: 2px 8px
+  top-nav:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body-sm}"
+    rounded: "{rounded.xs}"
+    height: 56px
+  footer:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink-subtle}"
+    typography: "{typography.caption}"
+    rounded: "{rounded.xs}"
+    padding: 64px 32px
 ---
 
-## 1. Brand Philosophy & Identity
+## Overview
 
-### 1.1 The Core Ethos
-- **Calm by Default**: Communication interfaces should recede into the background. Noise, intrusive telemetry, and bright rainbow gradients are eliminated.
-- **Lowercase Identity**: The product name is strictly formatted as **`meetwo`** (all lowercase) in all typography, copy, and code surfaces.
-- **Architectural Surfaces**: Rather than flat black or generic gray, `meetwo` employs a precise **4-level Mineral Graphite** surface system with high-contrast active accents.
-- **Truthful Information**: Metrics (latency, bitrate, quality) are displayed discreetly without loud, constantly flickering numbers in primary chrome.
-- **Rectangular-Rounded Geometry**: Strict radii (4px, 6px, 8px, 12px) create a stable, intentional rhythm, completely avoiding ubiquitous 9999px pills.
+Linear's marketing canvas is the deepest dark surface in this collection — `{colors.canvas}` is #010102, essentially pure black with a faint blue tint. On top sits a four-step surface ladder (`{colors.surface-1}` through `{colors.surface-4}`) for cards, panels, and lifted tiles, with hairline borders running from `{colors.hairline}` (#23252a) up through `{colors.hairline-strong}` and `{colors.hairline-tertiary}`. Light gray text (`{colors.ink}` #f7f8f8) carries the body and headlines.
 
-### 1.2 Anti-Patterns Banished
-| Anti-Pattern | Reason for Elimination | meetwo Replacement |
-| :--- | :--- | :--- |
-| Discord purple gradients (`#6366F1`, `#8B5CF6`) | Generic gaming clone appearance | **Electric Mint (`#10E7B2`)** & **Mineral Graphite** |
-| Neon green box-shadow speaking halos | Visual distraction, eye fatigue | **Crisp 2px mint border ring (`0 0 0 2px var(--accent)`)** |
-| 9999px pill shapes everywhere | Childish, sloppy UI rhythm | **Strict geometric radii (`--radius-sm: 6px`, `--radius-md: 8px`)** |
-| Raw telemetry in primary header (`24ms RTT`) | Unnecessary technical clutter | **Quiet status indicator (`● Good connection` with hover popover)** |
-| Giant circular video control buttons | Dominate the screen, obscure content | **Floating 40px square-rounded graphite toolbar** |
-| Rainbow user role colors | Visual chaos in member lists | **Monochrome scannable hierarchy with single mint owner badge** |
+The single chromatic accent is **Linear lavender-blue** `{colors.primary}` (#5e6ad2) — used on the brand mark, focus rings, and the primary CTA button. A lighter hover state (`{colors.primary-hover}` #828fff) and a focus-tinted variant (`{colors.primary-focus}` #5e69d1) extend the same hue. Linear avoids saturated greens, oranges, reds, etc. on the marketing canvas — the only semantic color is `{colors.semantic-success}` (#27a644) for status pills and the rare success indicator.
 
-### 1.3 Brandmark
-The `meetwo` brandmark consists of geometric converging focal nodes enclosed in a Mineral Obsidian base (`#0A0C10`), with dual nodes rendered in **Electric Mint** (`#10E7B2`) and **Subtle Sky** (`#38BDF8`), symbolizing focused, natural connection between human participants.
+Display type runs Linear's custom sans (with `SF Pro Display` fallback) at weight 500–700 with negative letter-spacing scaling from -3.0px at 80px down to 0 at body. The body family is Linear's text cut, and a Linear Mono is reserved for code snippets in product screenshots.
 
----
+The page rhythm is **dense product screenshots** — Linear's marketing leads with high-fidelity captures of the product UI (issue list, project view, dashboard) framed in `{colors.surface-1}` panels with `{rounded.xl}` 16px corners. The chrome is intentionally minimal so the app screenshots can do the heavy lifting.
 
-## 2. Design Tokens Architecture (`src/styles/tokens.css`)
+**Key Characteristics:**
+- **Dark-canvas marketing system** — `{colors.canvas}` (#010102) is the deepest dark in this collection.
+- **Lavender-blue brand accent** (`{colors.primary}` #5e6ad2) — used scarcely on brand mark, focus, and the primary CTA.
+- Four-step surface ladder (canvas → surface-1 → surface-2 → surface-3 → surface-4) carries hierarchy without shadow.
+- Display tracking pulls aggressively negative (-3.0px at 80px); body holds at -0.05px.
+- Cards use `{rounded.lg}` 12px corners with 1px hairline borders — never pill, rarely 16px.
+- **Product UI screenshots** dominate the page. The marketing chrome is a dark frame for the app.
+- No second chromatic color. No atmospheric gradients. No spotlight cards.
 
-### 2.1 Color Palette & Surface Hierarchy
+## Colors
 
-```text
-Level 0: #0A0C10 (--bg-app) ────────── Root frame & letterbox base
-  Level 1: #0E121B (--bg-sidebar-servers) ─── Primary workspace rail (56px)
-    Level 2: #131720 (--bg-sidebar-channels) ── Channel sidebar & member list (240px)
-      Level 3: #181D28 (--bg-main, --bg-surface) ─ Chat viewport & video stage
-        Level 4: #1E2533 (--bg-overlay, --bg-surface-raised) ─ Modals, popovers & dropdowns
-```
+> Source pages: linear.app (home), /intake, /pricing, /contact/sales, /build.
 
-#### CSS Token Definitions:
-```css
-:root {
-  /* Mineral Graphite Surfaces */
-  --bg-app: #0A0C10;              /* Level 0: Root app backdrop */
-  --bg-sidebar-servers: #0E121B;  /* Level 1: Primary navigation rail */
-  --bg-sidebar-channels: #131720; /* Level 2: Channel sidebar & member lists */
-  --bg-main: #181D28;              /* Level 3: Center content canvas */
-  --bg-surface: #181D28;           /* Level 3: Cards, input containers, tiles */
-  --bg-surface-hover: #1E2533;     /* Hover state for interactive cards */
-  --bg-surface-active: #242B3B;    /* Active state / selected items */
-  --bg-surface-raised: #1E2533;    /* Level 4: Floating menus & popovers */
-  --bg-overlay: #1E2533;           /* Level 4: Modal content background */
+### Brand & Accent
+- **Lavender-Blue** ({colors.primary}): The signature Linear accent — primary CTA, brand mark, link emphasis.
+- **Lavender Hover** ({colors.primary-hover}): Lighter lavender (#828fff) — hovered state of the primary CTA.
+- **Lavender Focus** ({colors.primary-focus}): Focus-ring tint (#5e69d1) — focused inputs, focused buttons.
+- **Brand Secure** ({colors.brand-secure}): Muted lavender-gray (#7a7fad) — used in "Linear Security" surfaces.
 
-  /* Primary Accent: Electric Mint */
-  --accent: #10E7B2;
-  --accent-hover: #0DCA9B;
-  --accent-active: #0BAF86;
-  --accent-light: #4EEDC4;
-  --accent-soft: rgba(16, 231, 178, 0.12);
-  --accent-subtle: rgba(16, 231, 178, 0.12);
-  --accent-border: rgba(16, 231, 178, 0.28);
-  --accent-glow: rgba(16, 231, 178, 0.25);
-  --text-on-accent: #0A0C10;       /* High-contrast dark text on bright mint */
+### Surface
+- **Canvas** ({colors.canvas}): Default page background — #010102, near-pure black with a faint blue tint.
+- **Surface 1** ({colors.surface-1}): One step above canvas — feature cards, pricing cards, product screenshot panels.
+- **Surface 2** ({colors.surface-2}): Two steps above — featured pricing card, hovered cards.
+- **Surface 3** ({colors.surface-3}): Three steps above — line-tertiary backgrounds, sub-nav.
+- **Surface 4** ({colors.surface-4}): Four steps above — bg-level-3, deepest lifted surface.
+- **Hairline** ({colors.hairline}): 1px borders on cards and dividers.
+- **Hairline Strong** ({colors.hairline-strong}): Stronger 1px borders — input focus rings.
+- **Hairline Tertiary** ({colors.hairline-tertiary}): Tertiary borders for nested surfaces.
+- **Inverse Canvas** ({colors.inverse-canvas}): Pure white — surface of the inverse pill CTA on a small set of section openers.
+- **Inverse Surface 1** ({colors.inverse-surface-1}): One step above inverse canvas.
+- **Inverse Surface 2** ({colors.inverse-surface-2}): Two steps above inverse canvas.
 
-  /* Secondary Accent: Subtle Sky */
-  --sky: #38BDF8;
-  --sky-hover: #0EA5E9;
-  --sky-soft: rgba(56, 189, 248, 0.12);
+### Text
+- **Ink** ({colors.ink}): All headlines and emphasized body type — light gray #f7f8f8.
+- **Ink Muted** ({colors.ink-muted}): Secondary type at #d0d6e0 — meta info on hero panels.
+- **Ink Subtle** ({colors.ink-subtle}): Tertiary type at #8a8f98 — deselected pricing tabs, footer columns.
+- **Ink Tertiary** ({colors.ink-tertiary}): Quaternary at #62666d — disabled, footnotes.
 
-  /* Semantic State Colors */
-  --status-online: #10E7B2;
-  --status-idle: #FBBF24;
-  --status-dnd: #FB7185;
-  --status-offline: #64748B;
+### Semantic
+- **Success Green** ({colors.semantic-success}): Status pills, success indicators. The only semantic color on marketing.
+- **Overlay** ({colors.semantic-overlay}): Pure black overlay scrim for modals.
 
-  /* Destructive: Warm Coral */
-  --danger: #FB7185;
-  --danger-hover: #F43F5E;
-  --danger-surface: rgba(251, 113, 133, 0.12);
-  --danger-border: rgba(251, 113, 133, 0.25);
-  --coral: #FB7185;
-  --coral-soft: rgba(251, 113, 133, 0.12);
+## Typography
 
-  /* Warning: Amber Gold */
-  --warning: #FBBF24;
-  --warning-surface: rgba(251, 191, 36, 0.12);
+### Font Family
 
-  /* Typography Colors */
-  --text-primary: #F1F5F9;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
-  --text-dim: #475569;
+- **Linear Display** — Linear's custom display sans; fallback `SF Pro Display, -apple-system, system-ui, Segoe UI, Roboto`. Carries display-xl through subhead.
+- **Linear Text** — Linear's custom text sans (a slightly different cut tuned for body sizes); same fallback stack. Carries body sizes, button labels, captions.
+- **Linear Mono** — Linear's custom mono; fallback `ui-monospace, SF Mono, Menlo`. Used for code snippets in product screenshots and for status / ID tokens.
 
-  /* Borders */
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-medium: rgba(255, 255, 255, 0.12);
-  --border-strong: rgba(255, 255, 255, 0.20);
-  --border-focus: var(--accent);
-  --border-accent: rgba(16, 231, 178, 0.4);
-}
-```
+The marketing surface treats Display and Text as one continuous voice; the family change is silent.
 
-### 2.2 Typography Hierarchy
-- **Display Font (`--font-display`)**: `Plus Jakarta Sans`, sans-serif (Weights: 600, 700). Used for headers, brandmark, and modal titles.
-- **Interface Font (`--font-ui`)**: `Inter`, sans-serif (Weights: 400, 500, 600). Used for channel labels, message text, user names, and buttons.
-- **Monospace Font (`--font-mono`)**: `JetBrains Mono`, monospace (Weights: 400, 500, 600). Used for WebRTC telemetry, codecs, code snippets, timestamps, and shortcuts.
+### Hierarchy
 
-### 2.3 Strict Geometric Radii
-```css
---radius-xs: 4px;   /* Tags, chips, reaction pills, mini status indicators */
---radius-sm: 6px;   /* Buttons, inputs, channel items, message hover containers */
---radius-md: 8px;   /* Cards, video tiles, workspace rail icons, quick menus */
---radius-lg: 12px;  /* Modals, popovers, floating video toolbar */
---radius-pill: 9999px; /* Reserved ONLY for live presence status dots */
-```
+| Token | Size | Weight | Line Height | Letter Spacing | Use |
+|---|---|---|---|---|---|
+| `{typography.display-xl}` | 80px | 600 | 1.05 | -3.0px | Largest hero headline |
+| `{typography.display-lg}` | 56px | 600 | 1.10 | -1.8px | Section opener headlines |
+| `{typography.display-md}` | 40px | 600 | 1.15 | -1.0px | Sub-section headlines |
+| `{typography.headline}` | 28px | 600 | 1.20 | -0.6px | Pricing tier titles, CTA banner heading |
+| `{typography.card-title}` | 22px | 500 | 1.25 | -0.4px | Feature card title |
+| `{typography.subhead}` | 20px | 400 | 1.40 | -0.2px | Lead body, intro paragraphs |
+| `{typography.body-lg}` | 18px | 400 | 1.50 | -0.1px | Hero subhead, lead paragraphs |
+| `{typography.body}` | 16px | 400 | 1.50 | -0.05px | Default body |
+| `{typography.body-sm}` | 14px | 400 | 1.50 | 0 | Card body, footer columns |
+| `{typography.caption}` | 12px | 400 | 1.40 | 0 | Captions, meta, status |
+| `{typography.button}` | 14px | 500 | 1.20 | 0 | All button labels |
+| `{typography.eyebrow}` | 13px | 500 | 1.30 | 0.4px | Section eyebrow (slight positive tracking) |
+| `{typography.mono}` | 13px | 400 | 1.50 | 0 | Linear Mono for code in product screenshots |
 
-### 2.4 Shadows & Elevations
-```css
---shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
---shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
---shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.65);
---shadow-speaking: 0 0 0 2px var(--accent); /* High-precision active speaker ring */
-```
+### Principles
 
----
+- **Aggressive negative tracking on display** (-3.0px at 80px ≈ 4% of size).
+- **Single voice from display to body.** Display-xl at 600 → body at 400 — same family, narrower weights.
+- **Eyebrow uses positive tracking** (+0.4px) — contrast against the negative-tracked display marks the eyebrow as taxonomy.
+- **Mono only in code contexts.** Linear Mono lives inside product screenshots — not on marketing chrome.
 
-## 3. Spatial Layout & Navigation System
+### Note on Font Substitutes
 
-### 3.1 4-Column Layout Architecture
-```text
-┌────────────┬──────────────────┬──────────────────────────────────────┬──────────────────┐
-│  Primary   │    Workspace     │             Top App Bar              │   Member List    │
-│  Nav Rail  │ Channel Sidebar  ├──────────────────────────────────────┤    (Optional)    │
-│            │                  │                                      │                  │
-│    56px    │      240px       │          Main Content Pane           │      240px       │
-│  Level 1   │     Level 2      │          (Chat, Video, Stage)        │     Level 2      │
-│            │                  │                Level 3               │                  │
-│            ├──────────────────┤                                      │                  │
-│            │     User Bar     │                                      │                  │
-└────────────┴──────────────────┴──────────────────────────────────────┴──────────────────┘
-```
+Linear's custom typeface isn't publicly distributed; the documented fallback `SF Pro Display, -apple-system, system-ui` is the recommended substitute on macOS. For cross-platform implementation, **Inter** at weight 500 / 600 / 700 is the closest free substitute. **Geist Sans** is also viable. For mono, **JetBrains Mono** or **Geist Mono** at weight 400 closely approximates Linear Mono.
 
-### 3.2 Component Details
-1. **Primary Navigation Rail (`ServerSidebar.tsx`)**:
-   - 56px width, Level 1 Mineral Graphite (`#0E121B`).
-   - Top brand anchor with geometric `meetwo` nodes.
-   - Square-rounded workspace icons (`40px x 40px`, `border-radius: var(--radius-md)`).
-   - Clean active indicator: a 3px vertical Electric Mint bar on the left edge (`height: 22px`).
-2. **Channel Sidebar (`ChannelSidebar.tsx`)**:
-   - 240px width, Level 2 Mineral Graphite (`#131720`).
-   - Collapsible categories with subtle carets (`ChevronDown`, `ChevronRight`).
-   - Channels partitioned by semantic icons: `#` text, `Volume2` voice, `Radio` stage, `MessagesSquare` forum.
-   - Active channel indicated with a subtle surface background and a 3px mint left accent notch.
-3. **Top App Bar (`TopAppBar.tsx`)**:
-   - 48px height, de-cluttered.
-   - Left: Channel name, channel topic separated by a clean graphite divider.
-   - Right: Discreet connection health pill (`● Good connection` with hover popover for detailed RTT/packet loss/jitter), Quick Jump `⌘K` shortcut trigger, and member toggle.
-4. **User Status Bar (`UserBar.tsx`)**:
-   - Fixed at the bottom of the channel sidebar.
-   - Avatar with status badge, display name, `@username`, and custom emoji status.
-   - Level 4 status menu popup for setting custom status and presence (Online, Away, DND, Offline).
-   - Quick mute and settings trigger buttons.
+## Layout
 
----
+### Spacing System
 
-## 4. Real-Time Video & Media Presentation
+- **Base unit**: 4px.
+- **Tokens (front matter)**: `{spacing.xxs}` 4px · `{spacing.xs}` 8px · `{spacing.sm}` 12px · `{spacing.md}` 16px · `{spacing.lg}` 24px · `{spacing.xl}` 32px · `{spacing.xxl}` 48px · `{spacing.section}` 96px.
+- Card interior padding: `{spacing.lg}` 24px on feature/pricing cards; `{spacing.xl}` 32px on testimonial cards; `{spacing.xxl}` 48px on CTA banners.
+- Pill button padding: 8px vertical · 14px horizontal — Linear's compact button spec.
+- Form input padding: 8px vertical · 12px horizontal.
 
-### 4.1 Floating Video Toolbar (`VideoControls.tsx`)
-- **Positioning**: Floating 16px above the bottom viewport, horizontally centered.
-- **Surface**: Level 3/4 surface (`#181D28`), `1px solid var(--border-medium)`, `box-shadow: var(--shadow-lg)`.
-- **Buttons**:
-  - 40px square-rounded buttons (`var(--radius-sm)`).
-  - Split audio and video buttons with dedicated chevrons opening quick device selection menus.
-  - Active muted states use warm coral tint (`var(--danger-surface)` with `var(--danger)` icon).
-  - Disconnect button: Warm coral surface with red tooltip semantics.
-  - Connection health pill: Compact 38px button matching toolbar radius (`var(--radius-sm)`), opening truthful WebRTC telemetry popover.
+### Grid & Container
 
-### 4.2 Video Grid & Tiles (`VideoGrid.tsx`, `VideoTile.tsx`)
-- **Grid Modes**:
-  - `1 Participant`: Full-width featured presentation card.
-  - `2 Participants`: 50/50 split.
-  - `3 Participants`: 2 top, 1 centered bottom.
-  - `4 Participants`: 2x2 grid.
-  - `5–6 Participants`: 3x2 balanced grid.
-- **Presentation Stage Mode**:
-  - When screen share is active, screen content occupies the primary stage (`video-stage-viewport`), while all participant cameras remain live in an unobtrusive bottom strip (`video-stage-strip`).
-- **Speaking Indicator**:
-  - Replaces all blurry green neon glow with a clean 2px Electric Mint ring: `box-shadow: 0 0 0 2px var(--accent)`.
-- **Overlays**:
-  - Participant name tag rendered in Level 1 graphite (`rgba(14, 18, 27, 0.82)`) with `var(--radius-xs)` and subtle border.
+- Max content width sits around 1280px.
+- Card grids are 3-up at desktop, 2-up at tablet, 1-up at mobile.
+- Pricing tier grid is 3-up; comparison strip below shows checkmarks per tier.
+- Product screenshot panels span full content width — they're the protagonist.
 
-### 4.3 Stage Broadcasts (`StageRoom.tsx`)
-- Broadcast mode separating speakers from listeners:
-  - Speakers grid with live video or high-res avatar, speaking indicator, and dynamic audio level bars.
-  - Quiet audience chip grid with raised-hand queue for moderator approval.
-  - Dedicated stage bottom bar with "Request to Speak" / "Step Down" actions.
+### Whitespace Philosophy
 
----
+The dark canvas IS the whitespace. Sections separate by lift onto surface-1 panels, not by gaps in white. Within a panel, generous `{spacing.lg}` 24px gaps between content blocks; `{spacing.section}` 96px between sections.
 
-## 5. Messaging, Forums & Content Architecture
+## Elevation & Depth
 
-### 5.1 Chat Viewport & Message Composer (`ChatContainer.tsx`, `MessageComposer.tsx`, `MessageItem.tsx`)
-- **Pinned Messages Banner**: Discreet amber-tinted banner at top of chat pane with instant jump-to-message capability.
-- **Message Grouping**: Messages from the same author within 5 minutes omit the avatar and display grouped timestamps on hover (`padding-left: 58px`).
-- **Rich Code Blocks**: Rendered in `JetBrains Mono` over Level 0 Obsidian (`var(--bg-app)`) with syntax highlight readiness.
-- **Composer**: Solid graphite container (`#181D28`), Electric Mint send button (`#10E7B2` background with `#0A0C10` icon for optimal contrast).
-- **Reaction Pills**: Minimalist chips with subtle surface backgrounds; highlighted with `var(--accent-subtle)` and `var(--accent)` border when reacted by the current user.
+| Level | Treatment | Use |
+|---|---|---|
+| 0 (flat) | No shadow, no border | Default for body type, hero text, footer |
+| 1 (charcoal lift) | `{colors.surface-1}` background on canvas, 1px `{colors.hairline}` | Default cards, product panels |
+| 2 (surface-2 lift) | `{colors.surface-2}` background, 1px `{colors.hairline-strong}` | Featured pricing card, hovered cards |
+| 3 (surface-3 lift) | `{colors.surface-3}` background | Sub-nav, dropdown menus |
+| 4 (focus ring) | 2px `{colors.primary-focus}` outline at 50% opacity | Focused input, focused button |
 
-### 5.2 Forums & Topics (`ForumContainer.tsx`)
-- Architectural card grid for community questions, guides, and asynchronous discussions.
-- Filter chips with `var(--radius-xs)` and Electric Mint active state.
-- Post cards displaying author, reply count, tag chips, and emerald `SOLVED` status badge.
-- Thread view with full original post, reply stream, and quick constructive reply form.
+Linear's depth is carried by surface ladder + hairline borders. The brand resists drop shadows on dark almost entirely.
 
-### 5.3 Saved Messages Drawer (`SavedMessagesDrawer.tsx`)
-- Slide-over drawer on the right side (`360px width`).
-- Quick bookmark access: star any message to save for later review.
-- Jump to channel and message action button (`ArrowUpRight`).
+### Decorative Depth
 
----
+- **Product UI screenshots** dominate as decorative depth.
+- **No atmospheric gradients, no spotlight cards.**
+- **Subtle white edge highlight** on the top edge of lifted panels — gives the dark surface a faint "pixel rendered" feel.
 
-## 6. Modals, Search & Dialogs
+## Shapes
 
-### 6.1 Command Palette (`CommandPalette.tsx`)
-- Triggered by `Ctrl+K` or `Cmd+K`.
-- Level 4 Mineral Graphite surface with subtle border and backdrop blur.
-- Instant search across workspaces, channels, voice actions, and settings.
-- Keyboard navigation (Arrow Up/Down, Enter, Esc).
+### Border Radius Scale
 
-### 6.2 Global Search (`GlobalSearchModal.tsx`)
-- Cross-channel message search with `from:username` and `in:channel` filter syntax.
-- Direct jump to historical messages.
+| Token | Value | Use |
+|---|---|---|
+| `{rounded.xs}` | 4px | Small chips, status badges |
+| `{rounded.sm}` | 6px | Inline tags |
+| `{rounded.md}` | 8px | All buttons, form inputs |
+| `{rounded.lg}` | 12px | Pricing cards, feature cards, testimonial cards |
+| `{rounded.xl}` | 16px | Product screenshot panels |
+| `{rounded.xxl}` | 24px | Oversized CTA banners (rare) |
+| `{rounded.pill}` | 9999px | Pricing tab toggles, status pills |
+| `{rounded.full}` | 9999px | Avatar circles |
 
-### 6.3 Settings & Diagnostics (`SettingsModal.tsx`, `DiagnosticsModal.tsx`)
-- **Account Settings**: Display name, username, bio, and avatar configuration.
-- **Audio & Video DSP**: Input gain, output volume, hardware test chime, and toggles for echo cancellation, noise suppression, and auto gain control.
-- **Appearance Themes**: "Mineral Obsidian (Default)" and "Mineral Slate".
-- **Observability**: Live WebRTC telemetry metrics (RTT, packet loss, jitter, bitrate, resolution, FPS, codecs).
+### Photography & Illustration Geometry
 
----
+- Product UI screenshots dominate; they sit in `{rounded.xl}` 16px tiles with `{spacing.lg}` 24px outer padding.
+- Customer logo tiles render at small sizes (~24px logo height) on `{colors.canvas}` with no border.
+- Avatar circles in testimonial cards use `{rounded.full}` at 32–40px sizes.
 
-## 7. Motion & Accessibility
+## Components
 
-### 7.1 Motion Design Principles
-- **Subtle & Purposeful**: Animations must never delay user actions. Durations stay between `120ms` and `180ms`.
-- **Easings**: `cubic-bezier(0.16, 1, 0.3, 1)` for modals and menus; `ease-out` for hover states.
-- **Reduced Motion**: Full compliance with `prefers-reduced-motion: reduce`:
-  ```css
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
-  }
-  ```
+### Buttons
 
-### 7.2 Accessibility & Contrast
-- Minimum text contrast ratio of `4.5:1` for normal body text and `7:1` for small UI text against Mineral Graphite surfaces.
-- Active Electric Mint CTAs use `#0A0C10` icon/text to ensure a high contrast ratio exceeding `12:1`.
-- Clean focus ring (`0 0 0 2px var(--accent)`) on all interactive inputs, buttons, and keyboard-focusable elements.
+**`button-primary`** — Lavender CTA. The default primary CTA across all pages.
+- Background `{colors.primary}`, text `{colors.on-primary}`, type `{typography.button}`, padding 8px 14px, rounded `{rounded.md}`.
+- Pressed state lives in `button-primary-pressed` (background shifts to `{colors.primary-focus}`).
+- Hover state lives in `button-primary-hover` (background shifts to `{colors.primary-hover}` lighter lavender).
 
----
+**`button-secondary`** — Charcoal button. Used for secondary CTAs ("Sign in", "Read changelog").
+- Background `{colors.surface-1}`, text `{colors.ink}`, type `{typography.button}`, padding 8px 14px, rounded `{rounded.md}`. 1px `{colors.hairline}` border.
 
-## 8. Implementation Roadmap & Phases
+**`button-tertiary`** — Plain text button.
+- Background `{colors.canvas}`, text `{colors.ink}`, type `{typography.button}`, rounded `{rounded.md}`, padding 8px 14px.
 
-```text
-Phase 1: Tokens, Color System & Typography ── [COMPLETED]
-Phase 2: Navigation Shell & Surface Hierarchy ─ [COMPLETED]
-Phase 3: Floating Video Controls & Tile Presentation [COMPLETED]
-Phase 4: Stage Broadcasts, Forums & Messaging [COMPLETED]
-Phase 5: Modals, Drawers & System Dialogs ──── [COMPLETED]
-Phase 6: Continuous Validation & Design Hardening [COMPLETED]
-```
+**`button-inverse`** — White-on-dark inverse CTA.
+- Background `{colors.inverse-canvas}`, text `{colors.inverse-ink}`, type `{typography.button}`, rounded `{rounded.md}`, padding 8px 14px.
 
-### Phase Details:
-1. **Phase 1 (Foundations)**: `tokens.css`, `global.css`, `index.html`, `favicon.svg` brandmark.
-2. **Phase 2 (Shell)**: `ServerSidebar.tsx`, `ChannelSidebar.tsx`, `TopAppBar.tsx`, `UserBar.tsx`, `MemberList.tsx`, `layout.css`.
-3. **Phase 3 (Video & Media)**: `VideoControls.tsx`, `VideoTile.tsx`, `VideoGrid.tsx`, `VideoRoom.tsx`, `PreJoinModal.tsx`.
-4. **Phase 4 (Collaboration)**: `ChatContainer.tsx`, `MessageComposer.tsx`, `MessageItem.tsx`, `ForumContainer.tsx`, `StageRoom.tsx`.
-5. **Phase 5 (System Services)**: `CommandPalette.tsx`, `GlobalSearchModal.tsx`, `SavedMessagesDrawer.tsx`, `SettingsModal.tsx`, `AuditLogModal.tsx`, `AuthModal.tsx`.
-6. **Phase 6 (Verification)**: Full TypeScript build validation (`npm run build`), legacy hex audit, and token fidelity checks.
+### Pricing Tabs
+
+**`pricing-tab-default`** + **`pricing-tab-selected`** — Pill-toggle on `/pricing`.
+- Default: `{colors.canvas}` background, `{colors.ink-subtle}` text, rounded `{rounded.pill}`, padding 6px 14px.
+- Selected: `{colors.surface-2}` background, `{colors.ink}` text — selected = surface lift.
+
+### Cards & Containers
+
+**`pricing-card`** — Each tier on `/pricing`.
+- Background `{colors.surface-1}`, text `{colors.ink}`, type `{typography.body}`, rounded `{rounded.lg}`, padding 24px. 1px `{colors.hairline}` border.
+
+**`pricing-card-featured`** — Recommended tier — surface lift to surface-2.
+- Background `{colors.surface-2}`, otherwise identical structure.
+
+**`feature-card`** — Generic feature highlight tile.
+- Background `{colors.surface-1}`, text `{colors.ink}`, type `{typography.body}`, rounded `{rounded.lg}`, padding 24px.
+
+**`product-screenshot-card`** — The dominant card type — frames a high-fidelity Linear app UI screenshot.
+- Background `{colors.surface-1}`, text `{colors.ink}`, type `{typography.body}`, rounded `{rounded.xl}`, padding 24px.
+
+**`testimonial-card`** — Customer quote with avatar + name + role.
+- Background `{colors.surface-1}`, text `{colors.ink}`, type `{typography.body-lg}`, rounded `{rounded.lg}`, padding 32px.
+
+**`customer-logo-tile`** — Small tile in the customer marquee.
+- Background `{colors.canvas}`, text `{colors.ink-subtle}`, type `{typography.caption}`, rounded `{rounded.xs}`, padding 16px.
+
+**`cta-banner`** — Closing CTA panel near page bottom.
+- Background `{colors.surface-1}`, text `{colors.ink}`, type `{typography.headline}`, rounded `{rounded.lg}`, padding 48px.
+
+### Inputs & Forms
+
+**`text-input`** + **`text-input-focused`** — Form fields on `/contact/sales` and signup overlays.
+- Background `{colors.surface-1}`, text `{colors.ink}`, type `{typography.body}`, rounded `{rounded.md}`, padding 8px 12px.
+- Focused state retains the same surface; the focus ring is a 2px `{colors.primary-focus}` outline at 50% opacity.
+
+### Status & Build Page
+
+**`changelog-row`** — Each row in `/build` (changelog page) listing version, date, and changes.
+- Background `{colors.canvas}`, text `{colors.ink}`, type `{typography.body}`, rounded `{rounded.xs}`, padding 24px 0. 1px `{colors.hairline}` bottom rule.
+
+**`status-badge`** — Small status pill.
+- Background `{colors.surface-2}`, text `{colors.ink-muted}`, type `{typography.caption}`, rounded `{rounded.pill}`, padding 2px 8px.
+
+### Navigation
+
+**`top-nav`** — Sticky dark bar with the Linear wordmark left, primary nav links centered, and a `button-secondary` ("Sign in") + `button-primary` ("Get started") pair right.
+- Background `{colors.canvas}`, text `{colors.ink}`, type `{typography.body-sm}`, height 56px.
+
+### Footer
+
+**`footer`** — Dense link grid on `{colors.canvas}` with the Linear wordmark left.
+- Background `{colors.canvas}`, text `{colors.ink-subtle}`, type `{typography.caption}`, padding 64px 32px.
+
+## Do's and Don'ts
+
+### Do
+
+- Reserve `{colors.canvas}` (#010102) as the system's anchor surface — the faint blue tint is intentional.
+- Use `{colors.primary}` lavender ONLY for: brand mark, primary CTA, focus ring, link emphasis.
+- Use the four-step surface ladder for hierarchy. Avoid skipping levels.
+- Pair display weight 600 with body weight 400 — Linear resists 700+ display weights.
+- Apply negative letter-spacing aggressively on display.
+- Use product UI screenshots as the protagonist of every section.
+- Compose CTAs as `{rounded.md}` 8px corners.
+
+### Don't
+
+- Don't ship a light-mode marketing page.
+- Don't use lavender as a section background or card fill.
+- Don't introduce a second chromatic accent (orange, pink, green for marketing).
+- Don't add atmospheric gradients or spotlight cards.
+- Don't pill-round CTAs.
+- Don't use `#000000` true black as the canvas.
+- Don't combine multiple bright accents in product screenshot mockups.
+
+## Responsive Behavior
+
+### Breakpoints
+
+| Name | Width | Key Changes |
+|---|---|---|
+| Desktop-XL | 1440px | Default desktop layout |
+| Desktop | 1280px | Card grid 3-up maintained |
+| Tablet | 1024px | Card grid 3-up → 2-up |
+| Mobile-Lg | 768px | Pricing comparison becomes accordion; nav hamburger |
+| Mobile | 480px | Single-column; display-xl scales 80px → ~36px |
+
+### Touch Targets
+
+- CTAs hold ≥40px tap height across viewports.
+- Pricing tab pills hold ≥36px tap height; touch viewports grow to ≥44px.
+- Form inputs hold ≥44px tap target on touch.
+
+### Collapsing Strategy
+
+- **Top nav**: links collapse to hamburger below 768px.
+- **Card grids**: 3-up → 2-up at 1024px → 1-up below 768px.
+- **Pricing comparison**: per-tier accordion below 768px.
+- **Display type**: `{typography.display-xl}` 80px scales toward `{typography.display-md}` 40px on mobile.
+
+### Image Behavior
+
+- Product UI screenshots maintain aspect ratio and never crop.
+- Customer logos in the marquee may collapse from 6-up to 3-up below 768px.
+
+## Iteration Guide
+
+1. Focus on ONE component at a time and reference it by its `components:` token name.
+2. When introducing a section, decide first which surface lift it lives on.
+3. Default body to `{typography.body}` at weight 400.
+4. Run `npx @google/design.md lint DESIGN.md` after edits.
+5. Add new variants as separate component entries.
+6. Treat lavender as scarce: brand mark, primary CTA, focus, link emphasis.
+7. Lead every section with a product UI screenshot.
+
+## Known Gaps
+
+- The four-step surface ladder values are extracted directly from Linear's `--color-bg-level-3`, `--color-line-tint`, etc. CSS variables; they are Linear's canonical surface spec.
+- Form-field error and validation styling is not visible on the inspected pages.
+- Light mode is not documented because the marketing site does not ship a light theme.
+- Linear's actual product UI uses a richer color-tag palette (red, orange, yellow, green, blue, purple) for issue priorities and project labels — those colors live in the in-product surfaces shown in mockups.
+- The custom display, text, and mono families are proprietary; an open-source substitute is acceptable.

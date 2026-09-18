@@ -142,7 +142,7 @@ export const ServerInviteModal: React.FC<ServerInviteModalProps> = ({ isOpen, on
                 width: 44,
                 height: 44,
                 borderRadius: '50%',
-                background: 'var(--gradient-primary, linear-gradient(135deg, #6366f1, #8b5cf6))',
+                background: 'var(--accent-gradient)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -159,7 +159,7 @@ export const ServerInviteModal: React.FC<ServerInviteModalProps> = ({ isOpen, on
               <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>
                 {activeServer.name}
               </span>
-              <ShieldCheck size={16} style={{ color: 'var(--accent, #6366f1)', flexShrink: 0 }} />
+              <ShieldCheck size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
             </div>
             <div
               style={{
@@ -266,7 +266,7 @@ export const ServerInviteModal: React.FC<ServerInviteModalProps> = ({ isOpen, on
               style={{
                 background: 'none',
                 border: 'none',
-                color: 'var(--accent, #6366f1)',
+                color: 'var(--accent)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
@@ -382,7 +382,7 @@ export const ServerInviteModal: React.FC<ServerInviteModalProps> = ({ isOpen, on
             border: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))',
           }}
         >
-          <Users size={18} style={{ color: 'var(--accent, #6366f1)', flexShrink: 0 }} />
+          <Users size={18} style={{ color: 'var(--accent)', flexShrink: 0 }} />
           <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
             Anyone with this link can join <strong>{activeServer.name}</strong> and begin
             chatting immediately in <strong>#{generalChan?.name || 'general'}</strong>.

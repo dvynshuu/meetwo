@@ -96,12 +96,12 @@ export const AuthScreen: React.FC = () => {
               height: 56,
               borderRadius: 'var(--radius-md)',
               background: 'var(--accent-subtle)',
-              border: '1px solid rgba(16, 231, 178, 0.3)',
+              border: '1px solid var(--border-accent)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               marginBottom: 16,
-              boxShadow: '0 8px 24px rgba(16, 231, 178, 0.15)',
+              boxShadow: 'var(--shadow-sm)',
             }}
           >
             <img src="/favicon.svg" alt="Meetwo" style={{ width: 32, height: 32 }} />
@@ -110,10 +110,10 @@ export const AuthScreen: React.FC = () => {
           <h1
             style={{
               fontSize: 24,
-              fontWeight: 800,
-              letterSpacing: '-0.03em',
+              fontWeight: 600,
+              letterSpacing: 'var(--tracking-tight)',
               margin: '0 0 6px 0',
-              fontFamily: 'var(--font-heading)',
+              fontFamily: 'var(--font-display)',
             }}
           >
             {isSignUp ? 'Join Meetwo' : 'Welcome back to Meetwo'}
@@ -151,7 +151,7 @@ export const AuthScreen: React.FC = () => {
                 padding: '10px 14px',
                 borderRadius: 'var(--radius-sm)',
                 background: 'var(--danger-surface)',
-                border: '1px solid rgba(251, 113, 133, 0.3)',
+                border: '1px solid var(--danger-border)',
                 color: 'var(--danger)',
                 fontSize: 13,
                 marginBottom: 18,
@@ -198,10 +198,10 @@ export const AuthScreen: React.FC = () => {
               isLoading={isLoading}
               style={{
                 marginTop: 8,
-                padding: '12px',
+                padding: '10px 16px',
                 fontSize: 14,
-                fontWeight: 600,
-                borderRadius: 'var(--radius-sm)',
+                fontWeight: 500,
+                borderRadius: 'var(--radius-md)',
               }}
             >
               {isSignUp ? 'Create Account' : 'Sign In'}

@@ -1,94 +1,149 @@
 :root {
   /* ====================================================================
-     MEETWO DESIGN SYSTEM TOKENS
-     Brand: meetwo
-     Philosophy: Human + Calm + Confident + Modern + Precise + Social
-     Palette: Mineral Graphite Surfaces & Electric Mint Accent
+     MEETWO DESIGN SYSTEM TOKENS (LINEAR DESIGN SPECIFICATION)
+     Reference: DESIGN.md (linear.app design system)
+     Canvas: Deep near-black void (#010102)
+     Surfaces: Charcoal ladder (#0f1011 -> #141516 -> #18191a -> #191a1b)
+     Borders: Crisp 1px hairlines (#23252a, #34343a, #3e3e44)
+     Accent: Linear Lavender-Blue (#5e6ad2)
+     Text: Ink hierarchy (#f7f8f8, #d0d6e0, #8a8f98, #62666d)
      ==================================================================== */
 
-  /* Surface Hierarchy (Level 0 to Level 4) */
-  --bg-app: #0A0C10;                /* Level 0: App viewport foundation */
-  --bg-sidebar-servers: #0F1217;    /* Level 1: Primary navigation rail */
-  --bg-sidebar-channels: #13171F;   /* Level 2: Workspace channel navigation */
-  --bg-main: #141820;               /* Level 2: Main content viewport */
-  --bg-surface: #19202C;            /* Level 3: Elevated surfaces, containers, cards */
-  --bg-surface-hover: #212B3B;      /* Level 3 Hover */
-  --bg-surface-active: #283447;     /* Level 3 Active / Selected */
-  --bg-overlay: #1B2230;            /* Level 4: Modals, popovers, dropdowns */
-  --bg-surface-raised: #1E2533;    /* Level 4: Floating quick menus and telemetry popovers */
-  --bg-elevated: #1F2737;
+  /* Linear Native Canvas & Surface Ladder */
+  --canvas: #010102;                /* Purest dark canvas with faint blue tint */
+  --surface-1: #0f1011;             /* Level 1: Charcoal lift, primary cards & server rail */
+  --surface-2: #141516;             /* Level 2: Channel sidebar, hovered cards, active items */
+  --surface-3: #18191a;             /* Level 3: Center viewport stage, sub-nav */
+  --surface-4: #191a1b;             /* Level 4: Deepest lifted surface, modals, floating popovers */
 
-  /* Primary Brand Accent (Electric Mint) */
-  --accent: #10E7B2;
-  --accent-hover: #0CD4A2;
-  --accent-active: #0ABF91;
-  --accent-light: #4EEDC4;
-  --accent-soft: rgba(16, 231, 178, 0.12);
-  --accent-subtle: rgba(16, 231, 178, 0.06);
-  --accent-border: rgba(16, 231, 178, 0.28);
-  --accent-glow: rgba(16, 231, 178, 0.25);
-  --accent-gradient: linear-gradient(135deg, #10E7B2 0%, #0D9488 100%);
+  /* Surface Hierarchy (Mapped to meetwo application slots) */
+  --bg-app: var(--canvas);                  /* Level 0: Deepest viewport canvas (#010102) */
+  --bg-sidebar-servers: var(--surface-1);   /* Level 1: Primary navigation rail (#0f1011) */
+  --bg-sidebar-channels: var(--surface-2);  /* Level 2: Workspace channel navigation (#141516) */
+  --bg-main: var(--surface-3);              /* Level 3: Main content viewport (#18191a) */
+  --bg-surface: var(--surface-1);           /* Level 1: Elevated containers, cards (#0f1011) */
+  --bg-surface-hover: var(--surface-2);     /* Level 2: Clean surface hover lift (#141516) */
+  --bg-surface-active: var(--surface-3);    /* Level 3: Active / Selected (#18191a) */
+  --bg-surface-raised: var(--surface-3);    /* Level 3: Floating menus, quick telemetry (#18191a) */
+  --bg-overlay: var(--surface-4);           /* Level 4: Modals, popovers, dropdowns (#191a1b) */
+  --bg-elevated: var(--surface-4);          /* Level 4: Floating elevated sheets (#191a1b) */
 
-  /* Secondary Accents & Highlights */
-  --sky: #38BDF8;
-  --sky-soft: rgba(56, 189, 248, 0.12);
-  --coral: #FB7185;
-  --coral-soft: rgba(251, 113, 133, 0.12);
+  /* Hairline Border System (Linear software-craft precision) */
+  --hairline: #23252a;                      /* 1px border on cards, dividers, panels */
+  --hairline-strong: #34343a;               /* 1px stronger border, hovered cards, input focus */
+  --hairline-tertiary: #3e3e44;             /* 1px tertiary border for nested surfaces */
+  --border-subtle: var(--hairline);         /* Standard hairline border */
+  --border-medium: var(--hairline-strong);  /* Medium hairline border */
+  --border-strong: var(--hairline-tertiary);/* Strong hairline border */
+  --border-focus: var(--accent);
+  --border-accent: rgba(94, 106, 210, 0.4);
+  --border-light-bevel: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
 
-  /* Semantic Status Indicators */
-  --status-online: #10E7B2;
-  --status-idle: #FBBF24;
-  --status-dnd: #FB7185;
-  --status-offline: #64748B;
-  --danger: #FB7185;
-  --danger-hover: #E11D48;
-  --danger-surface: rgba(251, 113, 133, 0.12);
-  --success: #10E7B2;
-  --warning: #FBBF24;
-  --warning-surface: rgba(251, 191, 36, 0.12);
-  --info: #38BDF8;
-  --info-surface: rgba(56, 189, 248, 0.12);
+  /* Linear Frosted Acrylic Surfaces (Quiet, controlled dark panels with hairlines) */
+  --glass-bg: rgba(15, 16, 17, 0.88);
+  --glass-bg-hover: rgba(20, 21, 22, 0.94);
+  --glass-bg-subtle: rgba(15, 16, 17, 0.70);
+  --glass-bg-overlay: rgba(1, 1, 2, 0.96);
+  --glass-border: var(--hairline);
+  --glass-border-hover: var(--hairline-strong);
+  --glass-border-accent: rgba(94, 106, 210, 0.4);
+  --glass-blur: blur(16px);
+  --glass-blur-lg: blur(24px);
+  --glass-shadow: 0 16px 40px rgba(0, 0, 0, 0.75);
+
+  /* Signature Primary Brand Accent (Linear Lavender-Blue) */
+  --primary: #5e6ad2;
+  --primary-hover: #828fff;
+  --primary-focus: #5e69d1;
+  --on-primary: #ffffff;
+  --accent: #5e6ad2;
+  --accent-hover: #828fff;
+  --accent-active: #5e69d1;
+  --accent-light: #828fff;
+  --accent-soft: rgba(94, 106, 210, 0.12);
+  --accent-subtle: rgba(94, 106, 210, 0.06);
+  --accent-border: rgba(94, 106, 210, 0.35);
+  --accent-gradient: linear-gradient(135deg, #5e6ad2 0%, #4b55be 100%);
+  --accent-gradient-vibrant: linear-gradient(135deg, #828fff 0%, #5e6ad2 100%);
+
+  /* Linear Secondary Accents & Brand Tones */
+  --brand-secure: #7a7fad;
+  --sky: #5e6ad2;
+  --sky-hover: #828fff;
+  --sky-soft: rgba(94, 106, 210, 0.12);
+  --sky-border: rgba(94, 106, 210, 0.3);
+  --coral: #eb5757;
+  --coral-hover: #d93838;
+  --coral-soft: rgba(235, 87, 87, 0.12);
+  --coral-border: rgba(235, 87, 87, 0.3);
+  --violet: #828fff;
+  --violet-hover: #5e6ad2;
+  --violet-soft: rgba(130, 143, 255, 0.12);
+  --violet-border: rgba(130, 143, 255, 0.3);
+
+  /* Linear Semantic Status Indicators */
+  --semantic-success: #27a644;
+  --semantic-overlay: #000000;
+  --status-online: #27a644;
+  --status-idle: #f2994a;
+  --status-dnd: #eb5757;
+  --status-offline: #62666d;
+  --danger: #eb5757;
+  --danger-hover: #d93838;
+  --danger-surface: rgba(235, 87, 87, 0.12);
+  --danger-border: rgba(235, 87, 87, 0.25);
+  --success: #27a644;
+  --success-surface: rgba(39, 166, 68, 0.12);
+  --warning: #f2994a;
+  --warning-surface: rgba(242, 153, 74, 0.12);
+  --info: #5e6ad2;
+  --info-surface: rgba(94, 106, 210, 0.12);
 
   /* Media & Activity States */
-  --voice-active: #10E7B2;
-  --video-active: #38BDF8;
-  --screen-active: #FBBF24;
-  --speaking-indicator: #10E7B2;
-  --unread-indicator: #10E7B2;
+  --voice-active: #5e6ad2;
+  --video-active: #5e6ad2;
+  --screen-active: #f2994a;
+  --speaking-indicator: #5e6ad2;
+  --unread-indicator: #5e6ad2;
 
-  /* Typography Colors */
-  --text-primary: #F8FAFC;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
-  --text-dim: #475569;
-  --text-on-accent: #0A0C10;
+  /* Linear Ink Typography Hierarchy */
+  --ink: #f7f8f8;                           /* Emphasized headlines and active body text */
+  --ink-muted: #d0d6e0;                     /* Secondary text, meta details */
+  --ink-subtle: #8a8f98;                    /* Tertiary captions, metadata */
+  --ink-tertiary: #62666d;                  /* Quaternary text, disabled labels */
+  --text-primary: var(--ink);
+  --text-secondary: var(--ink-muted);
+  --text-muted: var(--ink-subtle);
+  --text-dim: var(--ink-tertiary);
+  --text-on-accent: #ffffff;
 
-  /* Subtle Structural Borders */
-  --border-subtle: rgba(255, 255, 255, 0.05);
-  --border-medium: rgba(255, 255, 255, 0.09);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --border-focus: rgba(16, 231, 178, 0.45);
-  --border-accent: rgba(16, 231, 178, 0.28);
-
-  /* Clean Physical Elevation (No colored neon glows) */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 16px 0 rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 12px 36px -4px rgba(0, 0, 0, 0.65);
+  /* Linear Physical Elevation (Subtle hairline + deep dark shadow) */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.75);
+  --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.85);
+  --shadow-2xl: 0 32px 64px rgba(0, 0, 0, 0.95);
+  --shadow-inset: inset 0 1px 1px 0 rgba(255, 255, 255, 0.05);
+  --shadow-inset-dark: inset 0 2px 4px 0 rgba(0, 0, 0, 0.5);
+  
+  /* Crisp 2px outline for speaking indicator - Zero blurry halo */
   --shadow-speaking: 0 0 0 2px var(--accent);
 
-  /* Controlled Corner Radii */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-pill: 9999px;
+  /* Linear Controlled Corner Radii Scale */
+  --radius-xs: 4px;                         /* Small chips, status badges */
+  --radius-sm: 6px;                         /* Inline tags */
+  --radius-md: 8px;                         /* All buttons, form inputs */
+  --radius-lg: 12px;                        /* Pricing cards, feature cards, containers */
+  --radius-xl: 16px;                        /* Product screenshot panels, large modals */
+  --radius-2xl: 24px;                       /* Oversized CTA banners */
+  --radius-pill: 9999px;                    /* Pricing tab toggles, status pills */
 
-  /* Typography Scale */
-  --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  /* Typography Scale (SF Pro / Inter typography stack) */
+  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
 
   /* Type Scale */
   --font-size-xs: 11px;
@@ -99,14 +154,22 @@
   --font-size-xl: 18px;
   --font-size-2xl: 22px;
   --font-size-3xl: 28px;
+  --font-size-4xl: 36px;
 
   /* Line Heights */
   --leading-none: 1;
-  --leading-tight: 1.25;
+  --leading-tight: 1.2;
   --leading-normal: 1.5;
   --leading-relaxed: 1.625;
 
-  /* Spacing Scale */
+  /* Linear Letter Spacing (Measured negative tracking on display type) */
+  --tracking-tighter: -0.035em;
+  --tracking-tight: -0.02em;
+  --tracking-normal: -0.005em;
+  --tracking-wide: 0.015em;
+  --tracking-wider: 0.03em;
+
+  /* Spacing Scale (4px base unit) */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -117,9 +180,12 @@
   --space-10: 40px;
   --space-12: 48px;
 
-  /* Transition Timings */
+  /* Snappy Transitions */
   --transition-fast: 120ms cubic-bezier(0.16, 1, 0.3, 1);
   --transition-normal: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-slow: 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-bounce: 220ms cubic-bezier(0.2, 0, 0, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* Layout Dimensions */
   --server-sidebar-width: 56px;
@@ -135,7 +201,7 @@
   --mobile-touch-min: 44px;
   --mobile-touch-target: 48px;
 
-  /* Safe Area Insets (Hardware Notch / Dynamic Island / Home Indicator) */
+  /* Safe Area Insets */
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-left: env(safe-area-inset-left, 0px);

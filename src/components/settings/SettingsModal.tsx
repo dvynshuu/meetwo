@@ -852,14 +852,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                           fontWeight: 700,
                           padding: '1px 5px',
                           borderRadius: 3,
-                          background: 'rgba(168, 85, 247, 0.15)',
-                          color: '#c084fc',
+                          background: 'var(--accent-soft)',
+                          color: 'var(--accent)',
                         }}
                       >
                         HI-FI
                       </span>
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: '#c084fc' }}>510 kbps Fullband Stereo</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>510 kbps Fullband Stereo</span>
                     <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
                       Maximum dynamic range and uncompromised acoustic fidelity
                     </span>
@@ -890,7 +890,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       borderRadius: 'var(--radius-xs)',
                       background: activeRoomId ? 'var(--accent-subtle)' : 'var(--bg-surface-active)',
                       color: activeRoomId ? 'var(--accent)' : 'var(--text-muted)',
-                      border: activeRoomId ? '1px solid rgba(16, 231, 178, 0.25)' : '1px solid var(--border-subtle)',
+                      border: activeRoomId ? '1px solid var(--accent-border)' : '1px solid var(--border-subtle)',
                       fontWeight: 600,
                     }}
                   >
@@ -1035,8 +1035,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       cursor: 'pointer',
                     }}
                   >
-                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Mineral Obsidian (Default)</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Quiet, architectural dark space</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Linear Dark (Default)</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Near-black canvas with lavender-blue accent</div>
                   </div>
                   <div
                     style={{
@@ -1047,8 +1047,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       cursor: 'pointer',
                     }}
                   >
-                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)' }}>Mineral Slate</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Subtle graphite tone</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)' }}>Linear Charcoal</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Subtle elevated surface tone</div>
                   </div>
                 </div>
               </div>

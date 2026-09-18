@@ -144,11 +144,10 @@ export const InviteAcceptModal: React.FC<InviteAcceptModalProps> = ({
           maxWidth: 440,
           padding: 0,
           overflow: 'hidden',
-          background: 'var(--bg-overlay, #11141c)',
-          borderRadius: 'var(--radius-lg, 12px)',
-          border: '1px solid var(--border-medium, rgba(255, 255, 255, 0.12))',
-          boxShadow:
-            '0 24px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(99, 102, 241, 0.15), 0 0 40px rgba(99, 102, 241, 0.1)',
+          background: 'var(--bg-overlay)',
+          borderRadius: 'var(--radius-xl)',
+          border: '1px solid var(--hairline)',
+          boxShadow: 'var(--shadow-2xl)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -158,8 +157,8 @@ export const InviteAcceptModal: React.FC<InviteAcceptModalProps> = ({
             position: 'relative',
             height: 100,
             background:
-              'linear-gradient(135deg, rgba(99, 102, 241, 0.35) 0%, rgba(139, 92, 246, 0.25) 50%, rgba(14, 165, 233, 0.15) 100%)',
-            borderBottom: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))',
+              'linear-gradient(135deg, rgba(94, 106, 210, 0.25) 0%, rgba(130, 143, 255, 0.12) 100%)',
+            borderBottom: '1px solid var(--hairline)',
             display: 'flex',
             alignItems: 'flex-start',
             justifyContent: 'space-between',
@@ -182,7 +181,7 @@ export const InviteAcceptModal: React.FC<InviteAcceptModalProps> = ({
               backdropFilter: 'blur(4px)',
             }}
           >
-            <Sparkles size={12} style={{ color: '#818cf8' }} />
+            <Sparkles size={12} style={{ color: 'var(--accent)' }} />
             Meetwo Server Invite
           </div>
 
@@ -224,9 +223,9 @@ export const InviteAcceptModal: React.FC<InviteAcceptModalProps> = ({
                 style={{
                   width: 72,
                   height: 72,
-                  borderRadius: 24,
-                  background: 'var(--bg-surface-elevated, #1a1e28)',
-                  border: '2px solid var(--border-medium, rgba(255, 255, 255, 0.15))',
+                  borderRadius: 'var(--radius-lg)',
+                  background: 'var(--surface-1)',
+                  border: '1px solid var(--hairline)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -261,12 +260,12 @@ export const InviteAcceptModal: React.FC<InviteAcceptModalProps> = ({
                   width: 68,
                   height: 68,
                   borderRadius: '50%',
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  background: 'var(--danger-surface)',
+                  border: '1px solid var(--danger-border)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#ef4444',
+                  color: 'var(--danger)',
                 }}
               >
                 <AlertTriangle size={32} />
@@ -308,10 +307,10 @@ export const InviteAcceptModal: React.FC<InviteAcceptModalProps> = ({
                 style={{
                   width: 80,
                   height: 80,
-                  borderRadius: 24,
-                  background: 'var(--bg-surface-elevated, #1a1e28)',
-                  border: '3px solid var(--bg-overlay, #11141c)',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  borderRadius: 'var(--radius-lg)',
+                  background: 'var(--surface-1)',
+                  border: '2px solid var(--hairline-strong)',
+                  boxShadow: 'var(--shadow-md)',
                   overflow: 'hidden',
                   display: 'flex',
                   alignItems: 'center',
@@ -330,13 +329,13 @@ export const InviteAcceptModal: React.FC<InviteAcceptModalProps> = ({
                     style={{
                       width: '100%',
                       height: '100%',
-                      background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                      background: 'var(--accent-gradient)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       color: '#fff',
-                      fontWeight: 800,
-                      fontSize: 28,
+                      fontWeight: 600,
+                      fontSize: 26,
                     }}
                   >
                     {server.name.substring(0, 2).toUpperCase()}
@@ -379,7 +378,7 @@ export const InviteAcceptModal: React.FC<InviteAcceptModalProps> = ({
                 >
                   {server.name}
                 </h2>
-                <ShieldCheck size={20} style={{ color: 'var(--accent, #6366f1)', flexShrink: 0 }} />
+                <ShieldCheck size={20} style={{ color: 'var(--accent)', flexShrink: 0 }} />
               </div>
 
               {/* Server Description */}
@@ -417,7 +416,7 @@ export const InviteAcceptModal: React.FC<InviteAcceptModalProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
-                    color: '#22c55e',
+                    color: 'var(--semantic-success)',
                     fontWeight: 500,
                   }}
                 >
@@ -426,8 +425,7 @@ export const InviteAcceptModal: React.FC<InviteAcceptModalProps> = ({
                       width: 8,
                       height: 8,
                       borderRadius: '50%',
-                      background: '#22c55e',
-                      boxShadow: '0 0 6px rgba(34, 197, 94, 0.6)',
+                      background: 'var(--semantic-success)',
                     }}
                   />
                   1 Online
@@ -485,15 +483,15 @@ export const InviteAcceptModal: React.FC<InviteAcceptModalProps> = ({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     <div
                       style={{
-                        background: 'rgba(34, 197, 94, 0.1)',
-                        border: '1px solid rgba(34, 197, 94, 0.25)',
-                        borderRadius: 'var(--radius-sm, 6px)',
-                        padding: '10px 14px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        fontSize: 12,
-                        color: '#22c55e',
+                        background: 'var(--success-surface)',
+                      border: '1px solid var(--status-online)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '10px 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      fontSize: 12,
+                      color: 'var(--status-online)',
                       }}
                     >
                       <CheckCircle size={18} style={{ flexShrink: 0 }} />
@@ -550,7 +548,7 @@ export const InviteAcceptModal: React.FC<InviteAcceptModalProps> = ({
                           style={{ height: 38, fontSize: 13 }}
                         />
                         {authError && (
-                          <div style={{ fontSize: 11, color: 'var(--danger, #ef4444)' }}>
+                          <div style={{ fontSize: 11, color: 'var(--danger)' }}>
                             {authError}
                           </div>
                         )}
@@ -564,12 +562,12 @@ export const InviteAcceptModal: React.FC<InviteAcceptModalProps> = ({
                     {error && (
                       <div
                         style={{
-                          background: 'rgba(239, 68, 68, 0.1)',
-                          border: '1px solid rgba(239, 68, 68, 0.3)',
-                          borderRadius: 'var(--radius-sm, 6px)',
+                          background: 'var(--danger-surface)',
+                          border: '1px solid var(--danger-border)',
+                          borderRadius: 'var(--radius-sm)',
                           padding: '10px 14px',
                           fontSize: 12,
-                          color: '#ef4444',
+                          color: 'var(--danger)',
                         }}
                       >
                         {error}
@@ -584,11 +582,10 @@ export const InviteAcceptModal: React.FC<InviteAcceptModalProps> = ({
                       onClick={handleAccept}
                       style={{
                         width: '100%',
-                        height: 46,
-                        fontWeight: 600,
-                        fontSize: 15,
-                        background: 'var(--gradient-primary, linear-gradient(135deg, #6366f1, #8b5cf6))',
-                        boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)',
+                        height: 44,
+                        fontWeight: 500,
+                        fontSize: 14,
+                        borderRadius: 'var(--radius-md)',
                       }}
                     >
                       {isAccepting

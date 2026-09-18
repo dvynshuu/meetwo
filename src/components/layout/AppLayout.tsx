@@ -137,7 +137,7 @@ export const AppLayout: React.FC = () => {
             if (el) {
               el.scrollIntoView({ behavior: 'smooth', block: 'center' });
               el.style.transition = 'background-color 0.4s ease';
-              el.style.backgroundColor = 'rgba(16, 231, 178, 0.18)';
+              el.style.backgroundColor = 'var(--accent-soft)';
               setTimeout(() => {
                 el.style.backgroundColor = '';
               }, 3000);
@@ -316,7 +316,7 @@ export const AppLayout: React.FC = () => {
               height: 52,
               borderRadius: 'var(--radius-md)',
               background: 'var(--accent-subtle)',
-              border: '1px solid rgba(16, 231, 178, 0.3)',
+              border: '1px solid var(--border-accent)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',

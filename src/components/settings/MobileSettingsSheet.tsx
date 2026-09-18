@@ -347,12 +347,12 @@ export const MobileSettingsSheet: React.FC<MobileSettingsSheetProps> = ({
             <div className="theme-selection-grid">
               <div className="theme-option active">
                 <Moon size={24} style={{ color: 'var(--accent)' }} />
-                <span>Midnight Graphite</span>
+                <span>Linear Dark</span>
                 <Check size={16} className="theme-check" />
               </div>
             </div>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-              Meetwo is engineered with dark mineral graphite surfaces and electric mint accents for optimal OLED battery efficiency and low eye-strain.
+              Meetwo is engineered with Linear near-black canvas surfaces and signature lavender-blue accents for optimal focus and minimal eye-strain.
             </p>
           </div>
         )}

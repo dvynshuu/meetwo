@@ -1,10 +1,26 @@
 @import './tokens.css';
 @import './reset.css';
 
-/* Minimal, Unobtrusive Scrollbars */
+/* ====================================================================
+   MEETWO GLOBAL STYLES (LINEAR DESIGN SYSTEM SPECIFICATION)
+   Canvas: #010102 | Accent: #5e6ad2 | Hairlines: #23252a
+   ==================================================================== */
+
+/* Deep near-black canvas foundation */
+body {
+  font-family: var(--font-body);
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Linear-Precision Subtle Scrollbars */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -12,60 +28,84 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--hairline-strong);
   border-radius: var(--radius-pill);
   transition: background var(--transition-fast);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--hairline-tertiary);
 }
 
-/* Precise Text Selection */
+::-webkit-scrollbar-thumb:active {
+  background: var(--accent);
+}
+
+/* Linear Lavender High-Contrast Selection */
 ::selection {
   background: var(--accent);
   color: var(--text-on-accent);
 }
 
-/* User-content selectability (re-enabling selection for chat messages, code blocks, inputs) */
-input, textarea, [contenteditable="true"], .message-text, .message-content-wrap, .message-code-block, .inline-code, .forum-thread-content, pre, code {
+/* User-content selectability */
+input, textarea, [contenteditable="true"], .message-text, .message-content-wrap, 
+.message-code-block, .inline-code, .forum-thread-content, pre, code {
   user-select: text;
   -webkit-user-select: text;
 }
 
-/* Consistent Typography & Focus Rings */
-body {
-  font-family: var(--font-body);
-  background-color: var(--bg-app);
-  color: var(--text-primary);
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
+/* Typography Hierarchy & Measured Negative Kerning */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
   font-weight: 600;
   color: var(--text-primary);
-  letter-spacing: -0.018em;
+  letter-spacing: var(--tracking-tight);
 }
 
+/* Linear Focus Ring (2px outline with offset) */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* Accessibility: Reduced Motion */
-@media (prefers-reduced-motion: reduce) {
-  *, ::before, ::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
+/* ====================================================================
+   LINEAR GLOBAL UTILITIES & CARDS
+   ==================================================================== */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-lg);
 }
 
-/* Global Utility Classes */
+.glass-panel-subtle {
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--hairline);
+}
+
+/* Linear Hairline Card */
+.linear-card {
+  background-color: var(--surface-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  color: var(--ink);
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.linear-card:hover {
+  background-color: var(--surface-2);
+  border-color: var(--hairline-strong);
+}
+
+.linear-divider {
+  height: 1px;
+  background-color: var(--hairline);
+  border: none;
+  width: 100%;
+}
+
+/* Screen reader only utility */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -82,4 +122,31 @@ h1, h2, h3, h4, h5, h6 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Animation utilities */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Accessibility: Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

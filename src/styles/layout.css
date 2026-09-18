@@ -18,18 +18,18 @@
 }
 
 /* ====================================================================
-   1. PRIMARY NAVIGATION RAIL (56px)
+   1. PRIMARY NAVIGATION RAIL (56px) - DISCORD-LEVEL ERGONOMICS & POLISH
    ==================================================================== */
 .server-sidebar {
   width: var(--server-sidebar-width);
   min-width: var(--server-sidebar-width);
   height: 100%;
-  background-color: var(--bg-sidebar-servers);
+  background: linear-gradient(180deg, var(--bg-sidebar-servers) 0%, rgba(9, 12, 17, 0.98) 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 10px 0;
-  gap: 6px;
+  padding: 12px 0;
+  gap: 8px;
   border-right: 1px solid var(--border-subtle);
   z-index: 30;
   overflow-y: auto;
@@ -39,34 +39,40 @@
 /* Brand Anchor at Top of Rail */
 .brand-anchor {
   position: relative;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-md);
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
   background-color: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-bounce);
   margin-bottom: 4px;
 }
 
 .brand-anchor:hover {
   background-color: var(--bg-surface-hover);
   border-color: var(--border-medium);
+  transform: scale(1.05);
 }
 
 .brand-anchor.active {
-  background-color: var(--bg-surface-active);
-  border-color: var(--border-accent);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-color: transparent;
+}
+
+.brand-anchor.active svg {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
 }
 
 /* Workspace / Server Item */
 .server-item {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
@@ -78,26 +84,28 @@
   font-size: 13px;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-bounce), border-radius var(--transition-normal);
 }
 
 .server-item:hover {
   background-color: var(--bg-surface);
   color: var(--text-primary);
-  border-color: var(--border-subtle);
+  border-radius: var(--radius-lg);
+  transform: scale(1.05);
 }
 
 .server-item.active {
-  background-color: var(--bg-surface-active);
-  color: var(--text-primary);
-  border-color: var(--border-medium);
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-radius: var(--radius-lg);
+  border-color: transparent;
 }
 
 /* Create Workspace Rail Button */
 .create-server-btn {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
@@ -106,46 +114,48 @@
   color: var(--text-muted);
   border: 1px dashed var(--border-medium);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-bounce), border-radius var(--transition-normal);
 }
 
 .create-server-btn:hover {
   background-color: var(--accent-soft);
   color: var(--accent);
-  border-color: var(--accent-border);
+  border-color: var(--accent);
   border-style: solid;
+  border-radius: var(--radius-lg);
+  transform: scale(1.05);
 }
 
-/* Left Indicator Marker (Clean Mint Bar, flush to viewport left edge) */
+/* Left Indicator Marker (Discord signature solid white pill) */
 .server-indicator {
   position: absolute;
   left: -8px;
   top: 50%;
   transform: translateY(-50%);
-  width: 3px;
+  width: 4px;
   height: 0;
-  background-color: var(--accent);
-  border-radius: 0 3px 3px 0;
-  transition: height var(--transition-fast), opacity var(--transition-fast);
+  background-color: #FFFFFF;
+  border-radius: 0 4px 4px 0;
+  transition: height var(--transition-bounce), opacity var(--transition-fast);
   opacity: 0;
 }
 
 .server-item:hover .server-indicator,
 .brand-anchor:hover .server-indicator {
-  height: 12px;
-  opacity: 0.6;
+  height: 20px;
+  opacity: 1;
 }
 
 .server-item.active .server-indicator,
 .brand-anchor.active .server-indicator {
-  height: 22px;
+  height: 40px;
   opacity: 1;
 }
 
 .server-divider {
-  width: 24px;
+  width: 28px;
   height: 1px;
-  background-color: var(--border-subtle);
+  background: var(--border-subtle);
   margin: 4px 0;
 }
 
@@ -156,7 +166,7 @@
   width: var(--channel-sidebar-width);
   min-width: var(--channel-sidebar-width);
   height: 100%;
-  background-color: var(--bg-sidebar-channels);
+  background: linear-gradient(180deg, var(--bg-sidebar-channels) 0%, #0c1017 100%);
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border-subtle);
@@ -166,44 +176,46 @@
 
 .server-header {
   height: var(--topbar-height);
-  padding: 0 14px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border-subtle);
   cursor: pointer;
-  transition: background-color var(--transition-fast);
+  background: rgba(255, 255, 255, 0.01);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .server-header:hover {
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: rgba(255, 255, 255, 0.035);
+  border-bottom-color: var(--border-medium);
 }
 
 .server-header h2 {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-tight);
 }
 
 .channel-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 6px;
+  padding: 10px 8px;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
 .channel-category {
-  padding: 12px 8px 4px;
+  padding: 14px 8px 6px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tracking-wider);
   color: var(--text-muted);
   cursor: pointer;
   user-select: none;
@@ -219,25 +231,28 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 7px 10px;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all var(--transition-fast);
+  border-left: 2px solid transparent;
 }
 
 .channel-item:hover {
   background-color: var(--bg-surface);
   color: var(--text-primary);
+  transform: translateX(2px);
 }
 
-/* Restrained Active State: Clean surface lift + text emphasis */
+/* Discord-level active channel indicator with subtle mint accent and clean surface */
 .channel-item.active {
   background-color: var(--bg-surface-active);
   color: var(--text-primary);
   font-weight: 600;
+  border-left: 2px solid var(--accent);
 }
 
 .channel-icon {
@@ -261,7 +276,7 @@
   margin-left: auto;
   font-size: 9px;
   font-weight: 700;
-  padding: 1px 5px;
+  padding: 2px 6px;
   border-radius: var(--radius-xs);
   letter-spacing: 0.04em;
   flex-shrink: 0;
@@ -270,6 +285,7 @@
 .channel-badge-stage {
   background: var(--coral-soft);
   color: var(--coral);
+  border: 1px solid var(--coral-border);
 }
 
 .channel-badge-locked {
@@ -283,10 +299,12 @@
 /* Voice Status Bar (When connected to voice room) */
 .voice-status-bar {
   margin: 8px;
-  padding: 8px 10px;
-  background: var(--bg-surface);
+  padding: 10px 12px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border-medium);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -302,18 +320,11 @@
 }
 
 .voice-status-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background-color: var(--accent);
-  box-shadow: 0 0 6px var(--accent);
   flex-shrink: 0;
-  animation: pulseDot 2s infinite ease-in-out;
-}
-
-@keyframes pulseDot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(0.9); }
 }
 
 .voice-status-text {
@@ -336,21 +347,21 @@
 }
 
 .voice-disconnect-btn {
-  padding: 3px 8px;
+  padding: 4px 10px;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   background: var(--danger-surface);
   color: var(--danger);
   border-radius: var(--radius-xs);
   cursor: pointer;
-  border: 1px solid rgba(251, 113, 133, 0.2);
+  border: 1px solid var(--danger-border);
   transition: all var(--transition-fast);
   flex-shrink: 0;
 }
 
 .voice-disconnect-btn:hover {
   background: var(--danger);
-  color: #0A0C10;
+  color: #05070A;
   border-color: var(--danger);
 }
 
@@ -381,8 +392,8 @@
 }
 
 .participant-speaking-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background-color: var(--text-dim);
   flex-shrink: 0;
@@ -391,19 +402,21 @@
 
 .participant-speaking-dot.speaking {
   background-color: var(--accent);
-  box-shadow: 0 0 4px var(--accent);
 }
 
 /* User status bar at bottom of channel sidebar */
 .user-bar {
   height: var(--userbar-height);
-  background-color: var(--bg-sidebar-channels);
-  border-top: 1px solid var(--border-subtle);
+  background: linear-gradient(180deg, rgba(15, 19, 27, 0.94) 0%, rgba(10, 13, 19, 0.98) 100%);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-top: 1px solid var(--border-medium);
   padding: 0 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
 }
 
 .user-bar-profile {
@@ -464,24 +477,25 @@
   position: absolute;
   bottom: 58px;
   left: 8px;
-  width: 195px;
-  background: rgba(27, 34, 48, 0.96);
-  backdrop-filter: blur(16px);
+  width: 200px;
+  background: var(--glass-bg-overlay);
+  backdrop-filter: var(--glass-blur-lg);
+  -webkit-backdrop-filter: var(--glass-blur-lg);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  padding: 4px;
+  box-shadow: var(--shadow-xl);
+  padding: 6px;
   z-index: 50;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   animation: userMenuSlideUp 140ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes userMenuSlideUp {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.98);
+    transform: translateY(8px) scale(0.97);
   }
   to {
     opacity: 1;
@@ -503,7 +517,7 @@
   overflow: hidden;
 }
 
-/* Top App Bar in Main Content (Uncluttered, Focused) */
+/* Top App Bar in Main Content (Frosted Acrylic Glass) */
 .top-app-bar {
   height: var(--topbar-height);
   padding: 0 16px;
@@ -511,7 +525,9 @@
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border-subtle);
-  background-color: var(--bg-main);
+  background: rgba(18, 23, 34, 0.82);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   z-index: 10;
   gap: 12px;
 }
@@ -525,29 +541,30 @@
 
 .top-app-bar-channel-name {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
+  letter-spacing: var(--tracking-tight);
 }
 
 .top-app-bar-topic {
   font-size: 12px;
   color: var(--text-muted);
   border-left: 1px solid var(--border-medium);
-  padding-left: 8px;
+  padding-left: 10px;
 }
 
 .top-app-bar-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
-/* Connection Health Status Indicator (Discreet, not raw numbers in header) */
+/* Connection Health Status Indicator */
 .connection-status-indicator {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-muted);
@@ -563,8 +580,8 @@
 }
 
 .status-indicator-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background-color: var(--accent);
 }
@@ -577,13 +594,15 @@
   background-color: var(--danger);
 }
 
-/* Quick Jump / Search Trigger Bar in Header */
+/* Quick Jump / Search Trigger Bar in Header (Sleek Glass Pill) */
 .command-trigger-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 10px;
-  background: var(--bg-surface);
+  padding: 5px 12px;
+  background: rgba(22, 29, 42, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -593,40 +612,43 @@
 }
 
 .command-trigger-bar:hover {
-  background: var(--bg-surface-hover);
+  background: rgba(28, 37, 54, 0.85);
   border-color: var(--border-medium);
   color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .command-trigger-bar:focus-visible {
   border-color: var(--accent);
-  outline: none;
-  box-shadow: 0 0 0 2px var(--accent-border);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .command-shortcut-badge {
   font-size: 10px;
   font-family: var(--font-mono);
-  padding: 1px 5px;
+  padding: 2px 6px;
   border-radius: var(--radius-xs);
   background: var(--bg-surface-active);
   color: var(--text-secondary);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-medium);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   line-height: 1.2;
 }
 
 /* Discreet System Health Popover (Level 4 Overlay) */
 .connection-popover {
   position: absolute;
-  top: 36px;
+  top: 40px;
   right: 0;
-  width: 240px;
-  background: rgba(27, 34, 48, 0.96);
-  backdrop-filter: blur(16px);
+  width: 250px;
+  background: var(--glass-bg-overlay);
+  backdrop-filter: var(--glass-blur-lg);
+  -webkit-backdrop-filter: var(--glass-blur-lg);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
-  padding: 12px 14px;
-  box-shadow: var(--shadow-lg);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-xl);
   z-index: 60;
   display: flex;
   flex-direction: column;
@@ -637,15 +659,16 @@
 /* Secondary Context Dropdown Menu in Top App Bar */
 .top-app-bar-menu {
   position: absolute;
-  top: 36px;
+  top: 40px;
   right: 0;
-  width: 200px;
-  background: rgba(27, 34, 48, 0.96);
-  backdrop-filter: blur(16px);
+  width: 210px;
+  background: var(--glass-bg-overlay);
+  backdrop-filter: var(--glass-blur-lg);
+  -webkit-backdrop-filter: var(--glass-blur-lg);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
-  padding: 4px;
-  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  box-shadow: var(--shadow-xl);
   z-index: 60;
   display: flex;
   flex-direction: column;
@@ -1003,7 +1026,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 8px rgba(16, 231, 178, 0.4);
 }
 
 .mobile-nav-label {
@@ -1069,7 +1091,7 @@
 }
 
 .mobile-mini-call-pulse.is-speaking {
-  box-shadow: 0 0 0 3px rgba(16, 231, 178, 0.35);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .mini-pulse-ring {
@@ -1164,20 +1186,20 @@
 .bottom-sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(1, 1, 2, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   animation: fadeIn 150ms ease-out;
 }
 
 .bottom-sheet-container {
   position: relative;
   width: 100%;
-  background: var(--bg-sidebar-channels);
+  background: var(--surface-4);
   border-top-left-radius: var(--radius-xl);
   border-top-right-radius: var(--radius-xl);
-  border-top: 1px solid var(--border-medium);
-  box-shadow: var(--shadow-lg);
+  border-top: 1px solid var(--hairline);
+  box-shadow: var(--shadow-2xl);
   padding-bottom: calc(16px + var(--safe-area-bottom));
   overflow: hidden;
   display: flex;
@@ -1207,7 +1229,7 @@
 .bottom-sheet-handle {
   width: 38px;
   height: 4px;
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--hairline-strong);
   border-radius: var(--radius-pill);
 }
 
@@ -1216,13 +1238,13 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px 12px;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--hairline);
 }
 
 .bottom-sheet-title {
   font-size: 15px;
-  font-weight: 700;
-  color: var(--text-primary);
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .bottom-sheet-actions {
@@ -1697,7 +1719,7 @@
   font-size: 12px;
   padding: 6px 14px;
   border-radius: var(--radius-pill);
-  box-shadow: 0 4px 16px rgba(16, 231, 178, 0.4);
+  box-shadow: var(--shadow-md);
   z-index: 25;
   cursor: pointer;
   display: flex;

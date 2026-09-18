@@ -240,7 +240,7 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
           className="reconnection-banner"
           style={{
             background: connectionState === 'failed' ? 'var(--danger)' : 'var(--warning)',
-            color: '#0A0C10',
+            color: '#ffffff',
             padding: '6px 14px',
             fontSize: 12,
             fontWeight: 600,
