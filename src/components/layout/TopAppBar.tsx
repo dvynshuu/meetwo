@@ -19,6 +19,7 @@ import {
   Bell,
   MessageSquare,
   Sparkles,
+  Pin,
 } from 'lucide-react';
 import { useServer } from '../../app/providers/ServerContext';
 import { useMedia } from '../../app/providers/MediaContext';
@@ -27,6 +28,7 @@ import { useInbox } from '../../app/providers/InboxContext';
 import { useDM } from '../../app/providers/DMContext';
 import { Tooltip } from '../ui/Tooltip';
 import { HomeTab } from './HomeSidebar';
+import { PinnedMessagesModal } from '../chat/PinnedMessagesModal';
 
 interface TopAppBarProps {
   viewMode: 'home' | 'server';
@@ -67,8 +69,18 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
 
   const [showStatusPopover, setShowStatusPopover] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showPinnedMessages, setShowPinnedMessages] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const statusRef = useRef<HTMLDivElement>(null);
+
+  const handleJumpToMessage = (messageId: string) => {
+    const el = document.getElementById(`message-${messageId}`) || document.getElementById(`msg-${messageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('highlight-pulse');
+      setTimeout(() => el.classList.remove('highlight-pulse'), 2500);
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -366,6 +378,20 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
           )}
         </div>
 
+        {/* Pinned Messages Trigger */}
+        {viewMode === 'server' && (
+          <Tooltip content="Pinned Messages">
+            <button
+              className={`icon-btn ${showPinnedMessages ? 'active' : ''}`}
+              onClick={() => setShowPinnedMessages(!showPinnedMessages)}
+              aria-label="Pinned Messages"
+              aria-expanded={showPinnedMessages}
+            >
+              <Pin size={16} style={{ transform: 'rotate(45deg)' }} />
+            </button>
+          </Tooltip>
+        )}
+
         {/* Toggle Member List (shown only in server view mode) */}
         {viewMode === 'server' && (
           <Tooltip content="Toggle Member List">
@@ -379,6 +405,13 @@ export const TopAppBar: React.FC<TopAppBarProps> = ({
           </Tooltip>
         )}
       </div>
+
+      {/* Pinned Messages Popover Flyout */}
+      <PinnedMessagesModal
+        isOpen={showPinnedMessages}
+        onClose={() => setShowPinnedMessages(false)}
+        onJumpToMessage={handleJumpToMessage}
+      />
     </header>
   );
 };

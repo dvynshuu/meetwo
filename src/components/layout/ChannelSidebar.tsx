@@ -18,6 +18,8 @@ import {
   CheckCheck,
   Settings,
   MoreVertical,
+  MicOff,
+  Monitor,
 } from 'lucide-react';
 import { useServer } from '../../app/providers/ServerContext';
 import { useMedia } from '../../app/providers/MediaContext';
@@ -27,6 +29,7 @@ import { UserBar } from './UserBar';
 import { ActiveCallBar } from './ActiveCallBar';
 import { ChannelContextMenu } from '../navigation/ChannelContextMenu';
 import { Tooltip } from '../ui/Tooltip';
+import { Avatar } from '../ui/Avatar';
 
 interface ChannelSidebarProps {
   onOpenCreateChannel: (categoryId?: string) => void;
@@ -300,11 +303,10 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   title={isCategoryCollapsed ? 'Expand category' : 'Collapse category'}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    {isCategoryCollapsed ? (
-                      <ChevronRight size={12} style={{ color: 'var(--text-muted)' }} />
-                    ) : (
-                      <ChevronDown size={12} style={{ color: 'var(--text-muted)' }} />
-                    )}
+                    <ChevronDown
+                      size={12}
+                      className={`category-chevron ${isCategoryCollapsed ? 'collapsed' : ''}`}
+                    />
                     <span className="truncate">{cat.name}</span>
                   </div>
                   <button
@@ -370,9 +372,28 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                                 <div
                                   key={p.id}
                                   className={`channel-participant-row ${p.isSpeaking ? 'speaking' : ''}`}
+                                  title={`${p.displayName || p.username}${p.isAudioMuted ? ' (Muted)' : ''}`}
                                 >
-                                  <span className={`participant-speaking-dot ${p.isSpeaking ? 'speaking' : ''}`} />
-                                  <span className="truncate">{p.displayName || p.username}</span>
+                                  <Avatar
+                                    src={p.avatarUrl}
+                                    name={p.displayName || p.username}
+                                    size={20}
+                                    className={`voice-participant-avatar ${p.isSpeaking ? 'speaking' : ''}`}
+                                  />
+                                  <span className="truncate voice-participant-name">
+                                    {p.displayName || p.username}
+                                  </span>
+                                  <div className="voice-participant-icons">
+                                    {p.isAudioMuted && (
+                                      <MicOff size={12} style={{ color: 'var(--danger)' }} />
+                                    )}
+                                    {p.isVideoMuted === false && (
+                                      <Video size={12} style={{ color: 'var(--accent)' }} />
+                                    )}
+                                    {p.isScreenSharing && (
+                                      <Monitor size={12} style={{ color: 'var(--warning)' }} />
+                                    )}
+                                  </div>
                                 </div>
                               ))}
                             </div>

@@ -18,49 +18,56 @@
 }
 
 /* ====================================================================
-   1. PRIMARY NAVIGATION RAIL (56px) - DISCORD-LEVEL ERGONOMICS & POLISH
+   1. PRIMARY NAVIGATION RAIL (72px) - DISCORD ERGONOMICS & MEETWO PRECISION
    ==================================================================== */
 .server-sidebar {
   width: var(--server-sidebar-width);
   min-width: var(--server-sidebar-width);
   height: 100%;
-  background: linear-gradient(180deg, var(--bg-sidebar-servers) 0%, rgba(9, 12, 17, 0.98) 100%);
+  background-color: var(--surface-1);
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 12px 0;
   gap: 8px;
-  border-right: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--hairline);
   z-index: 30;
   overflow-y: auto;
   overflow-x: hidden;
 }
 
+.server-sidebar::-webkit-scrollbar {
+  width: 0;
+  display: none;
+}
+
 /* Brand Anchor at Top of Rail */
 .brand-anchor {
   position: relative;
-  width: 42px;
-  height: 42px;
-  border-radius: var(--radius-lg);
+  width: var(--server-icon-size);
+  height: var(--server-icon-size);
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
+  background-color: var(--surface-2);
+  border: 1px solid var(--hairline);
   cursor: pointer;
-  transition: all var(--transition-bounce);
-  margin-bottom: 4px;
+  transition: border-radius var(--transition-normal), background-color var(--transition-fast), transform var(--transition-bounce);
+  margin-bottom: 2px;
 }
 
 .brand-anchor:hover {
-  background-color: var(--bg-surface-hover);
-  border-color: var(--border-medium);
-  transform: scale(1.05);
+  background-color: var(--surface-3);
+  border-color: var(--hairline-strong);
+  border-radius: 16px;
+  transform: scale(1.04);
 }
 
 .brand-anchor.active {
   background: var(--accent);
   color: var(--text-on-accent);
+  border-radius: 16px;
   border-color: transparent;
 }
 
@@ -68,68 +75,72 @@
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
 }
 
-/* Workspace / Server Item */
+/* Workspace / Server Item - Discord-style Squircle Morph */
 .server-item {
   position: relative;
-  width: 42px;
-  height: 42px;
-  border-radius: var(--radius-md);
+  width: var(--server-icon-size);
+  height: var(--server-icon-size);
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: transparent;
+  background-color: var(--surface-2);
   color: var(--text-secondary);
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
-  border: 1px solid transparent;
-  transition: all var(--transition-bounce), border-radius var(--transition-normal);
+  border: 1px solid var(--hairline);
+  overflow: visible;
+  transition: border-radius var(--transition-normal), background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-bounce);
 }
 
 .server-item:hover {
-  background-color: var(--bg-surface);
+  background-color: var(--surface-3);
   color: var(--text-primary);
-  border-radius: var(--radius-lg);
-  transform: scale(1.05);
+  border-radius: 16px;
+  border-color: var(--hairline-strong);
+  transform: scale(1.04);
 }
 
 .server-item.active {
   background: var(--accent);
   color: var(--text-on-accent);
-  border-radius: var(--radius-lg);
+  border-radius: 16px;
   border-color: transparent;
 }
 
-/* Create Workspace Rail Button */
-.create-server-btn {
+/* Create Workspace & Discover Buttons */
+.create-server-btn,
+.explore-server-btn {
   position: relative;
-  width: 42px;
-  height: 42px;
-  border-radius: var(--radius-md);
+  width: var(--server-icon-size);
+  height: var(--server-icon-size);
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: transparent;
+  background-color: var(--surface-2);
   color: var(--text-muted);
-  border: 1px dashed var(--border-medium);
+  border: 1px dashed var(--hairline-strong);
   cursor: pointer;
   transition: all var(--transition-bounce), border-radius var(--transition-normal);
 }
 
-.create-server-btn:hover {
+.create-server-btn:hover,
+.explore-server-btn:hover {
   background-color: var(--accent-soft);
   color: var(--accent);
   border-color: var(--accent);
   border-style: solid;
-  border-radius: var(--radius-lg);
-  transform: scale(1.05);
+  border-radius: 16px;
+  transform: scale(1.04);
 }
 
-/* Left Indicator Marker (Discord signature solid white pill) */
+/* Left Indicator Marker (Discord signature 4-state solid white pill) */
 .server-indicator {
   position: absolute;
-  left: -8px;
+  left: -12px;
   top: 50%;
   transform: translateY(-50%);
   width: 4px;
@@ -138,14 +149,23 @@
   border-radius: 0 4px 4px 0;
   transition: height var(--transition-bounce), opacity var(--transition-fast);
   opacity: 0;
+  pointer-events: none;
 }
 
+/* State 1: Unread Dot */
+.server-item.has-unread .server-indicator {
+  height: 8px;
+  opacity: 1;
+}
+
+/* State 2: Hover Pill */
 .server-item:hover .server-indicator,
 .brand-anchor:hover .server-indicator {
   height: 20px;
   opacity: 1;
 }
 
+/* State 3: Active Long Pill */
 .server-item.active .server-indicator,
 .brand-anchor.active .server-indicator {
   height: 40px;
@@ -153,9 +173,10 @@
 }
 
 .server-divider {
-  width: 28px;
-  height: 1px;
-  background: var(--border-subtle);
+  width: 32px;
+  height: 2px;
+  background-color: var(--hairline);
+  border-radius: 1px;
   margin: 4px 0;
 }
 
@@ -166,10 +187,10 @@
   width: var(--channel-sidebar-width);
   min-width: var(--channel-sidebar-width);
   height: 100%;
-  background: linear-gradient(180deg, var(--bg-sidebar-channels) 0%, #0c1017 100%);
+  background-color: var(--surface-2);
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--hairline);
   position: relative;
   z-index: 20;
 }
@@ -180,15 +201,24 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--hairline);
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.01);
+  background-color: transparent;
   transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .server-header:hover {
-  background-color: rgba(255, 255, 255, 0.035);
-  border-bottom-color: var(--border-medium);
+  background-color: var(--surface-3);
+  border-bottom-color: var(--hairline-strong);
+}
+
+.server-header-chevron {
+  transition: transform var(--transition-fast);
+  color: var(--text-muted);
+}
+
+.server-header-chevron.open {
+  transform: rotate(180deg);
 }
 
 .server-header h2 {
@@ -201,14 +231,14 @@
 .channel-list {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 8px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
 .channel-category {
-  padding: 14px 8px 6px;
+  padding: 16px 8px 6px 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -223,7 +253,16 @@
 }
 
 .channel-category:hover {
-  color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+.category-chevron {
+  transition: transform var(--transition-fast);
+  color: var(--text-muted);
+}
+
+.category-chevron.collapsed {
+  transform: rotate(-90deg);
 }
 
 .channel-item {
@@ -231,28 +270,42 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px;
+  padding: 6px 10px;
+  margin: 1px 0;
   border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-size: 13px;
+  color: var(--text-muted);
+  font-size: 13.5px;
   font-weight: 500;
   cursor: pointer;
   transition: all var(--transition-fast);
-  border-left: 2px solid transparent;
 }
 
 .channel-item:hover {
-  background-color: var(--bg-surface);
+  background-color: var(--surface-3);
   color: var(--text-primary);
-  transform: translateX(2px);
 }
 
-/* Discord-level active channel indicator with subtle mint accent and clean surface */
+/* Discord-level active channel indicator */
 .channel-item.active {
-  background-color: var(--bg-surface-active);
+  background-color: rgba(94, 106, 210, 0.12);
   color: var(--text-primary);
   font-weight: 600;
-  border-left: 2px solid var(--accent);
+}
+
+.channel-item.has-unread {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.channel-unread-dot {
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 8px;
+  border-radius: 0 4px 4px 0;
+  background-color: #ffffff;
 }
 
 .channel-icon {
@@ -367,56 +420,61 @@
 
 /* Nested voice participants in channel list */
 .channel-voice-participants {
-  padding-left: 24px;
+  padding-left: 28px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  margin: 3px 0;
+  gap: 2px;
+  margin: 2px 0 6px;
 }
 
 .channel-participant-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-muted);
-  font-weight: 400;
-  padding: 2px 4px;
+  gap: 8px;
+  padding: 4px 8px;
   border-radius: var(--radius-xs);
-  transition: color var(--transition-fast);
-}
-
-.channel-participant-row.speaking {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.participant-speaking-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--text-dim);
-  flex-shrink: 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
   transition: background-color var(--transition-fast);
 }
 
-.participant-speaking-dot.speaking {
-  background-color: var(--accent);
+.channel-participant-row:hover {
+  background-color: var(--surface-3);
+  color: var(--text-primary);
 }
 
-/* User status bar at bottom of channel sidebar */
+.voice-participant-avatar {
+  border-radius: 50%;
+  transition: box-shadow var(--transition-fast);
+}
+
+.voice-participant-avatar.speaking {
+  box-shadow: 0 0 0 2px var(--status-online);
+}
+
+.voice-participant-name {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.voice-participant-icons {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* User status bar at bottom of channel sidebar - The Classic Cockpit */
 .user-bar {
   height: var(--userbar-height);
-  background: linear-gradient(180deg, rgba(15, 19, 27, 0.94) 0%, rgba(10, 13, 19, 0.98) 100%);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border-top: 1px solid var(--border-medium);
-  padding: 0 10px;
+  background-color: var(--surface-1);
+  border-top: 1px solid var(--hairline);
+  padding: 0 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+  gap: 6px;
+  z-index: 25;
 }
 
 .user-bar-profile {
@@ -428,10 +486,11 @@
   padding: 4px 6px;
   border-radius: var(--radius-sm);
   transition: background-color var(--transition-fast);
+  flex: 1;
 }
 
 .user-bar-profile:hover {
-  background-color: var(--bg-surface);
+  background-color: var(--surface-2);
 }
 
 .user-bar-info {
@@ -457,6 +516,36 @@
   display: flex;
   align-items: center;
   gap: 2px;
+  flex-shrink: 0;
+}
+
+.user-bar-actions .icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.user-bar-actions .icon-btn:hover {
+  background-color: var(--surface-2);
+  color: var(--text-primary);
+}
+
+.user-bar-actions .icon-btn.muted,
+.user-bar-actions .icon-btn.deafened {
+  color: var(--danger);
+}
+
+.user-bar-actions .icon-btn.muted:hover,
+.user-bar-actions .icon-btn.deafened:hover {
+  background-color: var(--danger-surface);
 }
 
 .user-bar-actions .icon-btn svg {

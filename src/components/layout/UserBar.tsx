@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff, Settings, ChevronDown, Check, Smile } from 'lucide-react';
+import { Mic, MicOff, Headphones, HeadphoneOff, Settings, ChevronDown, Check, Smile } from 'lucide-react';
 import { useAuth } from '../../app/providers/AuthContext';
 import { useMedia } from '../../app/providers/MediaContext';
 import { Avatar } from '../ui/Avatar';
 import { UserStatus } from '../../types';
 import { CustomStatusModal } from '../ui/CustomStatusModal';
+import { Tooltip } from '../ui/Tooltip';
 
 interface UserBarProps {
   onOpenSettings: () => void;
@@ -12,7 +13,7 @@ interface UserBarProps {
 
 export const UserBar: React.FC<UserBarProps> = ({ onOpenSettings }) => {
   const { currentUser, setStatus } = useAuth();
-  const { isAudioMuted, toggleAudio } = useMedia();
+  const { isAudioMuted, toggleAudio, isDeafened, toggleDeafen } = useMedia();
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showCustomStatusModal, setShowCustomStatusModal] = useState(false);
   const statusMenuRef = useRef<HTMLDivElement>(null);
@@ -50,7 +51,7 @@ export const UserBar: React.FC<UserBarProps> = ({ onOpenSettings }) => {
         <Avatar
           src={currentUser.avatarUrl}
           name={currentUser.displayName || currentUser.username}
-          size={30}
+          size={32}
           status={currentUser.status}
           showStatus={true}
         />
@@ -72,27 +73,40 @@ export const UserBar: React.FC<UserBarProps> = ({ onOpenSettings }) => {
         <ChevronDown size={12} style={{ color: 'var(--text-muted)', marginLeft: 2 }} />
       </div>
 
-      {/* Quick Action Buttons */}
+      {/* Quick Action Buttons: Mic, Deafen, Settings */}
       <div className="user-bar-actions">
-        <button
-          className={`icon-btn ${isAudioMuted ? 'active' : ''}`}
-          onClick={toggleAudio}
-          title={isAudioMuted ? 'Unmute Microphone' : 'Mute Microphone'}
-          aria-label={isAudioMuted ? 'Unmute' : 'Mute'}
-          style={{ width: 28, height: 28 }}
-        >
-          {isAudioMuted ? <MicOff size={15} style={{ color: 'var(--danger)' }} /> : <Mic size={15} />}
-        </button>
+        <Tooltip content={isAudioMuted ? 'Unmute (Ctrl+D)' : 'Mute (Ctrl+D)'} position="top">
+          <button
+            className={`icon-btn ${isAudioMuted ? 'muted active' : ''}`}
+            onClick={toggleAudio}
+            aria-label={isAudioMuted ? 'Unmute Microphone' : 'Mute Microphone'}
+            style={{ width: 28, height: 28 }}
+          >
+            {isAudioMuted ? <MicOff size={15} style={{ color: 'var(--danger)' }} /> : <Mic size={15} />}
+          </button>
+        </Tooltip>
 
-        <button
-          className="icon-btn"
-          onClick={onOpenSettings}
-          title="Settings"
-          aria-label="Settings"
-          style={{ width: 28, height: 28 }}
-        >
-          <Settings size={15} />
-        </button>
+        <Tooltip content={isDeafened ? 'Undeafen' : 'Deafen'} position="top">
+          <button
+            className={`icon-btn ${isDeafened ? 'deafened active' : ''}`}
+            onClick={toggleDeafen}
+            aria-label={isDeafened ? 'Undeafen' : 'Deafen'}
+            style={{ width: 28, height: 28 }}
+          >
+            {isDeafened ? <HeadphoneOff size={15} style={{ color: 'var(--danger)' }} /> : <Headphones size={15} />}
+          </button>
+        </Tooltip>
+
+        <Tooltip content="User Settings" position="top">
+          <button
+            className="icon-btn"
+            onClick={onOpenSettings}
+            aria-label="User Settings"
+            style={{ width: 28, height: 28 }}
+          >
+            <Settings size={15} />
+          </button>
+        </Tooltip>
       </div>
 
       {/* Status Picker Popover (Level 4 Overlay) */}

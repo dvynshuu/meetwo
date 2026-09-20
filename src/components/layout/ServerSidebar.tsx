@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Compass } from 'lucide-react';
 import { useServer } from '../../app/providers/ServerContext';
 import { useDM } from '../../app/providers/DMContext';
 import { useInbox } from '../../app/providers/InboxContext';
@@ -15,6 +15,7 @@ interface ServerSidebarProps {
   onOpenInvite?: () => void;
   onOpenCreateChannel?: () => void;
   onOpenSettings?: () => void;
+  onOpenChannelBrowser?: () => void;
 }
 
 export const ServerSidebar: React.FC<ServerSidebarProps> = ({
@@ -25,6 +26,7 @@ export const ServerSidebar: React.FC<ServerSidebarProps> = ({
   onOpenInvite = () => {},
   onOpenCreateChannel = () => {},
   onOpenSettings = () => {},
+  onOpenChannelBrowser,
 }) => {
   const { servers, activeServer, selectServer } = useServer();
   const { totalUnreadDMs } = useDM();
@@ -123,15 +125,28 @@ export const ServerSidebar: React.FC<ServerSidebarProps> = ({
       })}
 
       {/* Create Workspace Button */}
-      <Tooltip content="Create Workspace" position="right">
+      <Tooltip content="Add a Server" position="right">
         <button
           className="create-server-btn"
           onClick={onOpenCreateServer}
-          aria-label="Create Workspace"
+          aria-label="Add a Server"
         >
-          <Plus size={16} />
+          <Plus size={18} />
         </button>
       </Tooltip>
+
+      {/* Explore / Channel Browser Button */}
+      {onOpenChannelBrowser && (
+        <Tooltip content="Discover Channels" position="right">
+          <button
+            className="explore-server-btn"
+            onClick={onOpenChannelBrowser}
+            aria-label="Discover Channels"
+          >
+            <Compass size={18} />
+          </button>
+        </Tooltip>
+      )}
 
       {/* Server Right-Click Context Menu */}
       {contextMenuState && (

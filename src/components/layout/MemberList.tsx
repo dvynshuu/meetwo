@@ -52,7 +52,7 @@ export const MemberList: React.FC<MemberListProps> = ({ onMentionUser }) => {
         <div className="member-group-title">
           Online — {onlineMembers.length}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {onlineMembers.map((m) => (
             <div
               key={m.userId}
@@ -63,15 +63,23 @@ export const MemberList: React.FC<MemberListProps> = ({ onMentionUser }) => {
               <Avatar
                 src={m.user?.avatarUrl}
                 name={m.user?.displayName || m.user?.username || 'User'}
-                size={28}
+                size={32}
                 status={m.status}
                 showStatus={true}
               />
-              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 2 }}>
-                <span className="member-name truncate">
-                  {m.user?.displayName || m.user?.username || 'User'}
-                </span>
-                {renderRoleBadge(m.role)}
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span className="member-name truncate">
+                    {m.user?.displayName || m.user?.username || 'User'}
+                  </span>
+                  {renderRoleBadge(m.role)}
+                </div>
+                {m.user?.customStatus?.text && (
+                  <span className="member-activity-subtext truncate">
+                    {m.user.customStatus.emoji ? `${m.user.customStatus.emoji} ` : ''}
+                    {m.user.customStatus.text}
+                  </span>
+                )}
               </div>
             </div>
           ))}
@@ -80,11 +88,11 @@ export const MemberList: React.FC<MemberListProps> = ({ onMentionUser }) => {
 
       {/* Offline Section */}
       {offlineMembers.length > 0 && (
-        <div>
+        <div style={{ marginTop: 16 }}>
           <div className="member-group-title">
             Offline — {offlineMembers.length}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {offlineMembers.map((m) => (
               <div
                 key={m.userId}
@@ -95,15 +103,23 @@ export const MemberList: React.FC<MemberListProps> = ({ onMentionUser }) => {
                 <Avatar
                   src={m.user?.avatarUrl}
                   name={m.user?.displayName || m.user?.username || 'User'}
-                  size={28}
+                  size={32}
                   status="offline"
                   showStatus={true}
                 />
-                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 2 }}>
-                  <span className="member-name truncate">
-                    {m.user?.displayName || m.user?.username || 'User'}
-                  </span>
-                  {renderRoleBadge(m.role)}
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="member-name truncate">
+                      {m.user?.displayName || m.user?.username || 'User'}
+                    </span>
+                    {renderRoleBadge(m.role)}
+                  </div>
+                  {m.user?.customStatus?.text && (
+                    <span className="member-activity-subtext truncate">
+                      {m.user.customStatus.emoji ? `${m.user.customStatus.emoji} ` : ''}
+                      {m.user.customStatus.text}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}

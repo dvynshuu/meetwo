@@ -16,6 +16,7 @@ interface ChatContextType {
   editMessage: (messageId: string, content: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
   toggleReaction: (messageId: string, emoji: string) => Promise<void>;
+  togglePin: (messageId: string) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -404,6 +405,30 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [currentUser]
   );
 
+  const togglePin = useCallback(
+    async (messageId: string) => {
+      const target = messages.find((m) => m.id === messageId);
+      if (!target) return;
+      const nextPinned = !target.isPinned;
+
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, isPinned: nextPinned } : m))
+      );
+
+      try {
+        if (isSupabaseConfigured) {
+          await (supabase as any)
+            .from('messages')
+            .update({ is_pinned: nextPinned })
+            .eq('id', messageId);
+        }
+      } catch (err) {
+        console.warn('[ChatContext] Failed to toggle pin in backend:', err);
+      }
+    },
+    [messages]
+  );
+
   return (
     <ChatContext.Provider
       value={{
@@ -415,6 +440,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         editMessage,
         deleteMessage,
         toggleReaction,
+        togglePin,
       }}
     >
       {children}

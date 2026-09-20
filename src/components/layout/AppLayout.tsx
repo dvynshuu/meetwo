@@ -600,6 +600,7 @@ export const AppLayout: React.FC = () => {
         onOpenInvite={() => setInviteModalOpen(true)}
         onOpenCreateChannel={() => handleOpenCreateChannel()}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenChannelBrowser={() => setChannelBrowserOpen(true)}
       />
 
       {/* 2. Channel Sidebar Rail or Home Sidebar Rail */}

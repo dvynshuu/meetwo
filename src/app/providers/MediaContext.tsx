@@ -34,6 +34,7 @@ interface MediaContextType {
   screenStream: MediaStream | null;
   isAudioMuted: boolean;
   isVideoMuted: boolean;
+  isDeafened: boolean;
   isScreenSharing: boolean;
   audioLevel: number;
   isSpeaking: boolean;
@@ -54,6 +55,7 @@ interface MediaContextType {
   leaveVoiceRoom: () => Promise<void>;
   toggleAudio: () => void;
   toggleVideo: () => Promise<void>;
+  toggleDeafen: () => void;
   toggleScreenShare: () => Promise<void>;
   switchCamera: (deviceId: string) => Promise<void>;
   switchMicrophone: (deviceId: string) => Promise<void>;
@@ -93,10 +95,13 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isVideoMuted, setIsVideoMuted] = useState(false);
+  const [isDeafened, setIsDeafened] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [pinnedParticipantId, setPinnedParticipantId] = useState<string | null>(null);
+  const isDeafenedRef = useRef(false);
+  const prevMutedBeforeDeafenRef = useRef(false);
 
   // Stage states for current user (strictly default to listener)
   const [myStageRole, setMyStageRole] = useState<'host' | 'speaker' | 'listener'>('listener');
@@ -705,11 +710,61 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setIsAudioMuted(nextMuted);
     isAudioMutedRef.current = nextMuted;
 
+    // Discord behavior: If user manually un-mutes microphone while deafened, automatically un-deafen as well
+    if (!nextMuted && isDeafenedRef.current) {
+      setIsDeafened(false);
+      isDeafenedRef.current = false;
+      try {
+        const audioEls = document.querySelectorAll('audio');
+        audioEls.forEach((el) => {
+          el.muted = false;
+        });
+      } catch {}
+    }
+
     if (transportRef.current) {
       transportRef.current.setTrackEnabled('audio', !nextMuted).catch(() => {});
       transportRef.current.sendMuteState(nextMuted, isVideoMuted).catch(() => {});
     }
   }, [isAudioMuted, isVideoMuted, deviceSettings.audioInputId]);
+
+  // Discord Deafen Toggle: Silences incoming audio and mutes microphone
+  const toggleDeafen = useCallback(() => {
+    const nextDeafened = !isDeafened;
+    setIsDeafened(nextDeafened);
+    isDeafenedRef.current = nextDeafened;
+
+    if (nextDeafened) {
+      prevMutedBeforeDeafenRef.current = isAudioMuted;
+      if (!isAudioMuted) {
+        mediaSessionRef.current.setMicrophoneMute(true);
+        setIsAudioMuted(true);
+        isAudioMutedRef.current = true;
+        if (transportRef.current) {
+          transportRef.current.setTrackEnabled('audio', false).catch(() => {});
+          transportRef.current.sendMuteState(true, isVideoMuted).catch(() => {});
+        }
+      }
+    } else {
+      if (!prevMutedBeforeDeafenRef.current) {
+        mediaSessionRef.current.setMicrophoneMute(false);
+        setIsAudioMuted(false);
+        isAudioMutedRef.current = false;
+        if (transportRef.current) {
+          transportRef.current.setTrackEnabled('audio', true).catch(() => {});
+          transportRef.current.sendMuteState(false, isVideoMuted).catch(() => {});
+        }
+      }
+    }
+
+    // Mute or unmute all remote audio tags in the document
+    try {
+      const audioEls = document.querySelectorAll('audio');
+      audioEls.forEach((el) => {
+        el.muted = nextDeafened;
+      });
+    } catch {}
+  }, [isDeafened, isAudioMuted, isVideoMuted]);
 
   const toggleVideo = useCallback(async () => {
     const nextMuted = !isVideoMuted;
@@ -1023,6 +1078,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         screenStream,
         isAudioMuted,
         isVideoMuted,
+        isDeafened,
         isScreenSharing,
         audioLevel,
         isSpeaking,
@@ -1043,6 +1099,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         leaveVoiceRoom,
         toggleAudio,
         toggleVideo,
+        toggleDeafen,
         toggleScreenShare,
         switchCamera,
         switchMicrophone,

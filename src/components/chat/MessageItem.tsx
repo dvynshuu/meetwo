@@ -40,7 +40,15 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   onOpenThread,
 }) => {
   const { currentUser } = useAuth();
-  const { toggleReaction, editMessage, deleteMessage, setReplyingTo } = useChat();
+  const { toggleReaction, editMessage, deleteMessage, setReplyingTo, togglePin } = useChat();
+
+  const isMentioned = Boolean(
+    currentUser &&
+    (message.content?.includes(`@${currentUser.username}`) ||
+     message.content?.includes(`@${currentUser.displayName}`) ||
+     message.content?.includes('@everyone') ||
+     message.content?.includes('@here'))
+  );
 
   const [isBookmarked, setIsBookmarked] = useState(false);
 
@@ -231,7 +239,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
 
   return (
     <div
-      className={`message-item-container ${isGrouped ? 'grouped-msg' : ''}`}
+      className={`message-item-container ${isGrouped ? 'grouped-msg' : ''} ${isMentioned ? 'is-mentioned' : ''}`}
       id={`message-${message.id}`}
       onContextMenu={handleContextMenu}
       onTouchStart={handleTouchStart}
@@ -239,12 +247,30 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       onTouchEnd={handleTouchEnd}
       onTouchCancel={handleTouchEnd}
     >
-      {/* Refined 4-Action Hover Toolbar */}
+      {/* Discord-Grade Hover Toolbar */}
       <div className="message-hover-actions">
-        {/* 1. React */}
+        {/* Quick Reactions */}
+        <button
+          className="action-pill-btn quick-emoji"
+          onClick={() => toggleReaction(message.id, '👍')}
+          title="Add 👍"
+          aria-label="Add thumbs up"
+        >
+          👍
+        </button>
+        <button
+          className="action-pill-btn quick-emoji"
+          onClick={() => toggleReaction(message.id, '❤️')}
+          title="Add ❤️"
+          aria-label="Add heart"
+        >
+          ❤️
+        </button>
+
+        {/* 1. Add Reaction */}
         <Tooltip content="Add Reaction">
           <button
-            className="action-pill-btn"
+            className={`action-pill-btn ${showEmojiPicker ? 'active' : ''}`}
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
             aria-label="Add Reaction"
           >
@@ -276,7 +302,23 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           </Tooltip>
         )}
 
-        {/* 4. More Options Menu */}
+        {/* 4. Edit (if author) */}
+        {isAuthor && (
+          <Tooltip content="Edit Message">
+            <button
+              className="action-pill-btn"
+              onClick={() => {
+                setIsEditing(true);
+                setEditContent(message.content);
+              }}
+              aria-label="Edit Message"
+            >
+              <Edit2 size={15} />
+            </button>
+          </Tooltip>
+        )}
+
+        {/* 5. More Options Menu */}
         <div style={{ position: 'relative' }} ref={moreMenuRef}>
           <Tooltip content="More">
             <button
@@ -290,6 +332,23 @@ export const MessageItem: React.FC<MessageItemProps> = ({
 
           {showMoreMenu && (
             <div className="message-more-popover" role="menu">
+              <button
+                className="dropdown-item"
+                onClick={() => {
+                  togglePin(message.id);
+                  setShowMoreMenu(false);
+                }}
+              >
+                <Pin
+                  size={14}
+                  style={{
+                    color: message.isPinned ? 'var(--warning)' : 'inherit',
+                    transform: 'rotate(45deg)',
+                  }}
+                />
+                <span>{message.isPinned ? 'Unpin Message' : 'Pin Message'}</span>
+              </button>
+
               <button className="dropdown-item" onClick={handleToggleBookmark}>
                 <Star
                   size={14}
@@ -511,6 +570,16 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                   </button>
                 );
               })}
+
+              {/* Add Reaction Button at end of pills */}
+              <button
+                className="reaction-pill reaction-add-btn"
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                title="Add Reaction"
+                aria-label="Add Reaction"
+              >
+                <Smile size={13} />
+              </button>
             </div>
           )}
         </div>

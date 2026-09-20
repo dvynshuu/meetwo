@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Paperclip, X, CornerDownRight, File, Loader2 } from 'lucide-react';
+import { Send, Paperclip, Plus, Smile, X, CornerDownRight, File, Loader2 } from 'lucide-react';
 import { useChat } from '../../app/providers/ChatContext';
 import { usePresence } from '../../app/providers/PresenceContext';
 import { useServer } from '../../app/providers/ServerContext';
@@ -7,6 +7,7 @@ import { useAuth } from '../../app/providers/AuthContext';
 import { StorageService } from '../../lib/services/storageService';
 import { Attachment } from '../../types';
 import { useViewport } from '../../lib/hooks/useViewport';
+import { Tooltip } from '../ui/Tooltip';
 
 export const MessageComposer: React.FC = () => {
   const { sendMessage, replyingTo, setReplyingTo } = useChat();
@@ -98,10 +99,35 @@ export const MessageComposer: React.FC = () => {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   };
 
-  const addEmoji = (emoji: string) => {
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+
+  const emojiList = [
+    '😀', '😂', '🤣', '😍', '🥰', '😎', '🥳', '🤔',
+    '👍', '👎', '👏', '🙌', '🔥', '✨', '🎉', '🚀',
+    '❤️', '💜', '💙', '⭐', '💯', '👀', '💡', '💬'
+  ];
+
+  const handleEmojiSelect = (emoji: string) => {
     setContent((prev) => prev + emoji);
-    if (textareaRef.current) textareaRef.current.focus();
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
   };
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    if (showEmojiPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showEmojiPicker]);
 
   return (
     <div className="composer-container">
@@ -178,16 +204,17 @@ export const MessageComposer: React.FC = () => {
           onChange={handleFileSelect}
         />
 
-        {/* Attachment Button */}
-        <button
-          type="button"
-          className="composer-attach-btn"
-          onClick={() => fileInputRef.current?.click()}
-          title="Attach file or photo"
-          aria-label="Upload Attachment"
-        >
-          <Paperclip size={18} />
-        </button>
+        {/* Discord-style Circular Plus Attachment Button */}
+        <Tooltip content="Attach File or Media" position="top">
+          <button
+            type="button"
+            className="composer-attach-btn"
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Upload Attachment"
+          >
+            <Plus size={16} />
+          </button>
+        </Tooltip>
 
         <textarea
           ref={textareaRef}
@@ -200,46 +227,51 @@ export const MessageComposer: React.FC = () => {
         />
 
         <div className="composer-actions">
-          {/* Quick Emojis (Desktop Only) */}
-          {!isMobile && (
-            <>
+          {/* Emoji Picker Popover */}
+          <div style={{ position: 'relative' }} ref={emojiPickerRef}>
+            <Tooltip content="Select Emoji" position="top">
               <button
                 type="button"
-                className="composer-emoji-btn"
-                onClick={() => addEmoji('👍')}
-                title="Thumbs Up"
+                className={`composer-emoji-btn ${showEmojiPicker ? 'active' : ''}`}
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                aria-label="Choose Emoji"
               >
-                👍
+                <Smile size={18} />
               </button>
-              <button
-                type="button"
-                className="composer-emoji-btn"
-                onClick={() => addEmoji('🔥')}
-                title="Fire"
-              >
-                🔥
-              </button>
-              <button
-                type="button"
-                className="composer-emoji-btn"
-                onClick={() => addEmoji('✨')}
-                title="Sparkles"
-              >
-                ✨
-              </button>
-            </>
-          )}
+            </Tooltip>
 
-          <button
-            type="button"
-            className={`composer-send-btn ${content.trim() || attachments.length > 0 ? 'active' : ''}`}
-            onClick={handleSend}
-            disabled={!content.trim() && attachments.length === 0}
-            title="Send"
-            aria-label="Send message"
-          >
-            <Send size={16} />
-          </button>
+            {showEmojiPicker && (
+              <div className="composer-emoji-popover">
+                <div className="emoji-popover-grid">
+                  {emojiList.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      className="emoji-popover-item"
+                      onClick={() => {
+                        handleEmojiSelect(emoji);
+                        setShowEmojiPicker(false);
+                      }}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Tooltip content="Send Message (Enter)" position="top">
+            <button
+              type="button"
+              className={`composer-send-btn ${content.trim() || attachments.length > 0 ? 'active' : ''}`}
+              onClick={handleSend}
+              disabled={!content.trim() && attachments.length === 0}
+              aria-label="Send message"
+            >
+              <Send size={16} />
+            </button>
+          </Tooltip>
         </div>
       </div>
     </div>
