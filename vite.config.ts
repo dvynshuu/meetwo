@@ -7,7 +7,14 @@ export default defineConfig({
   envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
   server: {
     port: 5173,
-    host: true
+    host: true,
+    proxy: {
+      '/api': {
+        target: 'https://meetwo.pages.dev',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
   },
   build: {
     rollupOptions: {

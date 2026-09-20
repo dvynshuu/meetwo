@@ -50,14 +50,6 @@ export async function getLiveKitToken(params: TokenRequestParams): Promise<strin
   const staticToken = env.VITE_LIVEKIT_TOKEN;
   const supabaseUrl = env.VITE_SUPABASE_URL;
 
-  // Candidate token endpoints
-  const candidateEndpoints: string[] = [];
-  if (tokenEndpoint) candidateEndpoints.push(tokenEndpoint);
-  candidateEndpoints.push('/api/livekit-token');
-  if (supabaseUrl && !supabaseUrl.includes('your-project')) {
-    candidateEndpoints.push(`${supabaseUrl}/functions/v1/livekit-token`);
-  }
-
   // Retrieve current Supabase session token
   let authToken: string | null = null;
   try {
@@ -69,16 +61,39 @@ export async function getLiveKitToken(params: TokenRequestParams): Promise<strin
     }
   } catch {}
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
+  // Pre-configured static token check
+  if (staticToken && staticToken !== 'your-livekit-token') {
+    return staticToken;
   }
+
+  // If no auth token is present (e.g. demo mode / unauthenticated), cannot mint server-signed LiveKit JWT
+  if (!authToken) {
+    console.info('[LiveKitToken] No active Supabase session token found; skipping LiveKit token request.');
+    return null;
+  }
+
+  // Candidate token endpoints
+  const candidateEndpoints: string[] = [];
+  if (tokenEndpoint && !tokenEndpoint.startsWith('/')) {
+    candidateEndpoints.push(tokenEndpoint);
+  }
+  // Local Vite proxy or same-origin Cloudflare Pages route
+  candidateEndpoints.push('/api/livekit-token');
+  // Direct production endpoint fallback
+  if (!candidateEndpoints.includes('https://meetwo.pages.dev/api/livekit-token')) {
+    candidateEndpoints.push('https://meetwo.pages.dev/api/livekit-token');
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${authToken}`,
+  };
 
   let lastError: string | null = null;
 
   for (const endpoint of candidateEndpoints) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
 
     try {
       const response = await fetch(endpoint, {
@@ -108,26 +123,22 @@ export async function getLiveKitToken(params: TokenRequestParams): Promise<strin
         lastError = errJson?.error || `HTTP ${response.status}: ${response.statusText}`;
         console.warn(`[LiveKitToken] Token request to ${endpoint} returned ${response.status}:`, lastError);
 
-        // If forbidden or unauthorized, don't fall through to other endpoints
-        if (response.status === 401 || response.status === 403) {
+        // If forbidden (e.g., user not a room member), don't try other endpoints
+        if (response.status === 403) {
           throw new Error(lastError || 'Access denied to voice/video room.');
         }
       }
     } catch (e: any) {
       clearTimeout(timeoutId);
-      if (e.message?.includes('Access denied') || e.message?.includes('FORBIDDEN') || e.message?.includes('UNAUTHORIZED')) {
+      if (e.message?.includes('Access denied') || e.message?.includes('FORBIDDEN')) {
         throw e;
       }
+      lastError = e.message || 'Network error connecting to token endpoint';
     }
   }
 
-  // Pre-configured static token (local development fallback only)
-  if (staticToken && staticToken !== 'your-livekit-token') {
-    return staticToken;
-  }
-
   if (lastError) {
-    throw new Error(`LIVEKIT_TOKEN_ERROR: ${lastError}`);
+    console.warn(`[LiveKitToken] All token endpoints failed: ${lastError}`);
   }
 
   return null;

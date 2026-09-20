@@ -30,7 +30,7 @@ export const ChannelSheet: React.FC<ChannelSheetProps> = ({
   onOpenWorkspaceSheet,
 }) => {
   const { activeServer, activeChannel, channels, selectChannel } = useServer();
-  const { activeRoomId, participants, openPreJoin } = useMedia();
+  const { activeRoomId, participants, joinVoiceRoom } = useMedia();
 
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
 
@@ -71,9 +71,9 @@ export const ChannelSheet: React.FC<ChannelSheetProps> = ({
     selectChannel(channel.id);
     onClose();
 
-    // If clicking a voice or stage room that is not currently connected, open pre-join
+    // If clicking a voice or stage room that is not currently connected, join immediately
     if (channel.type === 'voice' && activeRoomId !== channel.id) {
-      openPreJoin(channel.id);
+      joinVoiceRoom(channel.id, false, true);
     }
   };
 

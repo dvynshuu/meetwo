@@ -237,14 +237,14 @@ export const AppLayout: React.FC = () => {
       }
 
       // Ctrl+D: Toggle mic
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'd' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
         e.preventDefault();
         toggleAudio();
         return;
       }
 
       // Ctrl+E: Toggle camera
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'e' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
         e.preventDefault();
         toggleVideo();
         return;

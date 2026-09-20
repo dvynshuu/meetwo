@@ -3,7 +3,6 @@ import { useMedia } from '../../app/providers/MediaContext';
 import { useServer } from '../../app/providers/ServerContext';
 import { VideoGrid } from './VideoGrid';
 import { VideoControls } from './VideoControls';
-import { PreJoinModal } from './PreJoinModal';
 import { ChatContainer } from '../chat/ChatContainer';
 import { Tooltip } from '../ui/Tooltip';
 import { BottomSheet } from '../ui/BottomSheet';
@@ -31,10 +30,6 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
   const {
     participants,
     activeRoomId,
-    pendingRoomId,
-    isPreJoinOpen,
-    openPreJoin,
-    closePreJoin,
     joinVoiceRoom,
     connectionState,
     connectionStats,
@@ -176,20 +171,11 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
               borderRadius: 'var(--radius-sm)',
               marginTop: 4,
             }}
-            onClick={() => openPreJoin(activeChannel.id)}
+            onClick={() => joinVoiceRoom(activeChannel.id, false, true)}
           >
             Join Room
           </button>
         </div>
-
-        {/* Hardware Pre-Join Verification Modal */}
-        <PreJoinModal
-          isOpen={isPreJoinOpen}
-          onClose={closePreJoin}
-          onJoin={(id, micMuted, camMuted) => joinVoiceRoom(id, micMuted, camMuted)}
-          roomId={pendingRoomId || activeChannel.id}
-          roomName={activeChannel.name}
-        />
       </div>
     );
   }

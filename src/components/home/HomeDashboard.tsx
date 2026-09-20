@@ -26,7 +26,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   const { currentUser } = useAuth();
   const { recentDestinations } = useNavigation();
   const { channels, servers, selectServer, selectChannel, activeServer } = useServer();
-  const { activeRoomId, openPreJoin } = useMedia();
+  const { activeRoomId, joinVoiceRoom } = useMedia();
 
   const displayName = currentUser?.displayName || currentUser?.username || 'Friend';
 
@@ -196,7 +196,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
                         selectChannel(room.id);
                       }
                       if (!isCurrent && room.type === 'voice') {
-                        openPreJoin(room.id);
+                        joinVoiceRoom(room.id, false, true);
                       }
                     }}
                   >

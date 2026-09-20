@@ -232,6 +232,7 @@ export class MediaSession {
 
   public stopMicrophone() {
     if (this.microphoneTrack) {
+      this.microphoneTrack.onended = null;
       try {
         this.microphoneTrack.stop();
       } catch {}
@@ -239,6 +240,7 @@ export class MediaSession {
       this.microphoneTrack = null;
     }
     if (this.rawMicrophoneTrack && this.rawMicrophoneTrack !== this.microphoneTrack) {
+      this.rawMicrophoneTrack.onended = null;
       try {
         this.rawMicrophoneTrack.stop();
       } catch {}
@@ -400,7 +402,10 @@ export class MediaSession {
 
   public stopCamera() {
     if (this.cameraTrack) {
-      this.cameraTrack.stop();
+      this.cameraTrack.onended = null;
+      try {
+        this.cameraTrack.stop();
+      } catch {}
       this.localStream.removeTrack(this.cameraTrack);
       this.cameraTrack = null;
     }
@@ -491,13 +496,19 @@ export class MediaSession {
 
   public stopScreenShare() {
     if (this.screenShareTrack) {
-      this.screenShareTrack.stop();
+      this.screenShareTrack.onended = null;
+      try {
+        this.screenShareTrack.stop();
+      } catch {}
       this.screenStream.removeTrack(this.screenShareTrack);
       this.screenShareTrack = null;
       logger.log('screen_share_stopped');
     }
     if (this.screenAudioTrack) {
-      this.screenAudioTrack.stop();
+      this.screenAudioTrack.onended = null;
+      try {
+        this.screenAudioTrack.stop();
+      } catch {}
       this.screenStream.removeTrack(this.screenAudioTrack);
       this.screenAudioTrack = null;
     }
@@ -516,21 +527,26 @@ export class MediaSession {
     video: boolean = true,
     quality?: VideoQuality
   ): Promise<MediaStream> {
-    const promises: Promise<any>[] = [];
-
     if (audio) {
-      promises.push(this.startMicrophone());
+      try {
+        await this.startMicrophone();
+      } catch (err) {
+        console.warn('[MediaSession] Microphone acquisition failed on join:', err);
+      }
     } else {
       this.stopMicrophone();
     }
 
     if (video) {
-      promises.push(this.startCamera(undefined, quality));
+      try {
+        await this.startCamera(undefined, quality);
+      } catch (err) {
+        console.warn('[MediaSession] Camera acquisition failed on join:', err);
+      }
     } else {
       this.stopCamera();
     }
 
-    await Promise.all(promises);
     return this.localStream;
   }
 
@@ -542,6 +558,14 @@ export class MediaSession {
   }
 
   // Accessors
+  public isMicrophoneActive(): boolean {
+    return Boolean(this.microphoneTrack && this.microphoneTrack.readyState === 'live');
+  }
+
+  public isCameraActive(): boolean {
+    return Boolean(this.cameraTrack && this.cameraTrack.readyState === 'live');
+  }
+
   public getMicrophoneTrack(): MediaStreamTrack | null {
     return this.microphoneTrack;
   }

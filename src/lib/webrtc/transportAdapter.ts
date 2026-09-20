@@ -376,10 +376,20 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
 
   async setTrackEnabled(kind: 'audio' | 'video', enabled: boolean): Promise<void> {
     if (!this.room) return;
-    if (kind === 'audio') {
-      await this.room.localParticipant.setMicrophoneEnabled(enabled);
-    } else {
-      await this.room.localParticipant.setCameraEnabled(enabled);
+    const pubs = kind === 'audio'
+      ? Array.from(this.room.localParticipant.audioTrackPublications.values())
+      : Array.from(this.room.localParticipant.videoTrackPublications.values()).filter(
+          (p) => p.source === Track.Source.Camera
+        );
+
+    for (const pub of pubs) {
+      if (pub.track) {
+        if (enabled) {
+          await pub.track.unmute();
+        } else {
+          await pub.track.mute();
+        }
+      }
     }
   }
 
@@ -427,9 +437,9 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
     }
   }
 
-  async sendMuteState(isAudioMuted: boolean, isVideoMuted: boolean): Promise<void> {
-    await this.setTrackEnabled('audio', !isAudioMuted);
-    await this.setTrackEnabled('video', !isVideoMuted);
+  async sendMuteState(_isAudioMuted: boolean, _isVideoMuted: boolean): Promise<void> {
+    // In LiveKit SFU, track mute states are broadcast automatically via native TrackMuted/TrackUnmuted events
+    // when setTrackEnabled() calls pub.track.mute() / unmute() directly on the specific publication.
   }
 
   async sendSpeakingState(_isSpeaking: boolean, _level: number): Promise<void> {

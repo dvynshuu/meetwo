@@ -70,7 +70,7 @@ interface MediaContextType {
 const MediaContext = createContext<MediaContextType | undefined>(undefined);
 
 export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, isDemoMode } = useAuth();
 
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [pendingRoomId, setPendingRoomId] = useState<string | null>(null);
@@ -117,6 +117,17 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     mediaSessionRef.current.settings
   );
 
+  const isAudioMutedRef = useRef(isAudioMuted);
+  const isVideoMutedRef = useRef(isVideoMuted);
+
+  useEffect(() => {
+    isAudioMutedRef.current = isAudioMuted;
+  }, [isAudioMuted]);
+
+  useEffect(() => {
+    isVideoMutedRef.current = isVideoMuted;
+  }, [isVideoMuted]);
+
   const dismissDeviceNotification = useCallback(() => {
     setDeviceNotification(null);
   }, []);
@@ -162,13 +173,15 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         if (kind === 'video') {
           setIsVideoMuted(true);
+          isVideoMutedRef.current = true;
           if (transportRef.current) {
-            await transportRef.current.sendMuteState(isAudioMuted, true);
+            await transportRef.current.sendMuteState(isAudioMutedRef.current, true);
           }
         } else if (kind === 'audio') {
           setIsAudioMuted(true);
+          isAudioMutedRef.current = true;
           if (transportRef.current) {
-            await transportRef.current.sendMuteState(true, isVideoMuted);
+            await transportRef.current.sendMuteState(true, isVideoMutedRef.current);
           }
         }
       },
@@ -181,11 +194,13 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           try {
             await mediaSessionRef.current.startMicrophone();
             setIsAudioMuted(false);
+            isAudioMutedRef.current = false;
           } catch {}
         } else if (kind === 'video') {
           try {
             await mediaSessionRef.current.startCamera();
             setIsVideoMuted(false);
+            isVideoMutedRef.current = false;
           } catch {}
         }
       },
@@ -195,7 +210,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       mediaSessionRef.current.stopLocalMedia();
       reconnectionManagerRef.current?.destroy();
     };
-  }, [isAudioMuted, isVideoMuted]);
+  }, []);
 
   // Synchronize server-authoritative stage state machine
   useEffect(() => {
@@ -265,15 +280,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [activeRoomId, currentUser]);
 
-  const openPreJoin = useCallback((roomId: string) => {
-    setPendingRoomId(roomId);
-    setIsPreJoinOpen(true);
-  }, []);
 
-  const closePreJoin = useCallback(() => {
-    setIsPreJoinOpen(false);
-    setPendingRoomId(null);
-  }, []);
 
   // Global keyboard shortcut for WebRTC diagnostics (Ctrl+Shift+D or Cmd+Shift+D)
   useEffect(() => {
@@ -318,18 +325,34 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         );
         setLocalStream(stream);
 
+        // Synchronize accurate initial mute states based on whether tracks were successfully acquired
+        const hasMic = mediaSessionRef.current.isMicrophoneActive();
+        const hasCam = mediaSessionRef.current.isCameraActive();
+        if (!hasMic && !initialAudioMuted) {
+          setIsAudioMuted(true);
+          isAudioMutedRef.current = true;
+        }
+        if (!hasCam && !initialVideoMuted) {
+          setIsVideoMuted(true);
+          isVideoMutedRef.current = true;
+        }
+
         // 2. Select appropriate transport (LiveKit SFU or Direct Enhanced Engine)
         const livekitUrl = (import.meta as any).env?.VITE_LIVEKIT_URL;
         let livekitToken = (import.meta as any).env?.VITE_LIVEKIT_TOKEN;
 
-        if (livekitUrl) {
-          const dynamicToken = await getLiveKitToken({
-            roomId,
-            userId: currentUser.id,
-            username: currentUser.displayName || currentUser.username,
-          });
-          if (dynamicToken) {
-            livekitToken = dynamicToken;
+        if (livekitUrl && !isDemoMode) {
+          try {
+            const dynamicToken = await getLiveKitToken({
+              roomId,
+              userId: currentUser.id,
+              username: currentUser.displayName || currentUser.username,
+            });
+            if (dynamicToken) {
+              livekitToken = dynamicToken;
+            }
+          } catch (tokenErr) {
+            console.warn('[MediaEngine] Dynamic LiveKit token acquisition failed:', tokenErr);
           }
         }
 
@@ -554,29 +577,44 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           (import.meta as any).env?.PROD;
 
         let transport: ITransportAdapter;
-        if (livekitUrl && livekitToken) {
+        if (livekitUrl && livekitToken && !isDemoMode) {
           console.info('[MediaEngine] Initializing LiveKit SFU Transport (Primary Production Transport)');
           setProductionConfigError(null);
           transport = new LiveKitSFUAdapter(livekitUrl, livekitToken, callbacks);
-        } else if (isProduction) {
+        } else if (isProduction && !import.meta.env.DEV && !isDemoMode) {
           const errMsg = 'LiveKit SFU connection error: Valid token or server configuration unavailable.';
           console.error('[MediaEngine]', errMsg);
           setProductionConfigError(errMsg);
           setConnectionState('failed');
           throw new Error(errMsg);
         } else {
-          // Isolated local development sandbox only
-          console.info('[MediaEngine] Dev Mode: Initializing Enhanced Direct Media Engine (WebRTC Mesh)');
+          // Isolated local development sandbox / demo mode fallback
+          console.info('[MediaEngine] Initializing Enhanced Direct Media Engine (WebRTC Mesh)');
           setProductionConfigError(null);
           transport = new PeerConnectionManager(currentUser.id, callbacks);
         }
 
         transportRef.current = transport;
-        await transport.join(roomId, stream, {
-          username: currentUser.username,
-          displayName: currentUser.displayName,
-          avatarUrl: currentUser.avatarUrl,
-        });
+        try {
+          await transport.join(roomId, stream, {
+            username: currentUser.username,
+            displayName: currentUser.displayName,
+            avatarUrl: currentUser.avatarUrl,
+          });
+        } catch (joinErr: any) {
+          if (transport instanceof LiveKitSFUAdapter && (import.meta.env.DEV || isDemoMode || !isProduction)) {
+            console.warn('[MediaEngine] LiveKit SFU join failed, falling back to WebRTC Mesh:', joinErr);
+            transport = new PeerConnectionManager(currentUser.id, callbacks);
+            transportRef.current = transport;
+            await transport.join(roomId, stream, {
+              username: currentUser.username,
+              displayName: currentUser.displayName,
+              avatarUrl: currentUser.avatarUrl,
+            });
+          } else {
+            throw joinErr;
+          }
+        }
 
         // Apply audio compression profile to active transport
         transport.setAudioProfile?.(
@@ -588,7 +626,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setConnectionState('failed');
       }
     },
-    [activeRoomId, currentUser, deviceSettings.videoQuality]
+    [activeRoomId, currentUser, isDemoMode, deviceSettings.videoQuality]
   );
 
   const leaveVoiceRoom = useCallback(async () => {
@@ -618,6 +656,15 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setRemoteParticipants(new Map());
   }, []);
 
+  const openPreJoin = useCallback((roomId: string) => {
+    joinVoiceRoom(roomId, false, true);
+  }, [joinVoiceRoom]);
+
+  const closePreJoin = useCallback(() => {
+    setIsPreJoinOpen(false);
+    setPendingRoomId(null);
+  }, []);
+
   // Clean room disconnect when user closes tab or refreshes
   useEffect(() => {
     const handleUnload = () => {
@@ -634,33 +681,80 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [activeRoomId, leaveVoiceRoom]);
 
   // In-call Track Muting
-  const toggleAudio = useCallback(() => {
+  const toggleAudio = useCallback(async () => {
     const nextMuted = !isAudioMuted;
-    mediaSessionRef.current.setMicrophoneMute(nextMuted);
+
+    if (!nextMuted) {
+      if (!mediaSessionRef.current.isMicrophoneActive()) {
+        try {
+          const newTrack = await mediaSessionRef.current.startMicrophone(deviceSettings.audioInputId);
+          setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
+          if (transportRef.current) {
+            await transportRef.current.replaceTrack('audio', newTrack);
+          }
+        } catch (err) {
+          console.warn('[MediaContext] Failed to reacquire microphone on unmute:', err);
+        }
+      } else {
+        mediaSessionRef.current.setMicrophoneMute(false);
+      }
+    } else {
+      mediaSessionRef.current.setMicrophoneMute(true);
+    }
+
     setIsAudioMuted(nextMuted);
+    isAudioMutedRef.current = nextMuted;
+
     if (transportRef.current) {
       transportRef.current.setTrackEnabled('audio', !nextMuted).catch(() => {});
       transportRef.current.sendMuteState(nextMuted, isVideoMuted).catch(() => {});
     }
-  }, [isAudioMuted, isVideoMuted]);
+  }, [isAudioMuted, isVideoMuted, deviceSettings.audioInputId]);
 
   const toggleVideo = useCallback(async () => {
     const nextMuted = !isVideoMuted;
-    mediaSessionRef.current.setCameraMute(nextMuted);
+
+    if (!nextMuted) {
+      if (!mediaSessionRef.current.isCameraActive()) {
+        try {
+          const newTrack = await mediaSessionRef.current.startCamera(deviceSettings.videoInputId, deviceSettings.videoQuality);
+          setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
+          if (transportRef.current) {
+            await transportRef.current.replaceTrack('video', newTrack);
+          }
+        } catch (err) {
+          console.warn('[MediaContext] Failed to reacquire camera on unmute:', err);
+        }
+      } else {
+        mediaSessionRef.current.setCameraMute(false);
+      }
+    } else {
+      mediaSessionRef.current.setCameraMute(true);
+    }
+
     setIsVideoMuted(nextMuted);
+    isVideoMutedRef.current = nextMuted;
+
     if (transportRef.current) {
       transportRef.current.setTrackEnabled('video', !nextMuted).catch(() => {});
       transportRef.current.sendMuteState(isAudioMuted, nextMuted).catch(() => {});
     }
-  }, [isAudioMuted, isVideoMuted]);
+  }, [isAudioMuted, isVideoMuted, deviceSettings.videoInputId, deviceSettings.videoQuality]);
 
   // In-call Seamless Device Switching (via RTCRtpSender.replaceTrack)
   const switchCamera = useCallback(async (deviceId: string) => {
     try {
       const newTrack = await mediaSessionRef.current.switchCamera(deviceId);
+      if (isVideoMutedRef.current) {
+        newTrack.enabled = false;
+        mediaSessionRef.current.setCameraMute(true);
+      }
       setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
       if (transportRef.current) {
         await transportRef.current.replaceTrack('video', newTrack);
+        if (isVideoMutedRef.current) {
+          await transportRef.current.setTrackEnabled('video', false).catch(() => {});
+        }
       }
     } catch (err) {
       console.warn('[MediaEngine] switchCamera failed:', err);
@@ -670,9 +764,16 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const switchMicrophone = useCallback(async (deviceId: string) => {
     try {
       const newTrack = await mediaSessionRef.current.switchMicrophone(deviceId);
+      if (isAudioMutedRef.current) {
+        newTrack.enabled = false;
+        mediaSessionRef.current.setMicrophoneMute(true);
+      }
       setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
       if (transportRef.current) {
         await transportRef.current.replaceTrack('audio', newTrack);
+        if (isAudioMutedRef.current) {
+          await transportRef.current.setTrackEnabled('audio', false).catch(() => {});
+        }
       }
     } catch (err) {
       console.warn('[MediaEngine] switchMicrophone failed:', err);
@@ -844,7 +945,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       // 3. If video quality was updated and camera is live, apply it immediately
-      if (newSettings.videoQuality && !isVideoMuted && activeRoomId) {
+      if (newSettings.videoQuality && !isVideoMutedRef.current && activeRoomId) {
         mediaSessionRef.current.startCamera(undefined, newSettings.videoQuality).then(async (newTrack) => {
           setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
           if (transportRef.current) {
@@ -853,9 +954,29 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }).catch((e) => console.warn('[MediaContext] Quality switch warning:', e));
       }
 
+      // 4. Live camera input device change
+      if (newSettings.videoInputId && !isVideoMutedRef.current && activeRoomId) {
+        mediaSessionRef.current.switchCamera(newSettings.videoInputId).then(async (newTrack) => {
+          setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
+          if (transportRef.current) {
+            await transportRef.current.replaceTrack('video', newTrack);
+          }
+        }).catch((e) => console.warn('[MediaContext] Camera switch warning:', e));
+      }
+
+      // 5. Live microphone input device change
+      if (newSettings.audioInputId && !isAudioMutedRef.current && activeRoomId) {
+        mediaSessionRef.current.switchMicrophone(newSettings.audioInputId).then(async (newTrack) => {
+          setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
+          if (transportRef.current) {
+            await transportRef.current.replaceTrack('audio', newTrack);
+          }
+        }).catch((e) => console.warn('[MediaContext] Mic switch warning:', e));
+      }
+
       return updated;
     });
-  }, [activeRoomId, isVideoMuted]);
+  }, [activeRoomId]);
 
   // Combine local participant with remote participants
   const participants: Participant[] = [];

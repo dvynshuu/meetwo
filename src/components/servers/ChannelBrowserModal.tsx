@@ -16,7 +16,7 @@ export const ChannelBrowserModal: React.FC<ChannelBrowserModalProps> = ({
   onOpenCreateChannel,
 }) => {
   const { channels, activeServer, activeChannel, selectChannel } = useServer();
-  const { openPreJoin } = useMedia();
+  const { joinVoiceRoom } = useMedia();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | ChannelType>('all');
 
@@ -50,7 +50,7 @@ export const ChannelBrowserModal: React.FC<ChannelBrowserModalProps> = ({
 
   const handleSelectChannel = (c: Channel) => {
     selectChannel(c.id);
-    if (c.type === 'voice') openPreJoin(c.id);
+    if (c.type === 'voice') joinVoiceRoom(c.id, false, true);
     onClose();
   };
 

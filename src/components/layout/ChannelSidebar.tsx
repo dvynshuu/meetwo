@@ -48,7 +48,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   onToggleCollapse,
 }) => {
   const { activeServer, channels, activeChannel, selectChannel, categories } = useServer();
-  const { activeRoomId, participants, leaveVoiceRoom, openPreJoin } = useMedia();
+  const { activeRoomId, participants, leaveVoiceRoom, joinVoiceRoom } = useMedia();
   const { unreadByChannel, markChannelRead, markAllRead } = useInbox();
 
   // Collapsed categories state backed by localStorage
@@ -112,7 +112,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
     selectChannel(channel.id);
     markChannelRead(channel.id);
     if (channel.type === 'voice' && activeRoomId !== channel.id) {
-      openPreJoin(channel.id);
+      joinVoiceRoom(channel.id, false, true);
     }
   };
 

@@ -35,7 +35,7 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
   const { servers, channels, allChannels, selectServer, selectChannel } = useServer();
   const { recentDestinations, pushNavigation } = useNavigation();
   const { conversations, friends, startConversationWithUser } = useDM();
-  const { openPreJoin } = useMedia();
+  const { joinVoiceRoom } = useMedia();
 
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -84,7 +84,7 @@ export const QuickSwitcher: React.FC<QuickSwitcherProps> = ({
           channelId: c.id,
         });
         onNavigateToServerChannel(c.serverId, c.id);
-        if (isVoice) openPreJoin(c.id);
+        if (isVoice) joinVoiceRoom(c.id, false, true);
         onClose();
       },
     });
