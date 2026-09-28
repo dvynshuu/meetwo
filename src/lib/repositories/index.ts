@@ -97,5 +97,4 @@ export const friendRepository: IFriendRepository = useSupabase
   ? new SupabaseFriendRepository()
   : new MockFriendRepository();
 
-export { formatReactions } from './supabaseRepository';
 export * from './types';

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, UserCheck, Clock, UserPlus, MessageSquare, MoreVertical, Check, X, Search } from 'lucide-react';
+import { Users, MessageSquare, Check, X, Search } from 'lucide-react';
 import { useDM } from '../../app/providers/DMContext';
 import { Avatar } from '../ui/Avatar';
 import { Tooltip } from '../ui/Tooltip';

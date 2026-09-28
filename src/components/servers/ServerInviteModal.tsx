@@ -2,12 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { useServer } from '../../app/providers/ServerContext';
-import { isSupabaseConfigured } from '../../lib/supabase/client';
 import { Invite, Server } from '../../types';
 import {
   Copy,
   Check,
-  Link2,
   Users,
   Settings2,
   RotateCw,
@@ -22,7 +20,7 @@ interface ServerInviteModalProps {
   onClose: () => void;
 }
 
-export const encodeServerPayload = (server: Server): string => {
+const encodeServerPayload = (server: Server): string => {
   try {
     const payload = {
       id: server.id,

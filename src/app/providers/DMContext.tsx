@@ -106,16 +106,47 @@ export const DMProvider: React.FC<{ children: React.ReactNode }> = ({ children }
             };
           });
 
-          setConversations((prev) =>
-            prev.map((c) => {
-              if (c.id !== newRow.conversation_id) return c;
-              return {
-                ...c,
+          setConversations((prev) => {
+            const exists = prev.some((c) => c.id === newRow.conversation_id);
+            if (exists) {
+              return prev.map((c) => {
+                if (c.id !== newRow.conversation_id) return c;
+                return {
+                  ...c,
+                  lastMessage: incomingMsg,
+                  unreadCount: (c.unreadCount || 0) + 1,
+                };
+              });
+            }
+
+            const senderUser: User = authorProf
+              ? {
+                  id: authorProf.id,
+                  username: authorProf.username,
+                  displayName: authorProf.display_name || authorProf.username,
+                  avatarUrl: authorProf.avatar_url,
+                  status: authorProf.status || 'online',
+                  createdAt: authorProf.created_at,
+                }
+              : {
+                  id: newRow.author_id,
+                  username: 'Member',
+                  displayName: 'Member',
+                  status: 'online',
+                  createdAt: new Date().toISOString(),
+                };
+
+            return [
+              {
+                id: newRow.conversation_id,
+                participants: [senderUser],
                 lastMessage: incomingMsg,
-                unreadCount: (c.unreadCount || 0) + 1,
-              };
-            })
-          );
+                unreadCount: 1,
+                createdAt: newRow.created_at || new Date().toISOString(),
+              },
+              ...prev,
+            ];
+          });
         }
       )
       .subscribe();

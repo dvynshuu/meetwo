@@ -250,6 +250,10 @@ export class SupabaseMessageRepository implements IMessageRepository {
         emoji,
       });
       if (error) {
+        // Handle race conditions where another client or rapid click inserted concurrently
+        if (error.code === '23505' || error.message?.includes('duplicate')) {
+          return;
+        }
         throw new ServiceError('REACTION_FAILED', `Failed to add reaction: ${error.message}`, error);
       }
     }
@@ -298,14 +302,17 @@ export class SupabaseServerRepository implements IServerRepository {
     }
 
     // Owner membership
-    await supabase.from('server_members').insert({
+    const { error: memErr } = await supabase.from('server_members').insert({
       server_id: server.id,
       user_id: ownerId,
       role: 'owner',
     });
+    if (memErr) {
+      console.warn('[SupabaseServerRepository] Owner membership record error:', memErr);
+    }
 
     // Default general channel
-    const { data: generalChan } = await supabase
+    const { data: generalChan, error: chanErr } = await supabase
       .from('channels')
       .insert({
         server_id: server.id,
@@ -315,6 +322,10 @@ export class SupabaseServerRepository implements IServerRepository {
       })
       .select()
       .single();
+
+    if (chanErr) {
+      console.warn('[SupabaseServerRepository] Default general channel creation error:', chanErr);
+    }
 
     return {
       id: server.id,
@@ -747,23 +758,28 @@ export class SupabaseDMRepository implements IDMRepository {
       }
     }
 
-    // Create new conversation row
-    const { data: newConvo, error: convoErr } = await supabase
+    // Generate client-side UUID to avoid PostgreSQL RETURNING RLS check
+    // which fails before participants are inserted
+    const conversationId = crypto.randomUUID();
+
+    const { error: convoErr } = await supabase
       .from('dm_conversations')
-      .insert({})
-      .select('id')
-      .single();
+      .insert({ id: conversationId });
 
     if (convoErr) {
       throw new ServiceError('DM_CREATE_FAILED', `Failed to create DM conversation: ${convoErr.message}`, convoErr);
     }
 
-    await supabase.from('dm_participants').insert([
-      { conversation_id: newConvo.id, user_id: currentUser.id },
-      { conversation_id: newConvo.id, user_id: targetUser.id },
+    const { error: partErr } = await supabase.from('dm_participants').insert([
+      { conversation_id: conversationId, user_id: currentUser.id },
+      { conversation_id: conversationId, user_id: targetUser.id },
     ]);
 
-    return newConvo.id;
+    if (partErr) {
+      throw new ServiceError('DM_CREATE_FAILED', `Failed to add DM participants: ${partErr.message}`, partErr);
+    }
+
+    return conversationId;
   }
 }
 
@@ -924,6 +940,16 @@ export class SupabaseThreadRepository implements IThreadRepository {
         throw new ServiceError('THREAD_CREATE_FAILED', createErr.message, createErr);
       }
       thread = newThread;
+
+      // In case of concurrent creation, re-fetch thread
+      if (!thread?.id) {
+        const { data: retryThread } = await supabase
+          .from('threads')
+          .select('id')
+          .eq('parent_message_id', parentMessageId)
+          .maybeSingle();
+        thread = retryThread;
+      }
     }
 
     if (!thread?.id) {
@@ -1172,19 +1198,25 @@ export class SupabaseReadStateRepository implements IReadStateRepository {
     const now = new Date().toISOString();
 
     if (target.channelId) {
-      await supabase.from('read_states').upsert({
-        user_id: userId,
-        channel_id: target.channelId,
-        last_read_message_id: target.messageId || null,
-        last_read_at: now,
-      });
+      await supabase.from('read_states').upsert(
+        {
+          user_id: userId,
+          channel_id: target.channelId,
+          last_read_message_id: target.messageId || null,
+          last_read_at: now,
+        },
+        { onConflict: 'user_id,channel_id' }
+      );
     } else if (target.conversationId) {
-      await supabase.from('read_states').upsert({
-        user_id: userId,
-        conversation_id: target.conversationId,
-        last_read_message_id: target.messageId || null,
-        last_read_at: now,
-      });
+      await supabase.from('read_states').upsert(
+        {
+          user_id: userId,
+          conversation_id: target.conversationId,
+          last_read_message_id: target.messageId || null,
+          last_read_at: now,
+        },
+        { onConflict: 'user_id,conversation_id' }
+      );
     }
   }
 }
@@ -1323,25 +1355,28 @@ export class SupabaseSearchRepository implements ISearchRepository {
       }
     }
 
-    // 3. Search Forum Posts
-    const { data: forumData } = await supabase
-      .from('forum_posts')
-      .select('id, channel_id, title, content, created_at, author:profiles(display_name, username)')
-      .or(`title.ilike.%${cleanQuery}%,content.ilike.%${cleanQuery}%`)
-      .limit(6);
+    // 3. Search Forum Posts (sanitize query for PostgREST .or() syntax)
+    const sanitizedForumQuery = cleanQuery.replace(/[,()"]/g, ' ').trim();
+    if (sanitizedForumQuery) {
+      const { data: forumData } = await supabase
+        .from('forum_posts')
+        .select('id, channel_id, title, content, created_at, author:profiles(display_name, username)')
+        .or(`title.ilike.%${sanitizedForumQuery}%,content.ilike.%${sanitizedForumQuery}%`)
+        .limit(6);
 
-    if (forumData) {
-      for (const f of forumData) {
-        results.push({
-          id: f.id,
-          type: 'message',
-          title: `[Forum] ${f.title}`,
-          subtitle: f.content.slice(0, 100),
-          channelId: f.channel_id,
-          messageContent: f.content,
-          authorName: (f.author as any)?.display_name || (f.author as any)?.username,
-          timestamp: f.created_at,
-        });
+      if (forumData) {
+        for (const f of forumData) {
+          results.push({
+            id: f.id,
+            type: 'message',
+            title: `[Forum] ${f.title}`,
+            subtitle: f.content.slice(0, 100),
+            channelId: f.channel_id,
+            messageContent: f.content,
+            authorName: (f.author as any)?.display_name || (f.author as any)?.username,
+            timestamp: f.created_at,
+          });
+        }
       }
     }
 
@@ -1353,28 +1388,65 @@ export class SupabaseFriendRepository implements IFriendRepository {
   async getFriends(userId: string): Promise<Friend[]> {
     if (!supabase) throw new ServiceError('SUPABASE_NOT_INITIALIZED', 'Supabase client is not initialized.');
 
+    // Query friendships where the user is either initiator (user_id) or recipient (friend_id)
     const { data, error } = await supabase
       .from('friends')
-      .select('*, friend:profiles!friends_friend_id_fkey(*)')
-      .eq('user_id', userId);
+      .select('*, friend:profiles!friends_friend_id_fkey(*), initiator:profiles!friends_user_id_fkey(*)')
+      .or(`user_id.eq.${userId},friend_id.eq.${userId}`);
 
     if (error) {
-      throw new ServiceError('FRIENDS_LOAD_FAILED', `Failed to load friends: ${error.message}`, error);
+      // Fallback query if foreign key alias mapping encounters unexpected issues
+      const fallback = await supabase
+        .from('friends')
+        .select('*, friend:profiles!friends_friend_id_fkey(*)')
+        .eq('user_id', userId);
+
+      if (fallback.error) {
+        throw new ServiceError('FRIENDS_LOAD_FAILED', `Failed to load friends: ${error.message}`, error);
+      }
+
+      return (fallback.data || []).map((f: any) => ({
+        id: f.friend?.id || f.friend_id,
+        status: f.status || 'accepted',
+        createdAt: f.created_at,
+        user: {
+          id: f.friend?.id || f.friend_id,
+          username: f.friend?.username || 'member',
+          displayName: f.friend?.display_name || f.friend?.username || 'Member',
+          avatarUrl: f.friend?.avatar_url,
+          status: f.friend?.status || 'online',
+          createdAt: f.friend?.created_at,
+        },
+      }));
     }
 
-    return (data || []).map((f: any) => ({
-      id: f.friend?.id || f.friend_id,
-      status: f.status || 'accepted',
-      createdAt: f.created_at,
-      user: {
-        id: f.friend?.id || f.friend_id,
-        username: f.friend?.username || 'member',
-        displayName: f.friend?.display_name || f.friend?.username || 'Member',
-        avatarUrl: f.friend?.avatar_url,
-        status: f.friend?.status || 'online',
-        createdAt: f.friend?.created_at,
-      },
-    }));
+    const friendMap = new Map<string, Friend>();
+
+    for (const f of data || []) {
+      const isInitiator = f.user_id === userId;
+      const otherProfile = isInitiator ? f.friend : f.initiator;
+      const otherId = isInitiator ? f.friend_id : f.user_id;
+
+      if (!otherId || otherId === userId) continue;
+
+      if (!friendMap.has(otherId)) {
+        friendMap.set(otherId, {
+          id: otherId,
+          status: f.status || 'accepted',
+          createdAt: f.created_at,
+          user: {
+            id: otherId,
+            username: otherProfile?.username || 'member',
+            displayName: otherProfile?.display_name || otherProfile?.username || 'Member',
+            avatarUrl: otherProfile?.avatar_url,
+            status: otherProfile?.status || 'online',
+            createdAt: otherProfile?.created_at,
+          },
+        });
+      }
+    }
+
+    return Array.from(friendMap.values());
   }
 
   async addFriend(currentUserId: string, targetUsername: string): Promise<{ success: boolean; user?: User; error?: string }> {
@@ -1396,10 +1468,12 @@ export class SupabaseFriendRepository implements IFriendRepository {
       return { success: false, error: 'You cannot add yourself as a friend.' };
     }
 
-    const { error: insertErr } = await supabase.from('friends').upsert([
+    // Only insert the current user's relationship row.
+    // Client cannot insert a row with another user's user_id due to Postgres RLS (auth.uid() = user_id).
+    const { error: insertErr } = await supabase.from('friends').upsert(
       { user_id: currentUserId, friend_id: targetProfile.id, status: 'accepted' },
-      { user_id: targetProfile.id, friend_id: currentUserId, status: 'accepted' },
-    ]);
+      { onConflict: 'user_id,friend_id' }
+    );
 
     if (insertErr) {
       return { success: false, error: insertErr.message };
@@ -1420,6 +1494,10 @@ export class SupabaseFriendRepository implements IFriendRepository {
 
   async acceptFriendRequest(userId: string, friendId: string): Promise<void> {
     if (!supabase) return;
+    await supabase.from('friends').upsert(
+      { user_id: userId, friend_id: friendId, status: 'accepted' },
+      { onConflict: 'user_id,friend_id' }
+    );
     await supabase
       .from('friends')
       .update({ status: 'accepted' })
@@ -1436,7 +1514,8 @@ export class SupabaseFriendRepository implements IFriendRepository {
 
   async searchUsers(query: string, currentUserId: string): Promise<User[]> {
     if (!supabase) return [];
-    const clean = query.trim().toLowerCase();
+    // Sanitize query to prevent PostgREST .or() syntax errors with commas or parentheses
+    const clean = query.replace(/[,()"]/g, ' ').trim().toLowerCase();
     if (!clean) return [];
 
     const { data, error } = await supabase

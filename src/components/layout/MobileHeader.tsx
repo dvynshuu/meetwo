@@ -9,8 +9,6 @@ import {
   MessagesSquare,
   Search,
   Users,
-  MoreVertical,
-  Phone,
   Sparkles,
   LayoutGrid,
 } from 'lucide-react';

@@ -8,7 +8,6 @@ import {
   TrackPublication,
   RemoteParticipant,
   RemoteTrackPublication,
-  LocalTrackPublication,
   ConnectionState,
   VideoPresets,
 } from 'livekit-client';

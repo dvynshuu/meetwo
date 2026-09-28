@@ -7,7 +7,6 @@ import {
   ServerMember,
   Invite,
   Attachment,
-  MessageReaction,
   ForumPost,
   Bookmark,
   AuditLogEntry,
@@ -15,7 +14,6 @@ import {
   CustomStatus,
   ChannelType,
   StageChannelState,
-  StageRole,
 } from '../../types';
 
 const STORAGE_KEYS = {
@@ -63,16 +61,6 @@ if (typeof window !== 'undefined') {
     }
   } catch {}
 }
-
-// Clean Empty Seed Datasets (All mock data and mock users removed)
-export const SEED_USERS: User[] = [];
-export const SEED_SERVERS: Server[] = [];
-export const SEED_CATEGORIES: ChannelCategory[] = [];
-export const SEED_CHANNELS: Channel[] = [];
-export const SEED_MEMBERS: ServerMember[] = [];
-export const SEED_MESSAGES: Message[] = [];
-export const SEED_FORUM_POSTS: ForumPost[] = [];
-export const SEED_AUDIT_LOGS: AuditLogEntry[] = [];
 
 class MockStore {
   private broadcastChannel: BroadcastChannel | null = null;

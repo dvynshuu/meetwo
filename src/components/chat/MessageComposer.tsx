@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Paperclip, Plus, Smile, X, CornerDownRight, File, Loader2 } from 'lucide-react';
+import { Send, Plus, Smile, X, CornerDownRight, File, Loader2 } from 'lucide-react';
 import { useChat } from '../../app/providers/ChatContext';
 import { usePresence } from '../../app/providers/PresenceContext';
 import { useServer } from '../../app/providers/ServerContext';

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Check, Bell, BellOff, Link2, Settings, Trash2, VolumeX, Hash, Volume2 } from 'lucide-react';
+import { Check, Link2, Settings, VolumeX } from 'lucide-react';
 import { Channel } from '../../types';
 
 interface ChannelContextMenuProps {

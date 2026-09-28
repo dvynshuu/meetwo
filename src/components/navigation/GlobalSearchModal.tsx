@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Hash, MessageSquare, Calendar, User, X, Loader2 } from 'lucide-react';
+import { Search, Hash, User, X, Loader2 } from 'lucide-react';
 import { useServer } from '../../app/providers/ServerContext';
 import { SearchService, DetailedSearchResult } from '../../lib/services/searchService';
 

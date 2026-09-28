@@ -922,8 +922,46 @@ CREATE POLICY "Users can view their friends"
   ON public.friends FOR SELECT USING (auth.uid() = user_id OR auth.uid() = friend_id);
 
 DROP POLICY IF EXISTS "Users can manage their friendships" ON public.friends;
-CREATE POLICY "Users can manage their friendships"
-  ON public.friends FOR ALL USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can insert their friendships" ON public.friends;
+DROP POLICY IF EXISTS "Users can update their friendships" ON public.friends;
+DROP POLICY IF EXISTS "Users can delete their friendships" ON public.friends;
+
+CREATE POLICY "Users can insert their friendships"
+  ON public.friends FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their friendships"
+  ON public.friends FOR UPDATE USING (auth.uid() = user_id OR auth.uid() = friend_id);
+
+CREATE POLICY "Users can delete their friendships"
+  ON public.friends FOR DELETE USING (auth.uid() = user_id OR auth.uid() = friend_id);
+
+CREATE OR REPLACE FUNCTION public.handle_friend_bidirectional()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.friends
+      WHERE user_id = NEW.friend_id AND friend_id = NEW.user_id
+    ) THEN
+      INSERT INTO public.friends (user_id, friend_id, status, created_at)
+      VALUES (NEW.friend_id, NEW.user_id, NEW.status, NEW.created_at)
+      ON CONFLICT (user_id, friend_id) DO NOTHING;
+    END IF;
+  ELSIF TG_OP = 'DELETE' THEN
+    DELETE FROM public.friends
+    WHERE user_id = OLD.friend_id AND friend_id = OLD.user_id;
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+DROP TRIGGER IF EXISTS tr_friend_bidirectional ON public.friends;
+CREATE TRIGGER tr_friend_bidirectional
+AFTER INSERT OR DELETE ON public.friends
+FOR EACH ROW EXECUTE FUNCTION public.handle_friend_bidirectional();
 
 DROP POLICY IF EXISTS "Users can view relevant friend requests" ON public.friend_requests;
 CREATE POLICY "Users can view relevant friend requests"

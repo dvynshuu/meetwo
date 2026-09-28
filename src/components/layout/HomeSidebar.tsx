@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageSquare, Users, Bookmark, Bell, Plus, Search, X } from 'lucide-react';
+import { Users, Bookmark, Bell, Plus, Search } from 'lucide-react';
 import { useDM } from '../../app/providers/DMContext';
 import { useInbox } from '../../app/providers/InboxContext';
 import { useAuth } from '../../app/providers/AuthContext';

@@ -1,4 +1,4 @@
-import { MediaDeviceSettings, VideoQuality, QualityMode } from '../../types';
+import { MediaDeviceSettings, VideoQuality } from '../../types';
 import { AudioDSPManager } from './audioProcessing';
 import { logger } from './observability';
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { BottomSheet } from '../ui/BottomSheet';
 import { useServer } from '../../app/providers/ServerContext';
-import { Home, Plus, Check, Compass, Shield } from 'lucide-react';
+import { Home, Plus, Check } from 'lucide-react';
 
 interface WorkspaceSheetProps {
   isOpen: boolean;

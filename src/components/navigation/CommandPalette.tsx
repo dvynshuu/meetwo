@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Settings, Plus, Mic, Video as VideoIcon, X, CheckCheck, UserPlus, Shield, Activity, Users } from 'lucide-react';
+import { Search, Settings, Plus, Mic, Video as VideoIcon, X, CheckCheck, UserPlus, Shield, Users } from 'lucide-react';
 import { useMedia } from '../../app/providers/MediaContext';
 import { useServer } from '../../app/providers/ServerContext';
 import { useInbox } from '../../app/providers/InboxContext';

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useDM } from '../../app/providers/DMContext';
 import { useAuth } from '../../app/providers/AuthContext';
 import { Avatar } from '../ui/Avatar';
-import { Plus, Search, MessageSquarePlus, Clock, Sparkles } from 'lucide-react';
+import { Plus, Search, MessageSquarePlus } from 'lucide-react';
 import { User } from '../../types';
 
 interface MobileDMListProps {

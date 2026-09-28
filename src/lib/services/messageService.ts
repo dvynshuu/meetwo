@@ -1,7 +1,5 @@
-import { Message, Attachment, MessageReaction, User } from '../../types';
-import { messageRepository, formatReactions } from '../repositories';
-
-export { formatReactions };
+import { Message, Attachment, User } from '../../types';
+import { messageRepository } from '../repositories';
 
 export class MessageService {
   /**

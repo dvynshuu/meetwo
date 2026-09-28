@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Hash, Volume2, ShieldCheck, Check, ArrowRight, X } from 'lucide-react';
+import { Hash, Volume2, ShieldCheck, Check, ArrowRight, X } from 'lucide-react';
 import { Server, Channel } from '../../types';
 
 interface ServerOnboardingModalProps {

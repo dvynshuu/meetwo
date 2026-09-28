@@ -19,7 +19,6 @@ import {
   MoreHorizontal,
   Pin,
   Link2,
-  EyeOff,
 } from 'lucide-react';
 import { PollMessage } from './PollMessage';
 import { Tooltip } from '../ui/Tooltip';

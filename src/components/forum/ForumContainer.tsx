@@ -13,9 +13,6 @@ import {
   CheckCircle2,
   MessageCircle,
   Tag,
-  ThumbsUp,
-  Share2,
-  Clock,
   ArrowLeft,
   Send,
 } from 'lucide-react';

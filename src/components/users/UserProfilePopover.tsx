@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, ServerMember } from '../../types';
 import { Avatar } from '../ui/Avatar';
-import { AtSign, MessageSquare, Shield, Crown, Sparkles, X, Send } from 'lucide-react';
+import { AtSign, Shield, Crown, Sparkles, X, Send } from 'lucide-react';
 import { useDM } from '../../app/providers/DMContext';
 import { useAuth } from '../../app/providers/AuthContext';
 

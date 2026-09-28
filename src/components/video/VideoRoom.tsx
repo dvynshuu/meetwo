@@ -19,7 +19,6 @@ import {
   Maximize2,
   Minimize2,
   MessageSquare,
-  Activity,
 } from 'lucide-react';
 
 interface VideoRoomProps {

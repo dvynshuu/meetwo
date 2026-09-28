@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ServiceError } from '../lib/repositories/types';
-import { SupabaseMessageRepository, SupabaseServerRepository } from '../lib/repositories/supabaseRepository';
+import { SupabaseMessageRepository } from '../lib/repositories/supabaseRepository';
 
 describe('Auth & Service Error Handling', () => {
   it('creates typed ServiceError instances with descriptive codes', () => {

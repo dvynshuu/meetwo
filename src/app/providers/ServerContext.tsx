@@ -254,11 +254,27 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             if (activeServer && chan.serverId === activeServer.id) {
               setChannels((prev) => (prev.some((c) => c.id === chan.id) ? prev : [...prev, chan]));
             }
+          } else if (payload.eventType === 'UPDATE') {
+            const raw = payload.new as any;
+            const chan: Channel = {
+              id: raw.id,
+              serverId: raw.server_id,
+              name: raw.name,
+              type: raw.type,
+              topic: raw.topic || '',
+              categoryId: raw.category_id || undefined,
+              position: raw.position || 0,
+              createdAt: raw.created_at,
+            };
+            setAllChannels((prev) => prev.map((c) => (c.id === chan.id ? chan : c)));
+            setChannels((prev) => prev.map((c) => (c.id === chan.id ? chan : c)));
+            setActiveChannel((prev) => (prev?.id === chan.id ? chan : prev));
           } else if (payload.eventType === 'DELETE') {
             const delId = (payload.old as any)?.id;
             if (delId) {
               setAllChannels((prev) => prev.filter((c) => c.id !== delId));
               setChannels((prev) => prev.filter((c) => c.id !== delId));
+              setActiveChannel((prev) => (prev?.id === delId ? null : prev));
             }
           }
         }

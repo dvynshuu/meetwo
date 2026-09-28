@@ -3,7 +3,6 @@ import { Pin, X, CornerDownRight, Trash2 } from 'lucide-react';
 import { useChat } from '../../app/providers/ChatContext';
 import { useServer } from '../../app/providers/ServerContext';
 import { Avatar } from '../ui/Avatar';
-import { Message } from '../../types';
 
 interface PinnedMessagesModalProps {
   isOpen: boolean;

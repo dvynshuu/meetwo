@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Hash, Volume2, Radio, Server as ServerIcon, User as UserIcon, MessageSquare, Clock, ArrowRight } from 'lucide-react';
+import { Search, Hash, Volume2, Radio, Server as ServerIcon, MessageSquare, Clock, ArrowRight } from 'lucide-react';
 import { useServer } from '../../app/providers/ServerContext';
 import { useNavigation } from '../../app/providers/NavigationContext';
 import { useDM } from '../../app/providers/DMContext';

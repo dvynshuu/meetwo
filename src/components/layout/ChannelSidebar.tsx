@@ -8,8 +8,6 @@ import {
   Megaphone,
   Plus,
   ChevronDown,
-  ChevronRight,
-  PhoneCall,
   UserPlus,
   PanelLeftClose,
   PanelLeft,
@@ -17,7 +15,6 @@ import {
   Compass,
   CheckCheck,
   Settings,
-  MoreVertical,
   MicOff,
   Monitor,
 } from 'lucide-react';

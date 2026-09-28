@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Bell, CheckCheck, Hash, ArrowUpRight, Check, AtSign, CornerDownRight } from 'lucide-react';
 import { useInbox } from '../../app/providers/InboxContext';
-import { useServer } from '../../app/providers/ServerContext';
 import { Avatar } from '../ui/Avatar';
 import { Tooltip } from '../ui/Tooltip';
 import { InboxItem } from '../../types';

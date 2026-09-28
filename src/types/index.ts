@@ -111,17 +111,6 @@ export interface ForumPost {
   author?: User;
 }
 
-export interface StageParticipant {
-  userId: string;
-  username: string;
-  displayName: string;
-  avatarUrl?: string;
-  isSpeaker: boolean;
-  isHandRaised: boolean;
-  isMuted: boolean;
-  stream?: MediaStream;
-}
-
 export interface AuditLogEntry {
   id: string;
   serverId: string;
@@ -223,24 +212,6 @@ export interface MediaDeviceSettings {
   outputVolume: number; // 0 to 100
 }
 
-export type MediaError =
-  | 'microphone-denied'
-  | 'camera-denied'
-  | 'device-disconnected'
-  | 'device-not-found'
-  | 'network-failure'
-  | 'transport-failure'
-  | 'permission-failure'
-  | 'screen-share-failure';
-
-export interface MediaAppError {
-  code: MediaError;
-  userMessage: string;
-  recoveryAction: string;
-  technicalDetails?: string;
-  timestamp: string;
-}
-
 export type StageRole = 'host' | 'speaker' | 'listener';
 
 export interface StageChannelState {
@@ -299,24 +270,6 @@ export interface PeerSignalMessage {
     displayName?: string;
     avatarUrl?: string;
   };
-}
-
-export interface CommandItem {
-  id: string;
-  title: string;
-  category: 'Channels' | 'Servers' | 'Actions' | 'Settings' | 'Stages';
-  icon: string;
-  action: () => void;
-  shortcut?: string;
-}
-
-export interface SearchResult {
-  id: string;
-  type: 'message' | 'channel' | 'server' | 'user';
-  title: string;
-  subtitle: string;
-  channelId?: string;
-  serverId?: string;
 }
 
 export interface TelemetryEvent {

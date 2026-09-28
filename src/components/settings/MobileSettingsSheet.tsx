@@ -7,7 +7,6 @@ import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import {
   User,
-  Volume2,
   Video,
   Bell,
   Sparkles,
@@ -16,9 +15,6 @@ import {
   LogOut,
   Check,
   Moon,
-  Sun,
-  Camera,
-  Mic,
 } from 'lucide-react';
 import { VideoQuality, QualityMode } from '../../types';
 

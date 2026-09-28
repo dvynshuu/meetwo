@@ -11,7 +11,6 @@ import {
   CheckCircle,
   ArrowRight,
   Sparkles,
-  LogIn,
   UserCheck,
   X,
 } from 'lucide-react';

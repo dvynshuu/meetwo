@@ -7,7 +7,7 @@ import { useMedia } from '../../app/providers/MediaContext';
 import { MediaSession } from '../../lib/webrtc/mediaSession';
 import { playSpeakerTestChime } from '../../lib/webrtc/audioProcessing';
 import { Avatar } from '../ui/Avatar';
-import { User, Volume2, Video, Sliders, Bell, Sparkles, CheckCircle2 } from 'lucide-react';
+import { User, Volume2, Video, Sliders, Bell } from 'lucide-react';
 import { VideoQuality, QualityMode } from '../../types';
 
 interface SettingsModalProps {

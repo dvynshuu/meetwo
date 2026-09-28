@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../app/providers/AuthContext';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
-import { Sparkles, ArrowRight, ShieldCheck, Headphones, Video } from 'lucide-react';
+import { ShieldCheck, Headphones, Video } from 'lucide-react';
 
 export const AuthScreen: React.FC = () => {
   const { login, signup, error: authError } = useAuth();

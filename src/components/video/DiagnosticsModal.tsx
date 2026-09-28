@@ -11,12 +11,8 @@ import {
   Play,
   CheckCircle2,
   XCircle,
-  AlertTriangle,
   RefreshCw,
-  Cpu,
-  Layers,
   Radio,
-  Wifi,
   Trash2,
 } from 'lucide-react';
 

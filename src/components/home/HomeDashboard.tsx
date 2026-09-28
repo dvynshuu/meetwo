@@ -1,5 +1,5 @@
 import React from 'react';
-import { Compass, Hash, Volume2, Radio, MessageSquare, Clock, ArrowRight, Sparkles, Command, Plus, LayoutGrid } from 'lucide-react';
+import { Hash, Volume2, Radio, MessageSquare, Clock, ArrowRight, Sparkles, Command, Plus, LayoutGrid } from 'lucide-react';
 import { useAuth } from '../../app/providers/AuthContext';
 import { useNavigation } from '../../app/providers/NavigationContext';
 import { useServer } from '../../app/providers/ServerContext';

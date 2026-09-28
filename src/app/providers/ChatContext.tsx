@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { Message, Attachment, MessageReaction } from '../../types';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { mockStore } from '../../lib/supabase/mockStore';
-import { MessageService, formatReactions } from '../../lib/services/messageService';
+import { MessageService } from '../../lib/services/messageService';
 import { ReadStateService } from '../../lib/services/readStateService';
 import { useAuth } from './AuthContext';
 import { useServer } from './ServerContext';
@@ -345,14 +345,22 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setMessages((prev) =>
         prev.map((m) => (m.id === messageId ? { ...m, content, isEdited: true } : m))
       );
-      await MessageService.editMessage(messageId, currentUser.id, content);
+      try {
+        await MessageService.editMessage(messageId, currentUser.id, content);
+      } catch (err) {
+        console.warn('[ChatContext] Failed to edit message:', err);
+      }
     },
     [currentUser]
   );
 
   const deleteMessage = useCallback(async (messageId: string) => {
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
-    await MessageService.deleteMessage(messageId);
+    try {
+      await MessageService.deleteMessage(messageId);
+    } catch (err) {
+      console.warn('[ChatContext] Failed to delete message:', err);
+    }
   }, []);
 
   const toggleReaction = useCallback(
@@ -400,7 +408,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         })
       );
 
-      await MessageService.toggleReaction(messageId, currentUser.id, emoji);
+      try {
+        await MessageService.toggleReaction(messageId, currentUser.id, emoji);
+      } catch (err) {
+        console.warn('[ChatContext] Failed to toggle reaction:', err);
+      }
     },
     [currentUser]
   );

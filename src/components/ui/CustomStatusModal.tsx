@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Modal } from './Modal';
 import { useAuth } from '../../app/providers/AuthContext';
-import { Smile, Clock, X, Check } from 'lucide-react';
+import { Clock, X } from 'lucide-react';
 
 interface CustomStatusModalProps {
   isOpen: boolean;

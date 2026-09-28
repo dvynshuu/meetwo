@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { CheckCheck, UserPlus, Plus, Settings, Bell, LogOut } from 'lucide-react';
+import { CheckCheck, UserPlus, Plus, Settings, LogOut } from 'lucide-react';
 import { Server } from '../../types';
 
 interface ServerContextMenuProps {

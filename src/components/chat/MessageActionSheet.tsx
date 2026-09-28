@@ -2,7 +2,6 @@ import React from 'react';
 import { BottomSheet } from '../ui/BottomSheet';
 import { Message } from '../../types';
 import {
-  Smile,
   Reply,
   MessageSquare,
   Copy,
@@ -12,7 +11,6 @@ import {
   Link2,
   Edit3,
   Trash2,
-  Check,
 } from 'lucide-react';
 
 interface MessageActionSheetProps {

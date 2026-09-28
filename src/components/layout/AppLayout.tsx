@@ -18,7 +18,6 @@ import { useAuth } from '../../app/providers/AuthContext';
 import { CreateServerModal } from '../servers/CreateServerModal';
 import { CreateChannelModal } from '../servers/CreateChannelModal';
 import { SettingsModal } from '../settings/SettingsModal';
-import { AuthModal } from '../../features/auth/AuthModal';
 import { AuthScreen } from '../../features/auth/AuthScreen';
 import { CommandPalette } from '../navigation/CommandPalette';
 import { QuickSwitcher } from '../navigation/QuickSwitcher';
@@ -72,7 +71,6 @@ export const AppLayout: React.FC = () => {
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | undefined>(undefined);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [authOpen, setAuthOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [savedMessagesOpen, setSavedMessagesOpen] = useState(false);
@@ -763,11 +761,6 @@ export const AppLayout: React.FC = () => {
       <SettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-      />
-
-      <AuthModal
-        isOpen={authOpen || (!currentUser && !pendingInvite)}
-        onClose={() => setAuthOpen(false)}
       />
 
       <GlobalSearchModal

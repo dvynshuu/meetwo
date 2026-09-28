@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Volume2, Radio, Mic, MicOff, PhoneOff, ArrowUpRight, CheckCircle2 } from 'lucide-react';
+import { Volume2, Radio, Mic, MicOff, ArrowUpRight } from 'lucide-react';
 import { useMedia } from '../../app/providers/MediaContext';
 import { useServer } from '../../app/providers/ServerContext';
 import { channelRepository } from '../../lib/repositories';

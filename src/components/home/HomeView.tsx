@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { HomeTab } from '../layout/HomeSidebar';
 import { DMConversationView } from './DMConversationView';
 import { FriendsView } from './FriendsView';
@@ -30,6 +30,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
 }) => {
   const { activeConversationId, selectConversation } = useDM();
 
+  useEffect(() => {
+    if (activeTab === 'saved') {
+      onOpenSavedMessages();
+    }
+  }, [activeTab, onOpenSavedMessages]);
+
   if (activeTab === 'friends') {
     return (
       <FriendsView
@@ -46,7 +52,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
   }
 
   if (activeTab === 'saved') {
-    onOpenSavedMessages();
     return (
       <HomeDashboard
         onNavigateToDestination={onNavigateToDestination}

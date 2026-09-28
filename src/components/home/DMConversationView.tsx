@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Smile, Phone, Video as VideoIcon, User as UserIcon, MoreVertical } from 'lucide-react';
+import { Send, Phone, User as UserIcon } from 'lucide-react';
 import { useDM } from '../../app/providers/DMContext';
 import { useAuth } from '../../app/providers/AuthContext';
 import { Avatar } from '../ui/Avatar';
