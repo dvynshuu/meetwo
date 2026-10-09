@@ -184,8 +184,11 @@ describe('Audited Bug Fixes & Resiliency', () => {
       });
 
       // Must not throw "TypeError: Cannot read properties of null (reading 'id')"
+      // and must gracefully resolve the server via invite metadata fallback
       const result = await repo.resolveInvite('ABC123');
-      expect(result).toBeNull();
+      expect(result).not.toBeNull();
+      expect(result?.server.id).toBe('srv-1');
+      expect(result?.invite.code).toBe('ABC123');
 
       fromSpy.mockRestore();
     });
