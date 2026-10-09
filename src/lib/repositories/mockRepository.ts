@@ -1,4 +1,5 @@
 import { mockStore } from '../supabase/mockStore';
+import { decodeServerPayload } from '../utils/invitePayload';
 import {
   User,
   Server,
@@ -90,23 +91,76 @@ export class MockServerRepository implements IServerRepository {
     return mockStore.createInvite(serverId, creatorId, options?.maxUses, options?.expiresInHours);
   }
 
-  async resolveInvite(code: string): Promise<ResolvedInvite | null> {
-    const invite = mockStore.getInviteByCode(code);
-    if (!invite) return null;
-    const server = mockStore.getServers().find((s) => s.id === invite.serverId);
-    if (!server) return null;
+  async resolveInvite(code: string, encodedData?: string | null): Promise<ResolvedInvite | null> {
+    const cleanCode = (code || '').trim().toUpperCase();
+    const decodedServer = decodeServerPayload(encodedData);
+
+    let invite: Invite | null = mockStore.getInviteByCode(cleanCode);
+    let server: Server | null = invite ? mockStore.getServers().find((s) => s.id === invite?.serverId) || null : null;
+
+    if (!server && decodedServer) {
+      server = decodedServer;
+      mockStore.addServer(decodedServer);
+      if (!invite) {
+        invite = {
+          id: `inv-${cleanCode}`,
+          serverId: decodedServer.id,
+          code: cleanCode,
+          creatorId: decodedServer.ownerId || '',
+          usesCount: 0,
+          createdAt: new Date().toISOString(),
+        };
+        const allInvites = (mockStore as any).getInvites?.() || [];
+        allInvites.push(invite);
+      }
+    }
+
+    if (!invite || !server) return null;
+
+    // Check expiration
+    if (invite.expiresAt && new Date(invite.expiresAt).getTime() < Date.now()) {
+      return null;
+    }
+    // Check max uses
+    if (invite.maxUses && (invite.usesCount || 0) >= invite.maxUses) {
+      return null;
+    }
+
     const members = mockStore.getServerMembers(server.id);
+    const curUser = mockStore.getCurrentUser();
+    const isMember = curUser ? members.some((m) => m.userId === curUser.id) : false;
+
     return {
       invite,
       server,
-      memberCount: members.length,
+      memberCount: members.length || 1,
+      isMember,
     };
   }
 
-  async acceptInvite(code: string): Promise<{ server: Server; channelId?: string }> {
-    const invite = mockStore.getInviteByCode(code);
+  async acceptInvite(code: string, encodedData?: string | null): Promise<{ server: Server; channelId?: string }> {
+    const cleanCode = (code || '').trim().toUpperCase();
+    const decodedServer = decodeServerPayload(encodedData);
+
+    let invite: Invite | null = mockStore.getInviteByCode(cleanCode);
+    let server: Server | null = invite ? mockStore.getServers().find((s) => s.id === invite?.serverId) || null : null;
+
+    if (!server && decodedServer) {
+      server = decodedServer;
+      mockStore.addServer(decodedServer);
+      if (!invite) {
+        invite = {
+          id: `inv-${cleanCode}`,
+          serverId: decodedServer.id,
+          code: cleanCode,
+          creatorId: decodedServer.ownerId || '',
+          usesCount: 0,
+          createdAt: new Date().toISOString(),
+        };
+      }
+    }
+
     if (!invite) throw new Error('Invite not found');
-    const server = mockStore.getServers().find((s) => s.id === invite.serverId);
     if (!server) throw new Error('Server not found');
 
     const curUser = mockStore.getCurrentUser();

@@ -149,20 +149,75 @@ export class PeerConnectionManager implements ITransportAdapter {
     kind: 'audio' | 'video',
     newTrack: MediaStreamTrack | null
   ): Promise<void> {
-    for (const [peerId, session] of this.peerSessions.entries()) {
-      const senders = session.pc.getSenders();
-      const sender = senders.find((s) => s.track && s.track.kind === kind);
+    // Keep localStream synchronized with current tracks
+    if (this.localStream) {
+      const existing = kind === 'audio' ? this.localStream.getAudioTracks() : this.localStream.getVideoTracks();
+      existing.forEach((t) => {
+        if (t !== newTrack) {
+          this.localStream!.removeTrack(t);
+        }
+      });
+      if (newTrack && !this.localStream.getTracks().includes(newTrack)) {
+        this.localStream.addTrack(newTrack);
+      }
+    } else if (newTrack) {
+      this.localStream = new MediaStream([newTrack]);
+    }
 
-      if (sender) {
+    for (const [peerId, session] of this.peerSessions.entries()) {
+      // Find sender via transceivers first (reliable even if sender.track is temporarily null)
+      const transceivers = session.pc.getTransceivers ? session.pc.getTransceivers() : [];
+      const transceiver = transceivers.find(
+        (t) => t.sender.track?.kind === kind || t.receiver?.track?.kind === kind
+      );
+      const senders = session.pc.getSenders();
+      const sender = transceiver?.sender || senders.find((s) => s.track && s.track.kind === kind);
+
+      if (transceiver) {
+        let directionChanged = false;
+        if (newTrack) {
+          if (transceiver.direction !== 'sendrecv') {
+            transceiver.direction = 'sendrecv';
+            directionChanged = true;
+          }
+        } else {
+          if (transceiver.direction === 'sendrecv') {
+            transceiver.direction = 'recvonly';
+            directionChanged = true;
+          }
+        }
+
+        try {
+          await transceiver.sender.replaceTrack(newTrack);
+          if (newTrack) {
+            newTrack.enabled = true;
+            if (kind === 'audio') {
+              applyRtpSenderAudioBitrate(transceiver.sender, 128000).catch(() => {});
+            }
+          }
+        } catch (err) {
+          console.warn(`[WebRTC] replaceTrack error for peer ${peerId}:`, err);
+        }
+
+        if (directionChanged) {
+          await this.renegotiatePeer(peerId, session);
+        }
+      } else if (sender) {
         try {
           await sender.replaceTrack(newTrack);
+          if (newTrack) {
+            newTrack.enabled = true;
+            if (kind === 'audio') {
+              applyRtpSenderAudioBitrate(sender, 128000).catch(() => {});
+            }
+          }
         } catch (err) {
           console.warn(`[WebRTC] replaceTrack error for peer ${peerId}:`, err);
         }
       } else if (newTrack && this.localStream) {
-        // No sender exists for this kind yet, add track and renegotiate
         try {
           session.pc.addTrack(newTrack, this.localStream);
+          await this.renegotiatePeer(peerId, session);
         } catch (e) {
           console.warn('[WebRTC] addTrack error:', e);
         }
@@ -184,9 +239,21 @@ export class PeerConnectionManager implements ITransportAdapter {
   }
 
   public async setTrackEnabled(kind: 'audio' | 'video', enabled: boolean): Promise<void> {
-    if (!this.localStream) return;
-    const tracks = kind === 'audio' ? this.localStream.getAudioTracks() : this.localStream.getVideoTracks();
-    tracks.forEach((t) => (t.enabled = enabled));
+    if (this.localStream) {
+      const tracks = kind === 'audio' ? this.localStream.getAudioTracks() : this.localStream.getVideoTracks();
+      tracks.forEach((t) => (t.enabled = enabled));
+    }
+    // Also ensure active RTCRtpSenders have their tracks enabled
+    for (const [, session] of this.peerSessions.entries()) {
+      const transceivers = session.pc.getTransceivers ? session.pc.getTransceivers() : [];
+      const transceiver = transceivers.find(
+        (t) => t.sender.track?.kind === kind || t.receiver?.track?.kind === kind
+      );
+      const sender = transceiver?.sender || session.pc.getSenders().find((s) => s.track && s.track.kind === kind);
+      if (sender && sender.track) {
+        sender.track.enabled = enabled;
+      }
+    }
     this.collectGlobalStats().catch(() => {});
   }
 
@@ -429,22 +496,29 @@ export class PeerConnectionManager implements ITransportAdapter {
     try {
       switch (type) {
         case 'join-room': {
-          // Existing peers initiate offer
+          // Guard against duplicate offer initiation (presence sync + broadcast)
+          if (session.makingOffer || pc.signalingState !== 'stable') {
+            break;
+          }
           session.makingOffer = true;
-          const offer = await pc.createOffer();
-          // Apply studio Opus audio munging
-          offer.sdp = this.mungeSdpForAudio(offer.sdp || '');
-          await pc.setLocalDescription(offer);
+          try {
+            const offer = await pc.createOffer();
+            offer.sdp = this.mungeSdpForAudio(offer.sdp || '');
+            await pc.setLocalDescription(offer);
 
-          await this.signaling.sendSignal({
-            type: 'offer',
-            fromPeerId: this.localPeerId,
-            toPeerId: fromPeerId,
-            roomId: this.roomId,
-            payload: offer,
-            userProfile: this.userProfile,
-          });
-          session.makingOffer = false;
+            await this.signaling.sendSignal({
+              type: 'offer',
+              fromPeerId: this.localPeerId,
+              toPeerId: fromPeerId,
+              roomId: this.roomId,
+              payload: offer,
+              userProfile: this.userProfile,
+            });
+          } catch (err) {
+            console.warn(`[WebRTC] Failed to send offer to ${fromPeerId}:`, err);
+          } finally {
+            session.makingOffer = false;
+          }
           break;
         }
 
@@ -456,6 +530,14 @@ export class PeerConnectionManager implements ITransportAdapter {
           if (session.ignoreOffer) {
             console.warn(`[WebRTC] Glare handled: Impolite peer ${this.localPeerId} ignored offer from ${fromPeerId}`);
             return;
+          }
+
+          if (offerCollision && pc.signalingState !== 'stable') {
+            try {
+              await pc.setLocalDescription({ type: 'rollback' });
+            } catch (rbErr) {
+              console.warn('[WebRTC] Rollback error:', rbErr);
+            }
           }
 
           await pc.setRemoteDescription(new RTCSessionDescription(payload));
@@ -532,12 +614,32 @@ export class PeerConnectionManager implements ITransportAdapter {
     this.peerSessions.set(peerId, session);
 
     // Publish local media tracks
+    const hasAudio = Boolean(this.localStream?.getAudioTracks().length);
+    const hasVideo = Boolean(this.localStream?.getVideoTracks().length);
+
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => {
         try {
           pc.addTrack(track, this.localStream!);
         } catch {}
       });
+    }
+
+    if (!hasAudio) {
+      try {
+        pc.addTransceiver('audio', {
+          direction: 'recvonly',
+          streams: this.localStream ? [this.localStream] : [],
+        });
+      } catch {}
+    }
+    if (!hasVideo) {
+      try {
+        pc.addTransceiver('video', {
+          direction: 'recvonly',
+          streams: this.localStream ? [this.localStream] : [],
+        });
+      } catch {}
     }
 
     // Publish local screen share tracks if active
@@ -586,7 +688,7 @@ export class PeerConnectionManager implements ITransportAdapter {
         if (!scrStream.getTracks().includes(track)) {
           scrStream.addTrack(track);
         }
-        this.callbacks.onRemoteScreenStream?.(peerId, scrStream);
+        this.callbacks.onRemoteScreenStream?.(peerId, new MediaStream(scrStream.getTracks()));
       } else {
         let camStream = this.remoteStreams.get(peerId);
         if (!camStream) {
@@ -596,7 +698,7 @@ export class PeerConnectionManager implements ITransportAdapter {
         if (!camStream.getTracks().includes(track)) {
           camStream.addTrack(track);
         }
-        this.callbacks.onRemoteStream(peerId, camStream);
+        this.callbacks.onRemoteStream(peerId, new MediaStream(camStream.getTracks()));
       }
 
       track.onended = () => {
@@ -607,12 +709,15 @@ export class PeerConnectionManager implements ITransportAdapter {
             if (scrStream.getTracks().length === 0) {
               this.remoteScreenStreams.delete(peerId);
               this.callbacks.onRemoteScreenStream?.(peerId, null);
+            } else {
+              this.callbacks.onRemoteScreenStream?.(peerId, new MediaStream(scrStream.getTracks()));
             }
           }
         } else {
           const camStream = this.remoteStreams.get(peerId);
           if (camStream) {
             camStream.removeTrack(track);
+            this.callbacks.onRemoteStream(peerId, new MediaStream(camStream.getTracks()));
           }
         }
       };

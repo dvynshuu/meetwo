@@ -245,7 +245,7 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
                   {hasVideo && spk.stream ? (
                     <video
                       autoPlay
-                      muted={isSelf}
+                      muted={true}
                       playsInline
                       ref={(v) => {
                         if (v && spk.stream && v.srcObject !== spk.stream) {

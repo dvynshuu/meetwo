@@ -20,22 +20,6 @@ interface ServerInviteModalProps {
   onClose: () => void;
 }
 
-const encodeServerPayload = (server: Server): string => {
-  try {
-    const payload = {
-      id: server.id,
-      name: server.name,
-      iconUrl: server.iconUrl,
-      description: server.description,
-      ownerId: server.ownerId,
-      createdAt: server.createdAt,
-    };
-    return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-  } catch {
-    return '';
-  }
-};
-
 export const ServerInviteModal: React.FC<ServerInviteModalProps> = ({ isOpen, onClose }) => {
   const { activeServer, createInvite, channels, members } = useServer();
   const [copied, setCopied] = useState(false);
@@ -74,16 +58,10 @@ export const ServerInviteModal: React.FC<ServerInviteModalProps> = ({ isOpen, on
 
   if (!isOpen || !activeServer) return null;
 
-  // Build the complete invite link
+  // Build the clean, short invite link (e.g. https://domain.com/invite/ABC123)
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const code = invite?.code || '';
-  const baseUrl = `${origin}/invite/${code}`;
-
-  // Always include encoded server payload so the invite link works 100% in production,
-  // across all browsers, incognito tabs, and Supabase RLS policies
-  const demoParam = activeServer ? `?d=${encodeServerPayload(activeServer)}` : '';
-
-  const inviteUrl = `${baseUrl}${demoParam}`;
+  const inviteUrl = code ? `${origin}/invite/${code}` : '';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(inviteUrl);

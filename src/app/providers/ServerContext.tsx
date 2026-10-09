@@ -189,15 +189,15 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 
   const resolveInvite = useCallback(
-    async (code: string, _encodedData?: string | null): Promise<ResolvedInvite | null> => {
-      return serverRepository.resolveInvite(code);
+    async (code: string, encodedData?: string | null): Promise<ResolvedInvite | null> => {
+      return serverRepository.resolveInvite(code, encodedData);
     },
-    []
+    [serverRepository]
   );
 
   const acceptInvite = useCallback(
-    async (code: string, _encodedData?: string | null): Promise<{ server: Server; channelId?: string }> => {
-      const res = await serverRepository.acceptInvite(code);
+    async (code: string, encodedData?: string | null): Promise<{ server: Server; channelId?: string }> => {
+      const res = await serverRepository.acceptInvite(code, encodedData);
       setServers((prev) => (prev.some((s) => s.id === res.server.id) ? prev : [...prev, res.server]));
       await selectServer(res.server.id, res.server);
       if (res.channelId) {
@@ -205,7 +205,7 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       return res;
     },
-    [selectServer, selectChannel]
+    [serverRepository, selectServer, selectChannel]
   );
 
   const joinServer = useCallback(

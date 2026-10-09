@@ -73,8 +73,9 @@ export const VideoTile: React.FC<VideoTileProps> = ({
       if (video.srcObject !== participant.stream) {
         video.srcObject = participant.stream;
       }
-      video.muted = isLocal;
-      video.defaultMuted = isLocal;
+      // Audio is handled globally by RemoteAudioRenderer; keep video muted to prevent double-audio echo and autoplay blocks
+      video.muted = true;
+      video.defaultMuted = true;
       video.playsInline = true;
 
       const attemptPlay = () => {
@@ -93,7 +94,7 @@ export const VideoTile: React.FC<VideoTileProps> = ({
     } else {
       video.srcObject = null;
     }
-  }, [participant.stream, isLocal]);
+  }, [participant.stream]);
 
   // Audio sink routing for remote participants
   useEffect(() => {
@@ -327,7 +328,7 @@ export const VideoTile: React.FC<VideoTileProps> = ({
         ref={videoRef}
         autoPlay
         playsInline
-        muted={isLocal}
+        muted={true}
         className={`video-element ${participant.isScreenSharing || isScreenTile ? 'video-tile-screen' : ''}`}
         style={
           isPresenterCardActive

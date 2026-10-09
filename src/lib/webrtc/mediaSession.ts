@@ -45,7 +45,7 @@ export class MediaSession {
     highPassFilter: true,
     dynamicsCompressor: true,
     audioCompressionProfile: 'balanced',
-    stereoAudio: true,
+    stereoAudio: false,
     inputVolume: 100,
     outputVolume: 100,
   };
@@ -125,7 +125,7 @@ export class MediaSession {
 
   public async startMicrophone(deviceId?: string): Promise<MediaStreamTrack> {
     if (this.microphoneTrack || this.rawMicrophoneTrack) {
-      this.stopMicrophone();
+      this.stopMicrophone(false);
     }
 
     const targetDeviceId = deviceId !== undefined ? deviceId : this.settings.audioInputId;
@@ -230,7 +230,7 @@ export class MediaSession {
     }
   }
 
-  public stopMicrophone() {
+  public stopMicrophone(notify: boolean = true) {
     if (this.microphoneTrack) {
       this.microphoneTrack.onended = null;
       try {
@@ -248,7 +248,7 @@ export class MediaSession {
     this.rawMicrophoneTrack = null;
 
     this.dspManager.cleanup();
-    if (this.events.onTrackChanged) {
+    if (notify && this.events.onTrackChanged) {
       this.events.onTrackChanged('audio', null);
     }
   }

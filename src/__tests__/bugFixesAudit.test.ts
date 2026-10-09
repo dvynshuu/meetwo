@@ -5,7 +5,9 @@ import {
   SupabaseFriendRepository,
   SupabaseMessageRepository,
   SupabaseReadStateRepository,
+  SupabaseServerRepository,
 } from '../lib/repositories/supabaseRepository';
+import { encodeServerPayload } from '../lib/utils/invitePayload';
 import { supabase } from '../lib/supabase/client';
 
 describe('Audited Bug Fixes & Resiliency', () => {
@@ -138,6 +140,128 @@ describe('Audited Bug Fixes & Resiliency', () => {
       expect(upsertCalls[1].options).toEqual({ onConflict: 'user_id,conversation_id' });
 
       fromSpy.mockRestore();
+    });
+  });
+
+  describe('SupabaseServerRepository.resolveInvite', () => {
+    it('safely handles null server caused by RLS without throwing cannot read properties of null (reading id)', async () => {
+      const repo = new SupabaseServerRepository();
+
+      const fromSpy = vi.spyOn(supabase as any, 'from').mockImplementation((...args: any[]) => {
+        const table = args[0];
+        if (table === 'invites') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: {
+                    id: 'inv-1',
+                    server_id: 'srv-1',
+                    code: 'ABC123',
+                    creator_id: 'usr-1',
+                    expires_at: null,
+                    uses_count: 0,
+                    max_uses: null,
+                    created_at: new Date().toISOString(),
+                    server: null, // RLS blocked non-member server read
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null,
+                error: null,
+              }),
+            }),
+          }),
+        };
+      });
+
+      // Must not throw "TypeError: Cannot read properties of null (reading 'id')"
+      const result = await repo.resolveInvite('ABC123');
+      expect(result).toBeNull();
+
+      fromSpy.mockRestore();
+    });
+
+    it('recovers full server details from encoded payload when RLS returns null server', async () => {
+      const repo = new SupabaseServerRepository();
+
+      const demoServer = {
+        id: 'srv-999',
+        name: 'Secret Society',
+        iconUrl: 'https://example.com/icon.png',
+        description: 'Invite only',
+        ownerId: 'usr-owner',
+        createdAt: new Date().toISOString(),
+      };
+      const encoded = encodeServerPayload(demoServer);
+
+      const fromSpy = vi.spyOn(supabase as any, 'from').mockImplementation((...args: any[]) => {
+        const table = args[0];
+        if (table === 'invites') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: {
+                    id: 'inv-2',
+                    server_id: 'srv-999',
+                    code: 'SECRETS',
+                    creator_id: 'usr-owner',
+                    expires_at: null,
+                    uses_count: 0,
+                    max_uses: null,
+                    created_at: new Date().toISOString(),
+                    server: null,
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                maybeSingle: vi.fn().mockResolvedValue({
+                  data: null,
+                  error: null,
+                }),
+              }),
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: null,
+                error: null,
+              }),
+            }),
+          }),
+        };
+      });
+
+      const result = await repo.resolveInvite('SECRETS', encoded);
+      expect(result).not.toBeNull();
+      expect(result?.server.id).toBe('srv-999');
+      expect(result?.server.name).toBe('Secret Society');
+      expect(result?.invite.code).toBe('SECRETS');
+
+      fromSpy.mockRestore();
+    });
+
+    it('generates clean short invite links without bulky query strings', () => {
+      const code = 'ABC123';
+      const origin = 'https://meetwo.app';
+      const cleanUrl = `${origin}/invite/${code}`;
+
+      expect(cleanUrl).toBe('https://meetwo.app/invite/ABC123');
+      expect(cleanUrl).not.toContain('?d=');
+      expect(cleanUrl.length).toBeLessThan(35);
     });
   });
 });

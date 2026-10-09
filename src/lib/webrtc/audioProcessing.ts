@@ -33,7 +33,7 @@ export interface OpusSDPOptions {
  */
 export function getOpusOptionsForProfile(
   profile: AudioCompressionProfile = 'balanced',
-  stereo: boolean = true
+  stereo: boolean = false
 ): OpusSDPOptions {
   switch (profile) {
     case 'high_compression':
@@ -44,30 +44,30 @@ export function getOpusOptionsForProfile(
         dtx: true,
         minPtime: 10,
         ptime: 20,
-        maxPtime: 40,
+        maxPtime: 60,
         cbr: false,
       };
     case 'studio_hd':
       return {
-        maxBitrate: 510000,
-        stereo: true,
+        maxBitrate: 320000,
+        stereo: stereo,
         inbandFec: true,
         dtx: true,
-        minPtime: 5,
+        minPtime: 10,
         ptime: 20,
-        maxPtime: 20,
+        maxPtime: 60,
         cbr: false,
       };
     case 'balanced':
     default:
       return {
-        maxBitrate: 320000,
-        stereo: stereo !== false,
+        maxBitrate: 128000,
+        stereo: Boolean(stereo),
         inbandFec: true,
         dtx: true,
-        minPtime: 5,
+        minPtime: 10,
         ptime: 20,
-        maxPtime: 20,
+        maxPtime: 60,
         cbr: false,
       };
   }
@@ -79,13 +79,13 @@ export function getOpusOptionsForProfile(
  */
 export function mungeOpusSDP(sdp: string, options: OpusSDPOptions = {}): string {
   const {
-    maxBitrate = 510000,
-    stereo = true,
+    maxBitrate = 128000,
+    stereo = false,
     inbandFec = true,
     dtx = true,
-    minPtime = 5,
+    minPtime = 10,
     ptime = 20,
-    maxPtime = 20,
+    maxPtime = 60,
     cbr = false,
   } = options;
 

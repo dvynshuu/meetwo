@@ -105,7 +105,7 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
           echoCancellation: true,
           noiseSuppression: true,
           sampleRate: 48000,
-          channelCount: 2,
+          channelCount: 1,
         },
         publishDefaults: {
           simulcast: true,
@@ -119,11 +119,11 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
           },
           backupCodec: true,
           audioPreset: {
-            maxBitrate: 320_000,
+            maxBitrate: 128_000,
           },
           dtx: true,
           red: true,
-          forceStereo: true,
+          forceStereo: false,
           degradationPreference: 'maintain-framerate',
           screenShareEncoding: {
             maxBitrate: 6_000_000,
@@ -152,7 +152,7 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
               if (t.kind === track.kind) stream!.removeTrack(t);
             });
             stream.addTrack(track.mediaStreamTrack);
-            this.callbacks.onRemoteStream(participant.identity, stream);
+            this.callbacks.onRemoteStream(participant.identity, new MediaStream(stream.getTracks()));
 
             if (track.kind === Track.Kind.Video) {
               this.callbacks.onPeerStateChanged?.(participant.identity, { isVideoMuted: false });
@@ -175,7 +175,7 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
             const stream = this.remoteStreams.get(participant.identity);
             if (stream) {
               stream.removeTrack(track.mediaStreamTrack);
-              this.callbacks.onRemoteStream(participant.identity, stream);
+              this.callbacks.onRemoteStream(participant.identity, new MediaStream(stream.getTracks()));
             }
           }
         }

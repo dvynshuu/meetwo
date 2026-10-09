@@ -109,8 +109,8 @@ export interface IServerRepository {
   createServer(name: string, ownerId: string, iconUrl?: string): Promise<Server>;
   getServerMembers(serverId: string): Promise<ServerMember[]>;
   createInvite(serverId: string, creatorId: string, options?: { maxUses?: number; expiresInHours?: number }): Promise<Invite>;
-  resolveInvite(code: string): Promise<ResolvedInvite | null>;
-  acceptInvite(code: string): Promise<{ server: Server; channelId?: string }>;
+  resolveInvite(code: string, encodedData?: string | null): Promise<ResolvedInvite | null>;
+  acceptInvite(code: string, encodedData?: string | null): Promise<{ server: Server; channelId?: string }>;
   getAuditLogs(serverId: string): Promise<AuditLogEntry[]>;
 }
 

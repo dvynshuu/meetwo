@@ -22,6 +22,7 @@ import { ReconnectionManager } from '../../lib/webrtc/reconnectionManager';
 import { StageService } from '../../lib/services/stageService';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { useAuth } from './AuthContext';
+import { RemoteAudioRenderer } from '../../components/video/RemoteAudioRenderer';
 
 interface MediaContextType {
   activeRoomId: string | null;
@@ -1114,6 +1115,12 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }}
     >
       {children}
+      <RemoteAudioRenderer
+        participants={participants}
+        currentUserId={currentUser?.id}
+        isDeafened={isDeafened}
+        sinkId={deviceSettings.audioOutputId}
+      />
     </MediaContext.Provider>
   );
 };
