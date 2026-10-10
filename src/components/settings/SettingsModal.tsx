@@ -19,6 +19,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const { currentUser, updateProfile, switchDemoUser, isDemoMode } = useAuth();
   const {
     activeRoomId,
+    localStream,
     deviceSettings,
     updateSettings,
     audioLevel,
@@ -54,6 +55,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [testMicLevel, setTestMicLevel] = useState(0);
   const [testIsSpeaking, setTestIsSpeaking] = useState(false);
   const [testGateState, setTestGateState] = useState<'open' | 'attenuated'>('attenuated');
+  const [micError, setMicError] = useState<string | null>(null);
+  const [isHardwareMuted, setIsHardwareMuted] = useState(false);
   const testMicAudioRef = useRef<HTMLAudioElement | null>(null);
   const testMicStreamRef = useRef<MediaStream | null>(null);
   const testMicDspRef = useRef<AudioDSPManager | null>(null);
@@ -71,22 +74,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   useEffect(() => {
     let isCancelled = false;
 
-    const startLocalMicTest = async () => {
+    const startLocalMicTest = async (forceLoopback: boolean = false) => {
+      setMicError(null);
       try {
-        const targetDeviceId = deviceSettings.audioInputId;
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: targetDeviceId && targetDeviceId !== 'default'
-            ? { deviceId: { ideal: targetDeviceId } }
-            : true,
-          video: false,
-        });
+        let stream: MediaStream;
+        if (activeRoomId && localStream && localStream.getAudioTracks().length > 0) {
+          // When in an active call, use the live local microphone track
+          stream = localStream;
+        } else {
+          const targetDeviceId = deviceSettings.audioInputId;
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: targetDeviceId && targetDeviceId !== 'default'
+              ? { deviceId: { ideal: targetDeviceId } }
+              : true,
+            video: false,
+          });
+        }
 
         if (isCancelled) {
-          stream.getTracks().forEach((t) => t.stop());
+          if (stream !== localStream) stream.getTracks().forEach((t) => t.stop());
           return;
         }
 
-        testMicStreamRef.current = stream;
+        if (stream !== localStream) {
+          testMicStreamRef.current = stream;
+        }
+
+        if (testMicDspRef.current) {
+          testMicDspRef.current.cleanup();
+        }
+
         const dsp = new AudioDSPManager();
         testMicDspRef.current = dsp;
         dsp.onLevel((level, speaking, gate) => {
@@ -96,15 +113,45 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             if (gate) setTestGateState(gate);
           }
         });
+        dsp.onHardwareMute((hwMuted) => {
+          if (!isCancelled) {
+            setIsHardwareMuted(hwMuted);
+          }
+        });
         dsp.attachStream(stream, (deviceSettings.inputVolume || 100) / 100, deviceSettings);
+
+        const shouldLoopback = forceLoopback || isHearSelf;
+        if (shouldLoopback) {
+          dsp.setLoopback(true, deviceSettings.outputVolume || 100);
+          if (deviceSettings.audioOutputId) {
+            dsp.setOutputDevice(deviceSettings.audioOutputId);
+          }
+        }
 
         if (testMicAudioRef.current) {
           testMicAudioRef.current.srcObject = stream;
-          testMicAudioRef.current.muted = true;
-          testMicAudioRef.current.play().catch(() => {});
+          testMicAudioRef.current.muted = !shouldLoopback;
+          testMicAudioRef.current.volume = Math.max(0, Math.min(1.0, (deviceSettings.outputVolume || 100) / 100));
+          if (shouldLoopback) {
+            if (deviceSettings.audioOutputId) {
+              routeAudioOutput(testMicAudioRef.current, deviceSettings.audioOutputId).catch(() => {});
+            }
+            testMicAudioRef.current.play().catch(() => {});
+          }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn('[SettingsModal] Live mic test acquisition failed:', err);
+        let msg = 'Could not access microphone.';
+        if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+          msg = 'Microphone permission denied. Please allow microphone access in your browser address bar.';
+        } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+          msg = 'No microphone device found on your system. Please plug in or enable a microphone.';
+        } else if (err?.name === 'NotReadableError' || err?.name === 'TrackStartError') {
+          msg = 'Microphone is currently in use by another application or Windows audio service.';
+        } else if (err?.name === 'OverconstrainedError') {
+          msg = 'Requested microphone constraints could not be satisfied by hardware.';
+        }
+        setMicError(msg);
       }
     };
 
@@ -117,30 +164,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         }
       });
 
-      // If user is not currently in a voice call, run local mic telemetry preview so they can verify voice capture
-      if (!activeRoomId) {
-        startLocalMicTest();
-      }
+      startLocalMicTest();
     }
 
     return () => {
       isCancelled = true;
-      // Clean up test camera
       if (testStreamRef.current) {
         testStreamRef.current.getTracks().forEach((t) => t.stop());
         testStreamRef.current = null;
       }
-      // Clean up test mic
       if (testMicStreamRef.current) {
         testMicStreamRef.current.getTracks().forEach((t) => t.stop());
         testMicStreamRef.current = null;
       }
       if (testMicDspRef.current) {
+        testMicDspRef.current.setLoopback(false);
         testMicDspRef.current.cleanup();
         testMicDspRef.current = null;
       }
       setIsHearSelf(false);
       setTestMicLevel(0);
+      setMicError(null);
+      setIsHardwareMuted(false);
     };
   }, [isOpen, activeTab, activeRoomId]);
 
@@ -182,14 +227,75 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const toggleHearSelf = async () => {
     const next = !isHearSelf;
     setIsHearSelf(next);
-    if (testMicAudioRef.current) {
-      testMicAudioRef.current.muted = !next;
+
+    // If no active DSP instance is running, re-initialize on user click
+    if (!testMicDspRef.current) {
       if (next) {
+        try {
+          const targetDeviceId = deviceSettings.audioInputId;
+          const stream = activeRoomId && localStream && localStream.getAudioTracks().length > 0
+            ? localStream
+            : await navigator.mediaDevices.getUserMedia({
+                audio: targetDeviceId && targetDeviceId !== 'default'
+                  ? { deviceId: { ideal: targetDeviceId } }
+                  : true,
+                video: false,
+              });
+          testMicStreamRef.current = stream;
+          const dsp = new AudioDSPManager();
+          testMicDspRef.current = dsp;
+          dsp.onLevel((level, speaking, gate) => {
+            setTestMicLevel(level);
+            setTestIsSpeaking(speaking);
+            if (gate) setTestGateState(gate);
+          });
+          dsp.onHardwareMute((hwMuted) => setIsHardwareMuted(hwMuted));
+          dsp.attachStream(stream, (deviceSettings.inputVolume || 100) / 100, deviceSettings);
+          dsp.setLoopback(true, deviceSettings.outputVolume || 100);
+          if (deviceSettings.audioOutputId) {
+            dsp.setOutputDevice(deviceSettings.audioOutputId);
+          }
+          if (testMicAudioRef.current) {
+            testMicAudioRef.current.srcObject = stream;
+            testMicAudioRef.current.muted = false;
+            testMicAudioRef.current.volume = Math.max(0, Math.min(1.0, (deviceSettings.outputVolume || 100) / 100));
+            if (deviceSettings.audioOutputId) {
+              routeAudioOutput(testMicAudioRef.current, deviceSettings.audioOutputId).catch(() => {});
+            }
+            testMicAudioRef.current.play().catch(() => {});
+          }
+          setMicError(null);
+        } catch (err: any) {
+          console.warn('[SettingsModal] Manual hear self mic acquisition failed:', err);
+          let msg = 'Could not access microphone.';
+          if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+            msg = 'Microphone permission denied. Please allow microphone access in your browser address bar.';
+          }
+          setMicError(msg);
+          setIsHearSelf(false);
+        }
+      }
+      return;
+    }
+
+    if (next) {
+      testMicDspRef.current.setLoopback(true, deviceSettings.outputVolume || 100);
+      if (deviceSettings.audioOutputId) {
+        testMicDspRef.current.setOutputDevice(deviceSettings.audioOutputId);
+      }
+      if (testMicAudioRef.current) {
+        testMicAudioRef.current.muted = false;
+        testMicAudioRef.current.volume = Math.max(0, Math.min(1.0, (deviceSettings.outputVolume || 100) / 100));
         if (deviceSettings.audioOutputId) {
           routeAudioOutput(testMicAudioRef.current, deviceSettings.audioOutputId).catch(() => {});
         }
-        testMicAudioRef.current.volume = Math.max(0, Math.min(1.0, (deviceSettings.outputVolume || 100) / 100));
         testMicAudioRef.current.play().catch(() => {});
+      }
+    } else {
+      testMicDspRef.current.setLoopback(false);
+      if (testMicAudioRef.current) {
+        testMicAudioRef.current.muted = true;
+        testMicAudioRef.current.pause();
       }
     }
   };
@@ -198,43 +304,59 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     updateSettings({ audioInputId: newDeviceId });
     if (activeRoomId) {
       switchMicrophone(newDeviceId);
-    } else {
-      // Reacquire test stream with newly selected microphone
-      if (testMicStreamRef.current) {
-        testMicStreamRef.current.getTracks().forEach((t) => t.stop());
-        testMicStreamRef.current = null;
+    }
+    // Reacquire test stream with newly selected microphone
+    if (testMicStreamRef.current && testMicStreamRef.current !== localStream) {
+      testMicStreamRef.current.getTracks().forEach((t) => t.stop());
+      testMicStreamRef.current = null;
+    }
+    if (testMicDspRef.current) {
+      testMicDspRef.current.cleanup();
+      testMicDspRef.current = null;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: newDeviceId && newDeviceId !== 'default'
+          ? { deviceId: { ideal: newDeviceId } }
+          : true,
+        video: false,
+      });
+      testMicStreamRef.current = stream;
+      const dsp = new AudioDSPManager();
+      testMicDspRef.current = dsp;
+      dsp.onLevel((level, speaking, gate) => {
+        setTestMicLevel(level);
+        setTestIsSpeaking(speaking);
+        if (gate) setTestGateState(gate);
+      });
+      dsp.onHardwareMute((hwMuted) => setIsHardwareMuted(hwMuted));
+      dsp.attachStream(stream, (deviceSettings.inputVolume || 100) / 100, {
+        ...deviceSettings,
+        audioInputId: newDeviceId,
+      });
+      if (isHearSelf) {
+        dsp.setLoopback(true, deviceSettings.outputVolume || 100);
+        if (deviceSettings.audioOutputId) {
+          dsp.setOutputDevice(deviceSettings.audioOutputId);
+        }
       }
-      if (testMicDspRef.current) {
-        testMicDspRef.current.cleanup();
-        testMicDspRef.current = null;
-      }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: newDeviceId && newDeviceId !== 'default'
-            ? { deviceId: { ideal: newDeviceId } }
-            : true,
-          video: false,
-        });
-        testMicStreamRef.current = stream;
-        const dsp = new AudioDSPManager();
-        testMicDspRef.current = dsp;
-        dsp.onLevel((level, speaking, gate) => {
-          setTestMicLevel(level);
-          setTestIsSpeaking(speaking);
-          if (gate) setTestGateState(gate);
-        });
-        dsp.attachStream(stream, (deviceSettings.inputVolume || 100) / 100, {
-          ...deviceSettings,
-          audioInputId: newDeviceId,
-        });
-        if (testMicAudioRef.current) {
-          testMicAudioRef.current.srcObject = stream;
-          testMicAudioRef.current.muted = !isHearSelf;
+      if (testMicAudioRef.current) {
+        testMicAudioRef.current.srcObject = stream;
+        testMicAudioRef.current.muted = !isHearSelf;
+        testMicAudioRef.current.volume = Math.max(0, Math.min(1.0, (deviceSettings.outputVolume || 100) / 100));
+        if (isHearSelf) {
+          if (deviceSettings.audioOutputId) {
+            routeAudioOutput(testMicAudioRef.current, deviceSettings.audioOutputId).catch(() => {});
+          }
           testMicAudioRef.current.play().catch(() => {});
         }
-      } catch (err) {
-        console.warn('Cannot switch test microphone:', err);
       }
+      setMicError(null);
+    } catch (err: any) {
+      console.warn('Cannot switch test microphone:', err);
+      let msg = 'Failed to switch to selected microphone.';
+      if (err?.name === 'NotAllowedError') msg = 'Microphone permission denied.';
+      setMicError(msg);
     }
   };
 
@@ -440,6 +562,53 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </div>
               </div>
 
+              {/* Hardware Diagnostics & Permissions Warning Banner */}
+              {micError && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--status-dnd)',
+                    fontSize: 12,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>⚠️</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontWeight: 700 }}>Microphone Access Blocked</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{micError}</span>
+                  </div>
+                </div>
+              )}
+
+              {isHardwareMuted && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    background: 'rgba(234, 179, 8, 0.12)',
+                    border: '1px solid rgba(234, 179, 8, 0.35)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--warning)',
+                    fontSize: 12,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>🔇</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontWeight: 700 }}>Microphone Muted by Hardware / Windows</span>
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      Your browser acquired the microphone, but Windows or your physical headset mute switch is muting audio input (0 dBFS). Unmute the physical switch or check Windows Sound Settings.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Hardware Selection: Mic & Speaker */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {/* Microphone Selection */}
@@ -468,6 +637,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     onChange={(e) => {
                       const newOutputId = e.target.value;
                       updateSettings({ audioOutputId: newOutputId });
+                      if (testMicDspRef.current) {
+                        testMicDspRef.current.setOutputDevice(newOutputId);
+                      }
                       if (testMicAudioRef.current) {
                         routeAudioOutput(testMicAudioRef.current, newOutputId).catch(() => {});
                       }
@@ -525,6 +697,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     onChange={(e) => {
                       const outVol = parseInt(e.target.value, 10);
                       updateSettings({ outputVolume: outVol });
+                      if (testMicDspRef.current && isHearSelf) {
+                        testMicDspRef.current.setLoopback(true, outVol);
+                      }
                       if (testMicAudioRef.current) {
                         testMicAudioRef.current.volume = Math.max(0, Math.min(1.0, outVol / 100));
                       }
@@ -559,9 +734,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       size="sm"
                       onClick={toggleHearSelf}
                       title="Route your live microphone to your headphones/speakers to verify voice capture"
+                      style={isHearSelf ? { background: 'var(--status-online)', color: '#fff', borderColor: 'transparent' } : undefined}
                     >
                       <Mic size={14} />
-                      <span>{isHearSelf ? 'Stop Listening' : 'Hear Yourself (Mic Test)'}</span>
+                      <span>{isHearSelf ? '● Listening (Click to Stop)' : 'Hear Yourself (Mic Test)'}</span>
                     </Button>
 
                     <Button
@@ -580,6 +756,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     </Button>
                   </div>
                 </div>
+
+                {isHearSelf && (
+                  <div
+                    style={{
+                      padding: '8px 12px',
+                      background: 'rgba(34, 197, 94, 0.1)',
+                      border: '1px solid rgba(34, 197, 94, 0.3)',
+                      borderRadius: 'var(--radius-sm)',
+                      color: 'var(--status-online)',
+                      fontSize: 12,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <span>🎧</span>
+                    <span>
+                      <strong>Headphone Loopback Active:</strong> Speak into your microphone to hear your voice in real time.
+                    </span>
+                  </div>
+                )}
 
                 {/* Mic Volume Activity Meter & Gate Indicator */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

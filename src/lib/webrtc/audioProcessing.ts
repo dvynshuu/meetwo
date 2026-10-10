@@ -178,8 +178,10 @@ export class AudioDSPManager {
   private gainNode: GainNode | null = null;
   private analyserNode: AnalyserNode | null = null;
   private silentSinkNode: GainNode | null = null;
+  private loopbackGainNode: GainNode | null = null;
   private rawTrack: MediaStreamTrack | null = null;
   private unlockAudioHandler: (() => void) | null = null;
+  private onHardwareMuteCallback?: (isMuted: boolean) => void;
 
   private animFrameId: number | null = null;
   private bgTimeoutId: any = null;
@@ -281,11 +283,32 @@ export class AudioDSPManager {
       this.silentSinkNode = this.audioContext.createGain();
       this.silentSinkNode.gain.setValueAtTime(0, now);
 
+      // 6. Direct hardware loopback node for local "Hear Yourself" microphone testing
+      this.loopbackGainNode = this.audioContext.createGain();
+      this.loopbackGainNode.gain.setValueAtTime(0, now);
+
       this.sourceNode.connect(this.highPassNode);
       this.highPassNode.connect(this.gainNode);
       this.gainNode.connect(this.analyserNode);
+      this.gainNode.connect(this.loopbackGainNode);
+      this.loopbackGainNode.connect(this.audioContext.destination);
       this.analyserNode.connect(this.silentSinkNode);
       this.silentSinkNode.connect(this.audioContext.destination);
+
+      // Hardware / system mute detection
+      if (this.rawTrack) {
+        this.rawTrack.onmute = () => {
+          console.warn('[AudioDSP] Hardware/OS mute detected on microphone');
+          this.onHardwareMuteCallback?.(true);
+        };
+        this.rawTrack.onunmute = () => {
+          console.info('[AudioDSP] Hardware/OS unmute detected on microphone');
+          this.onHardwareMuteCallback?.(false);
+        };
+        if (this.rawTrack.muted) {
+          this.onHardwareMuteCallback?.(true);
+        }
+      }
 
       this.isProcessing = true;
       this.startMeteringLoop();
@@ -343,6 +366,47 @@ export class AudioDSPManager {
     if (this.rawTrack) {
       this.rawTrack.enabled = !muted;
     }
+  }
+
+  /**
+   * Enables or disables live microphone loopback directly to destination (speakers/headphones)
+   * for local hardware testing without HTML5 <audio> tag quirks or latency.
+   */
+  public setLoopback(enabled: boolean, volumePercent: number = 100): void {
+    if (this.audioContext && this.loopbackGainNode) {
+      if (this.audioContext.state === 'suspended') {
+        this.audioContext.resume().catch(() => {});
+      }
+      const targetGain = enabled ? Math.max(0.01, Math.min(1.5, volumePercent / 100)) : 0;
+      this.loopbackGainNode.gain.setTargetAtTime(targetGain, this.audioContext.currentTime, 0.02);
+    }
+  }
+
+  /**
+   * Routes the AudioContext output directly to a designated audio output device
+   */
+  public async setOutputDevice(deviceId?: string): Promise<void> {
+    if (this.audioContext && deviceId && deviceId !== 'default' && 'setSinkId' in this.audioContext) {
+      try {
+        await (this.audioContext as any).setSinkId(deviceId);
+      } catch (err) {
+        console.warn('[AudioDSP] Failed to route AudioContext output:', err);
+      }
+    }
+  }
+
+  /**
+   * Callback for hardware/OS mute state changes
+   */
+  public onHardwareMute(callback: (isMuted: boolean) => void): void {
+    this.onHardwareMuteCallback = callback;
+    if (this.rawTrack) {
+      callback(this.rawTrack.muted);
+    }
+  }
+
+  public isHardwareMuted(): boolean {
+    return Boolean(this.rawTrack && this.rawTrack.muted);
   }
 
   public getProcessedTrack(): MediaStreamTrack | null {
@@ -524,6 +588,10 @@ export class AudioDSPManager {
       this.unlockAudioHandler = null;
     }
 
+    if (this.rawTrack) {
+      this.rawTrack.onmute = null;
+      this.rawTrack.onunmute = null;
+    }
     this.rawTrack = null;
 
     if (this.sourceNode) {
@@ -545,6 +613,10 @@ export class AudioDSPManager {
     if (this.silentSinkNode) {
       try { this.silentSinkNode.disconnect(); } catch {}
       this.silentSinkNode = null;
+    }
+    if (this.loopbackGainNode) {
+      try { this.loopbackGainNode.disconnect(); } catch {}
+      this.loopbackGainNode = null;
     }
 
     if (this.audioContext && this.audioContext.state !== 'closed') {

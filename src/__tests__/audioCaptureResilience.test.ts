@@ -140,18 +140,28 @@ describe('Audio Capture & DSP Resilience Suite', () => {
 
       expect(track).toBe(mockTrack);
       expect(mockAudioContext.createMediaStreamSource).toHaveBeenCalledWith(mockStream);
-      expect(mockAudioContext.createGain).toHaveBeenCalledTimes(2); // gainNode + silentSinkNode
+      expect(mockAudioContext.createGain).toHaveBeenCalledTimes(3); // gainNode + silentSinkNode + loopbackGainNode
 
       // The second gain node is silentSinkNode
       const silentSink = mockGainNodes[1];
       expect(silentSink.gain.setValueAtTime).toHaveBeenCalledWith(0, 0);
 
+      // The third gain node is loopbackGainNode (defaults to 0)
+      const loopbackNode = mockGainNodes[2];
+      expect(loopbackNode.gain.setValueAtTime).toHaveBeenCalledWith(0, 0);
+
       // Verify the full graph connections
       expect(mockSourceNode.connect).toHaveBeenCalledWith(mockBiquadFilterNode);
       expect(mockBiquadFilterNode.connect).toHaveBeenCalledWith(mockGainNodes[0]);
       expect(mockGainNodes[0].connect).toHaveBeenCalledWith(mockAnalyserNode);
+      expect(mockGainNodes[0].connect).toHaveBeenCalledWith(loopbackNode);
+      expect(loopbackNode.connect).toHaveBeenCalledWith(mockDestination);
       expect(mockAnalyserNode.connect).toHaveBeenCalledWith(silentSink);
       expect(silentSink.connect).toHaveBeenCalledWith(mockDestination);
+
+      // Verify loopback activation
+      dsp.setLoopback(true, 80);
+      expect(loopbackNode.gain.setTargetAtTime).toHaveBeenCalledWith(0.8, 0, 0.02);
 
       dsp.cleanup();
     });
