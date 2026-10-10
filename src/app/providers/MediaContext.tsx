@@ -823,14 +823,20 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (isAudioMutedRef.current) {
         newTrack.enabled = false;
         mediaSessionRef.current.setMicrophoneMute(true);
+      } else {
+        newTrack.enabled = true;
+        mediaSessionRef.current.setMicrophoneMute(false);
       }
       setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
       if (transportRef.current) {
         await transportRef.current.replaceTrack('audio', newTrack);
         if (isAudioMutedRef.current) {
           await transportRef.current.setTrackEnabled('audio', false).catch(() => {});
+        } else {
+          await transportRef.current.setTrackEnabled('audio', true).catch(() => {});
         }
       }
+      setDeviceSettings((prev) => ({ ...prev, audioInputId: deviceId }));
     } catch (err) {
       console.warn('[MediaEngine] switchMicrophone failed:', err);
     }
@@ -1021,13 +1027,8 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       // 5. Live microphone input device change
-      if (newSettings.audioInputId && !isAudioMutedRef.current && activeRoomId) {
-        mediaSessionRef.current.switchMicrophone(newSettings.audioInputId).then(async (newTrack) => {
-          setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
-          if (transportRef.current) {
-            await transportRef.current.replaceTrack('audio', newTrack);
-          }
-        }).catch((e) => console.warn('[MediaContext] Mic switch warning:', e));
+      if (newSettings.audioInputId !== undefined && newSettings.audioInputId !== prev.audioInputId && !isAudioMutedRef.current && activeRoomId) {
+        switchMicrophone(newSettings.audioInputId).catch((e) => console.warn('[MediaContext] Mic switch warning:', e));
       }
 
       return updated;

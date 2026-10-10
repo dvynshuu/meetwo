@@ -131,8 +131,14 @@ export class MediaSession {
     const targetDeviceId = deviceId !== undefined ? deviceId : this.settings.audioInputId;
     const isStereo = Boolean(this.settings.stereoAudio);
 
+    // Using 'ideal' prevents OverconstrainedError when target device ID is stale, default, or rehashed
+    const deviceConstraint =
+      targetDeviceId && targetDeviceId !== 'default' && targetDeviceId !== ''
+        ? { ideal: targetDeviceId }
+        : undefined;
+
     const audioConstraints: MediaTrackConstraints = {
-      deviceId: targetDeviceId ? { exact: targetDeviceId } : undefined,
+      deviceId: deviceConstraint,
       echoCancellation: this.settings.echoCancellation,
       noiseSuppression: this.settings.noiseSuppression,
       autoGainControl: this.settings.autoGainControl,
@@ -149,85 +155,82 @@ export class MediaSession {
       googNoiseReduction: this.settings.noiseSuppression,
     };
 
+    let micStream: MediaStream;
     try {
-      const micStream = await navigator.mediaDevices.getUserMedia({
+      micStream = await navigator.mediaDevices.getUserMedia({
         audio: audioConstraints,
         video: false,
       });
-
-      const rawTrack = micStream.getAudioTracks()[0];
-      this.rawMicrophoneTrack = rawTrack;
-      this.microphoneTrack = rawTrack; // DIRECT HARDWARE TRACK for 100% native AEC and zero latency
-
-      // Update local composite stream
-      this.localStream.getAudioTracks().forEach((t) => this.localStream.removeTrack(t));
-      this.localStream.addTrack(rawTrack);
-
-      // Passively tap into DSP for accurate VAD and audio level telemetry without altering broadcast audio
-      this.dspManager.attachStream(
-        micStream,
-        this.settings.inputVolume / 100,
-        this.settings
-      );
-
-      // Handle external unplug / mute
-      rawTrack.onended = () => {
-        console.warn('[MediaSession] Microphone track ended (device disconnected/unplugged)');
-        this.lastUnpluggedKind = 'audio';
-        this.stopMicrophone();
-        logger.log('device_disconnected', { kind: 'audio' });
-        if (this.events.onDeviceUnplugged) {
-          this.events.onDeviceUnplugged('audio');
-        }
-      };
-
-      if (this.events.onTrackChanged) {
-        this.events.onTrackChanged('audio', rawTrack);
-      }
-
-      logger.log('device_changed', { kind: 'audio', deviceId: targetDeviceId });
-      return rawTrack;
     } catch (err) {
-      console.warn('[MediaSession] Microphone with constraints failed, falling back:', err);
-      const isStereo = Boolean(this.settings.stereoAudio);
-      const fallbackStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: isStereo ? { ideal: 2 } : { ideal: 1 },
-          sampleRate: { ideal: 48000 },
-        },
-      });
-      const fallbackRawTrack = fallbackStream.getAudioTracks()[0];
-      this.rawMicrophoneTrack = fallbackRawTrack;
-      this.microphoneTrack = fallbackRawTrack;
-
-      this.localStream.getAudioTracks().forEach((t) => this.localStream.removeTrack(t));
-      this.localStream.addTrack(fallbackRawTrack);
-
-      this.dspManager.attachStream(
-        fallbackStream,
-        this.settings.inputVolume / 100,
-        this.settings
-      );
-
-      fallbackRawTrack.onended = () => {
-        console.warn('[MediaSession] Fallback microphone track ended');
-        this.lastUnpluggedKind = 'audio';
-        this.stopMicrophone();
-        logger.log('device_disconnected', { kind: 'audio' });
-        if (this.events.onDeviceUnplugged) {
-          this.events.onDeviceUnplugged('audio');
-        }
-      };
-
-      if (this.events.onTrackChanged) {
-        this.events.onTrackChanged('audio', fallbackRawTrack);
+      console.warn('[MediaSession] Microphone with optimal constraints failed, attempting standard fallback:', err);
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            deviceId: deviceConstraint,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            channelCount: isStereo ? { ideal: 2 } : { ideal: 1 },
+          },
+          video: false,
+        });
+      } catch (err2) {
+        console.warn('[MediaSession] Standard microphone fallback failed, attempting ultimate bare audio:', err2);
+        micStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: false,
+        });
       }
-
-      return fallbackRawTrack;
     }
+
+    const rawTrack = micStream.getAudioTracks()[0];
+    if (!rawTrack) {
+      throw new Error('Microphone stream returned no audio tracks');
+    }
+
+    rawTrack.enabled = true;
+    if ('contentHint' in rawTrack) {
+      rawTrack.contentHint = 'speech';
+    }
+    this.rawMicrophoneTrack = rawTrack;
+    this.microphoneTrack = rawTrack; // DIRECT HARDWARE TRACK for 100% native AEC and zero latency
+
+    // Save actual hardware device ID if none was previously set
+    try {
+      const trackSettings = rawTrack.getSettings();
+      if (trackSettings.deviceId && !this.settings.audioInputId) {
+        this.settings.audioInputId = trackSettings.deviceId;
+      }
+    } catch {}
+
+    // Update local composite stream
+    this.localStream.getAudioTracks().forEach((t) => this.localStream.removeTrack(t));
+    this.localStream.addTrack(rawTrack);
+
+    // Passively tap into DSP for accurate VAD and audio level telemetry without altering broadcast audio
+    this.dspManager.attachStream(
+      micStream,
+      (this.settings.inputVolume || 100) / 100,
+      this.settings
+    );
+
+    // Handle external unplug / mute
+    rawTrack.onended = () => {
+      console.warn('[MediaSession] Microphone track ended (device disconnected/unplugged)');
+      this.lastUnpluggedKind = 'audio';
+      this.stopMicrophone();
+      logger.log('device_disconnected', { kind: 'audio' });
+      if (this.events.onDeviceUnplugged) {
+        this.events.onDeviceUnplugged('audio');
+      }
+    };
+
+    if (this.events.onTrackChanged) {
+      this.events.onTrackChanged('audio', rawTrack);
+    }
+
+    logger.log('device_changed', { kind: 'audio', deviceId: targetDeviceId });
+    return rawTrack;
   }
 
   public stopMicrophone(notify: boolean = true) {

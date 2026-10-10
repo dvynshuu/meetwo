@@ -72,7 +72,7 @@ export class PeerConnectionManager implements ITransportAdapter {
   private peerLastSeen: Map<string, number> = new Map();
   private livenessInterval: number | null = null;
   private audioCompressionProfile: AudioCompressionProfile = 'balanced';
-  private isStereoAudio: boolean = true;
+  private isStereoAudio: boolean = false;
 
   private mungeSdpForAudio(sdp: string): string {
     return mungeOpusSDP(
@@ -81,7 +81,7 @@ export class PeerConnectionManager implements ITransportAdapter {
     );
   }
 
-  public setAudioProfile(profile: AudioCompressionProfile, stereo: boolean = true): void {
+  public setAudioProfile(profile: AudioCompressionProfile, stereo: boolean = false): void {
     this.audioCompressionProfile = profile;
     this.isStereoAudio = stereo;
     const opts = getOpusOptionsForProfile(profile, stereo);

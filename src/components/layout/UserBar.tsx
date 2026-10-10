@@ -13,7 +13,7 @@ interface UserBarProps {
 
 export const UserBar: React.FC<UserBarProps> = ({ onOpenSettings }) => {
   const { currentUser, setStatus } = useAuth();
-  const { isAudioMuted, toggleAudio, isDeafened, toggleDeafen } = useMedia();
+  const { isAudioMuted, toggleAudio, isDeafened, toggleDeafen, isSpeaking } = useMedia();
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showCustomStatusModal, setShowCustomStatusModal] = useState(false);
   const statusMenuRef = useRef<HTMLDivElement>(null);
@@ -75,12 +75,17 @@ export const UserBar: React.FC<UserBarProps> = ({ onOpenSettings }) => {
 
       {/* Quick Action Buttons: Mic, Deafen, Settings */}
       <div className="user-bar-actions">
-        <Tooltip content={isAudioMuted ? 'Unmute (Ctrl+D)' : 'Mute (Ctrl+D)'} position="top">
+        <Tooltip content={isAudioMuted ? 'Unmute (Ctrl+D)' : isSpeaking ? 'Transmitting Voice' : 'Mute (Ctrl+D)'} position="top">
           <button
-            className={`icon-btn ${isAudioMuted ? 'muted active' : ''}`}
+            className={`icon-btn ${isAudioMuted ? 'muted active' : isSpeaking ? 'speaking-active' : ''}`}
             onClick={toggleAudio}
             aria-label={isAudioMuted ? 'Unmute Microphone' : 'Mute Microphone'}
-            style={{ width: 28, height: 28 }}
+            style={{
+              width: 28,
+              height: 28,
+              color: !isAudioMuted && isSpeaking ? 'var(--status-online)' : undefined,
+              transition: 'color 120ms ease, background 120ms ease',
+            }}
           >
             {isAudioMuted ? <MicOff size={15} style={{ color: 'var(--danger)' }} /> : <Mic size={15} />}
           </button>

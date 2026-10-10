@@ -5,10 +5,10 @@ import { Button } from '../ui/Button';
 import { useAuth } from '../../app/providers/AuthContext';
 import { useMedia } from '../../app/providers/MediaContext';
 import { MediaSession } from '../../lib/webrtc/mediaSession';
-import { playSpeakerTestChime } from '../../lib/webrtc/audioProcessing';
 import { Avatar } from '../ui/Avatar';
-import { User, Volume2, Video, Sliders, Bell } from 'lucide-react';
+import { User, Volume2, Video, Sliders, Bell, Mic } from 'lucide-react';
 import { VideoQuality, QualityMode } from '../../types';
+import { playSpeakerTestChime, AudioDSPManager, routeAudioOutput } from '../../lib/webrtc/audioProcessing';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -49,6 +49,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const testVideoRef = useRef<HTMLVideoElement>(null);
   const testStreamRef = useRef<MediaStream | null>(null);
 
+  // Dedicated Microphone Test & Live Input Monitor
+  const [isHearSelf, setIsHearSelf] = useState(false);
+  const [testMicLevel, setTestMicLevel] = useState(0);
+  const [testIsSpeaking, setTestIsSpeaking] = useState(false);
+  const [testGateState, setTestGateState] = useState<'open' | 'attenuated'>('attenuated');
+  const testMicAudioRef = useRef<HTMLAudioElement | null>(null);
+  const testMicStreamRef = useRef<MediaStream | null>(null);
+  const testMicDspRef = useRef<AudioDSPManager | null>(null);
+
   useEffect(() => {
     if (currentUser) {
       setDisplayName(currentUser.displayName);
@@ -58,24 +67,82 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     }
   }, [currentUser]);
 
-  // Enumerate devices when on Audio & Video tab
+  // Enumerate devices and manage live mic preview on Audio & Video tab
   useEffect(() => {
+    let isCancelled = false;
+
+    const startLocalMicTest = async () => {
+      try {
+        const targetDeviceId = deviceSettings.audioInputId;
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: targetDeviceId && targetDeviceId !== 'default'
+            ? { deviceId: { ideal: targetDeviceId } }
+            : true,
+          video: false,
+        });
+
+        if (isCancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        testMicStreamRef.current = stream;
+        const dsp = new AudioDSPManager();
+        testMicDspRef.current = dsp;
+        dsp.onLevel((level, speaking, gate) => {
+          if (!isCancelled) {
+            setTestMicLevel(level);
+            setTestIsSpeaking(speaking);
+            if (gate) setTestGateState(gate);
+          }
+        });
+        dsp.attachStream(stream, (deviceSettings.inputVolume || 100) / 100, deviceSettings);
+
+        if (testMicAudioRef.current) {
+          testMicAudioRef.current.srcObject = stream;
+          testMicAudioRef.current.muted = true;
+          testMicAudioRef.current.play().catch(() => {});
+        }
+      } catch (err) {
+        console.warn('[SettingsModal] Live mic test acquisition failed:', err);
+      }
+    };
+
     if (isOpen && activeTab === 'voice_video') {
       MediaSession.getAvailableDevices().then((devs) => {
-        setAudioInputs(devs.audioInputs);
-        setAudioOutputs(devs.audioOutputs);
-        setVideoInputs(devs.videoInputs);
+        if (!isCancelled) {
+          setAudioInputs(devs.audioInputs);
+          setAudioOutputs(devs.audioOutputs);
+          setVideoInputs(devs.videoInputs);
+        }
       });
+
+      // If user is not currently in a voice call, run local mic telemetry preview so they can verify voice capture
+      if (!activeRoomId) {
+        startLocalMicTest();
+      }
     }
 
     return () => {
+      isCancelled = true;
       // Clean up test camera
       if (testStreamRef.current) {
         testStreamRef.current.getTracks().forEach((t) => t.stop());
         testStreamRef.current = null;
       }
+      // Clean up test mic
+      if (testMicStreamRef.current) {
+        testMicStreamRef.current.getTracks().forEach((t) => t.stop());
+        testMicStreamRef.current = null;
+      }
+      if (testMicDspRef.current) {
+        testMicDspRef.current.cleanup();
+        testMicDspRef.current = null;
+      }
+      setIsHearSelf(false);
+      setTestMicLevel(0);
     };
-  }, [isOpen, activeTab]);
+  }, [isOpen, activeTab, activeRoomId]);
 
   const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,6 +178,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       }
     }
   };
+
+  const toggleHearSelf = async () => {
+    const next = !isHearSelf;
+    setIsHearSelf(next);
+    if (testMicAudioRef.current) {
+      testMicAudioRef.current.muted = !next;
+      if (next) {
+        if (deviceSettings.audioOutputId) {
+          routeAudioOutput(testMicAudioRef.current, deviceSettings.audioOutputId).catch(() => {});
+        }
+        testMicAudioRef.current.volume = Math.max(0, Math.min(1.0, (deviceSettings.outputVolume || 100) / 100));
+        testMicAudioRef.current.play().catch(() => {});
+      }
+    }
+  };
+
+  const handleMicDeviceChange = async (newDeviceId: string) => {
+    updateSettings({ audioInputId: newDeviceId });
+    if (activeRoomId) {
+      switchMicrophone(newDeviceId);
+    } else {
+      // Reacquire test stream with newly selected microphone
+      if (testMicStreamRef.current) {
+        testMicStreamRef.current.getTracks().forEach((t) => t.stop());
+        testMicStreamRef.current = null;
+      }
+      if (testMicDspRef.current) {
+        testMicDspRef.current.cleanup();
+        testMicDspRef.current = null;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: newDeviceId && newDeviceId !== 'default'
+            ? { deviceId: { ideal: newDeviceId } }
+            : true,
+          video: false,
+        });
+        testMicStreamRef.current = stream;
+        const dsp = new AudioDSPManager();
+        testMicDspRef.current = dsp;
+        dsp.onLevel((level, speaking, gate) => {
+          setTestMicLevel(level);
+          setTestIsSpeaking(speaking);
+          if (gate) setTestGateState(gate);
+        });
+        dsp.attachStream(stream, (deviceSettings.inputVolume || 100) / 100, {
+          ...deviceSettings,
+          audioInputId: newDeviceId,
+        });
+        if (testMicAudioRef.current) {
+          testMicAudioRef.current.srcObject = stream;
+          testMicAudioRef.current.muted = !isHearSelf;
+          testMicAudioRef.current.play().catch(() => {});
+        }
+      } catch (err) {
+        console.warn('Cannot switch test microphone:', err);
+      }
+    }
+  };
+
+  const effectiveAudioLevel = activeRoomId ? audioLevel : testMicLevel;
+  const effectiveIsSpeaking = activeRoomId ? isSpeaking : testIsSpeaking;
+  const effectiveGateState = activeRoomId ? gateState : testGateState;
 
   return (
     <Modal
@@ -318,10 +448,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   <select
                     className="input-field"
                     value={deviceSettings.audioInputId}
-                    onChange={(e) => {
-                      updateSettings({ audioInputId: e.target.value });
-                      switchMicrophone(e.target.value);
-                    }}
+                    onChange={(e) => handleMicDeviceChange(e.target.value)}
                   >
                     <option value="">Default Microphone</option>
                     {audioInputs.map((d) => (
@@ -338,7 +465,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   <select
                     className="input-field"
                     value={deviceSettings.audioOutputId}
-                    onChange={(e) => updateSettings({ audioOutputId: e.target.value })}
+                    onChange={(e) => {
+                      const newOutputId = e.target.value;
+                      updateSettings({ audioOutputId: newOutputId });
+                      if (testMicAudioRef.current) {
+                        routeAudioOutput(testMicAudioRef.current, newOutputId).catch(() => {});
+                      }
+                    }}
                   >
                     <option value="">Default Speakers / Headphones</option>
                     {audioOutputs.map((d) => (
@@ -365,7 +498,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     min="0"
                     max="200"
                     value={deviceSettings.inputVolume || 100}
-                    onChange={(e) => updateSettings({ inputVolume: parseInt(e.target.value, 10) })}
+                    onChange={(e) => {
+                      const vol = parseInt(e.target.value, 10);
+                      updateSettings({ inputVolume: vol });
+                      if (testMicDspRef.current) {
+                        testMicDspRef.current.setInputGain(vol);
+                      }
+                    }}
                     style={{ width: '100%', accentColor: 'var(--accent)' }}
                   />
                 </div>
@@ -383,7 +522,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     min="0"
                     max="100"
                     value={deviceSettings.outputVolume || 100}
-                    onChange={(e) => updateSettings({ outputVolume: parseInt(e.target.value, 10) })}
+                    onChange={(e) => {
+                      const outVol = parseInt(e.target.value, 10);
+                      updateSettings({ outputVolume: outVol });
+                      if (testMicAudioRef.current) {
+                        testMicAudioRef.current.volume = Math.max(0, Math.min(1.0, outVol / 100));
+                      }
+                    }}
                     style={{ width: '100%', accentColor: 'var(--accent)' }}
                   />
                 </div>
@@ -401,26 +546,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   gap: 12,
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Sliders size={16} style={{ color: 'var(--accent)' }} />
                     <span style={{ fontSize: 13, fontWeight: 700 }}>Audio Hardware Test & Telemetry</span>
                   </div>
 
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={async () => {
-                      setIsChimePlaying(true);
-                      await playSpeakerTestChime(deviceSettings.audioOutputId, deviceSettings.outputVolume);
-                      setIsChimePlaying(false);
-                    }}
-                    disabled={isChimePlaying}
-                  >
-                    <Volume2 size={14} />
-                    <span>{isChimePlaying ? 'Playing chime...' : 'Test Speaker Chime'}</span>
-                  </Button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Button
+                      type="button"
+                      variant={isHearSelf ? 'primary' : 'secondary'}
+                      size="sm"
+                      onClick={toggleHearSelf}
+                      title="Route your live microphone to your headphones/speakers to verify voice capture"
+                    >
+                      <Mic size={14} />
+                      <span>{isHearSelf ? 'Stop Listening' : 'Hear Yourself (Mic Test)'}</span>
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={async () => {
+                        setIsChimePlaying(true);
+                        await playSpeakerTestChime(deviceSettings.audioOutputId, deviceSettings.outputVolume);
+                        setIsChimePlaying(false);
+                      }}
+                      disabled={isChimePlaying}
+                    >
+                      <Volume2 size={14} />
+                      <span>{isChimePlaying ? 'Playing chime...' : 'Test Speaker Chime'}</span>
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Mic Volume Activity Meter & Gate Indicator */}
@@ -435,14 +593,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             fontWeight: 700,
                             padding: '2px 6px',
                             borderRadius: 'var(--radius-xs)',
-                            background: gateState === 'open' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(234, 179, 8, 0.15)',
-                            color: gateState === 'open' ? 'var(--status-online)' : 'var(--warning)',
-                            border: `1px solid ${gateState === 'open' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(234, 179, 8, 0.3)'}`,
+                            background: effectiveGateState === 'open' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(234, 179, 8, 0.15)',
+                            color: effectiveGateState === 'open' ? 'var(--status-online)' : 'var(--warning)',
+                            border: `1px solid ${effectiveGateState === 'open' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(234, 179, 8, 0.3)'}`,
                             textTransform: 'uppercase',
                             letterSpacing: '0.04em',
                           }}
                         >
-                          {gateState === 'open' ? '● Gate: Open' : '✦ Gate: Quiet'}
+                          {effectiveGateState === 'open' ? '● Gate: Open' : '✦ Gate: Quiet'}
+                        </span>
+                      )}
+                      {effectiveAudioLevel > 15 && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            color: 'var(--status-online)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                          }}
+                        >
+                          ● Capturing Voice
                         </span>
                       )}
                     </div>
@@ -462,8 +634,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                           ? 'Opus 510kbps Stereo • Fullband'
                           : 'Opus 320kbps Studio • RED'}
                       </span>
-                      <span style={{ fontWeight: 600, color: audioLevel > 15 ? 'var(--status-online)' : 'var(--text-muted)' }}>
-                        {audioLevel}%
+                      <span style={{ fontWeight: 600, color: effectiveAudioLevel > 15 ? 'var(--status-online)' : 'var(--text-muted)' }}>
+                        {effectiveAudioLevel}%
                       </span>
                     </div>
                   </div>
@@ -479,13 +651,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     <div
                       style={{
                         height: '100%',
-                        width: `${audioLevel}%`,
-                        background: audioLevel > 50 ? 'var(--warning)' : 'var(--accent)',
+                        width: `${effectiveAudioLevel}%`,
+                        background: effectiveAudioLevel > 50 ? 'var(--warning)' : 'var(--accent)',
                         transition: 'width 80ms ease',
                       }}
                     />
                   </div>
                 </div>
+
+                {/* Hidden Audio element for Hear Yourself loopback */}
+                <audio
+                  ref={testMicAudioRef}
+                  autoPlay
+                  playsInline
+                  style={{ display: 'none' }}
+                />
               </div>
 
               {/* Voice Processing & Isolation Studio Grid */}

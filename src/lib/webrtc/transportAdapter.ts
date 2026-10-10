@@ -283,7 +283,7 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
             audioPreset: !isVideo ? { maxBitrate: 320_000 } : undefined,
             dtx: !isVideo,
             red: !isVideo,
-            forceStereo: !isVideo,
+            forceStereo: false,
           });
         }
       }
@@ -341,7 +341,7 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
         audioPreset: !isVideo ? { maxBitrate: 320_000 } : undefined,
         dtx: !isVideo,
         red: !isVideo,
-        forceStereo: !isVideo,
+        forceStereo: false,
       });
     }
   }
