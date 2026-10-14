@@ -5,6 +5,7 @@ import { useNavigation } from '../../app/providers/NavigationContext';
 import { useServer } from '../../app/providers/ServerContext';
 import { useMedia } from '../../app/providers/MediaContext';
 import { NavigationEntry } from '../../types';
+import { useViewport } from '../../lib/hooks/useViewport';
 
 interface HomeDashboardProps {
   onNavigateToDestination: (entry: NavigationEntry) => void;
@@ -27,6 +28,7 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
   const { recentDestinations } = useNavigation();
   const { channels, servers, selectServer, selectChannel, activeServer } = useServer();
   const { activeRoomId, joinVoiceRoom } = useMedia();
+  const { isMobile } = useViewport();
 
   const displayName = currentUser?.displayName || currentUser?.username || 'Friend';
 
@@ -48,7 +50,11 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
         {/* Quick Switcher Prompt Bar */}
         <div className="hero-quick-bar" onClick={onOpenQuickSwitcher} role="button">
           <Command size={15} style={{ color: 'var(--accent)' }} />
-          <span>Press <kbd className="command-kbd">Ctrl</kbd> + <kbd className="command-kbd">K</kbd> to jump anywhere in Meetwo</span>
+          {isMobile ? (
+            <span>Tap to search channels, spaces, & DMs</span>
+          ) : (
+            <span>Press <kbd className="command-kbd">Ctrl</kbd> + <kbd className="command-kbd">K</kbd> to jump anywhere in Meetwo</span>
+          )}
           <ArrowRight size={14} className="hero-arrow" />
         </div>
       </div>

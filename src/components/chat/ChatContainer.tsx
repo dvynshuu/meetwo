@@ -7,6 +7,7 @@ import { MessageComposer } from './MessageComposer';
 import { TypingIndicator } from './TypingIndicator';
 import { ThreadDrawer } from './ThreadDrawer';
 import { Message } from '../../types';
+import { useViewport } from '../../lib/hooks/useViewport';
 
 interface ChatContainerProps {
   onOpenThreadMessage?: (message: Message) => void;
@@ -15,6 +16,7 @@ interface ChatContainerProps {
 export const ChatContainer: React.FC<ChatContainerProps> = () => {
   const { messages } = useChat();
   const { activeChannel } = useServer();
+  const { isKeyboardOpen } = useViewport();
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -45,6 +47,16 @@ export const ChatContainer: React.FC<ChatContainerProps> = () => {
     }
     prevMessageCountRef.current = messages.length;
   }, [messages.length, isAtBottom]);
+
+  // Smooth scroll when virtual keyboard opens so latest message is visible above composer
+  useEffect(() => {
+    if (isKeyboardOpen) {
+      const timer = setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isKeyboardOpen]);
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });

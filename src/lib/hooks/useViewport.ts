@@ -43,6 +43,11 @@ export function useViewport(): ViewportState {
       const kbHeight = Math.max(0, h - vv);
       const isKbOpen = kbHeight > 150;
 
+      // Synchronize CSS custom properties on documentElement for instant CSS layout reactivity
+      document.documentElement.style.setProperty('--viewport-height', `${h}px`);
+      document.documentElement.style.setProperty('--visual-viewport-height', `${vv}px`);
+      document.documentElement.style.setProperty('--keyboard-height', `${kbHeight}px`);
+
       setViewport({
         width: w,
         height: h,
@@ -55,6 +60,9 @@ export function useViewport(): ViewportState {
         keyboardHeight: kbHeight,
       });
     };
+
+    // Initialize CSS properties immediately on mount
+    handleUpdate();
 
     window.addEventListener('resize', handleUpdate, { passive: true });
     window.addEventListener('orientationchange', handleUpdate, { passive: true });

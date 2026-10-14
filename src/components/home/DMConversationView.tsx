@@ -14,7 +14,7 @@ interface DMConversationViewProps {
 export const DMConversationView: React.FC<DMConversationViewProps> = ({ conversationId }) => {
   const { currentUser } = useAuth();
   const { conversations, dmMessages, sendDM } = useDM();
-  const { isMobile } = useViewport();
+  const { isMobile, isKeyboardOpen } = useViewport();
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -31,6 +31,15 @@ export const DMConversationView: React.FC<DMConversationViewProps> = ({ conversa
   useEffect(() => {
     scrollToBottom();
   }, [messages.length, conversationId]);
+
+  useEffect(() => {
+    if (isKeyboardOpen) {
+      const timer = setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isKeyboardOpen]);
 
   const handleSend = (e?: React.FormEvent) => {
     if (e) e.preventDefault();

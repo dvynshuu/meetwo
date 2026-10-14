@@ -166,6 +166,9 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       },
       onTrackChanged: async (kind, track) => {
+        if (kind === 'audio' || kind === 'video') {
+          setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
+        }
         if (transportRef.current) {
           if (kind === 'audio' || kind === 'video') {
             await transportRef.current.replaceTrack(kind, track);
@@ -198,15 +201,27 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         if (kind === 'audio') {
           try {
-            await mediaSessionRef.current.startMicrophone();
+            const newTrack = mediaSessionRef.current.getMicrophoneTrack() || (await mediaSessionRef.current.startMicrophone());
             setIsAudioMuted(false);
             isAudioMutedRef.current = false;
+            setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
+            if (transportRef.current) {
+              await transportRef.current.replaceTrack('audio', newTrack);
+              await transportRef.current.setTrackEnabled('audio', true).catch(() => {});
+              await transportRef.current.sendMuteState(false, isVideoMutedRef.current).catch(() => {});
+            }
           } catch {}
         } else if (kind === 'video') {
           try {
-            await mediaSessionRef.current.startCamera();
+            const newTrack = mediaSessionRef.current.getCameraTrack() || (await mediaSessionRef.current.startCamera());
             setIsVideoMuted(false);
             isVideoMutedRef.current = false;
+            setLocalStream(new MediaStream(mediaSessionRef.current.getLocalStream().getTracks()));
+            if (transportRef.current) {
+              await transportRef.current.replaceTrack('video', newTrack);
+              await transportRef.current.setTrackEnabled('video', true).catch(() => {});
+              await transportRef.current.sendMuteState(isAudioMutedRef.current, false).catch(() => {});
+            }
           } catch {}
         }
       },
@@ -523,16 +538,23 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             quality: ConnectionQuality,
             stats?: ConnectionStats
           ) => {
-            if (peerId === currentUser.id) return;
-            if (stats) {
-              setConnectionStats(stats);
-              reconnectionManagerRef.current?.evaluateMetrics(stats.rtt, stats.packetLoss);
+            // Local client's active call connection stats (from SFU or P2P manager)
+            if (peerId === currentUser.id || !peerId) {
+              if (stats) {
+                setConnectionStats(stats);
+                reconnectionManagerRef.current?.evaluateMetrics(stats.rtt, stats.packetLoss);
+              } else {
+                setConnectionStats((prev) => ({ ...prev, quality }));
+              }
+              return;
             }
+
+            // Remote peer updates: update remote participant's state only
             setRemoteParticipants((prev) => {
               const next = new Map(prev);
               const target = next.get(peerId);
               if (target) {
-                next.set(peerId, { ...target, connectionQuality: quality, stats });
+                next.set(peerId, { ...target, connectionQuality: quality, ...(stats ? { stats } : {}) });
               }
               return next;
             });
@@ -660,6 +682,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setMyStageRole('listener');
     setProductionConfigError(null);
     setRemoteParticipants(new Map());
+    setConnectionStats({ quality: 'unknown' });
   }, []);
 
   const openPreJoin = useCallback((roomId: string) => {

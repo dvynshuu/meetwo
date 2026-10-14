@@ -41,7 +41,9 @@ export function getOpusOptionsForProfile(
         maxBitrate: 64000,
         stereo: false,
         inbandFec: true,
-        dtx: true,
+        // Continuous transmission: DTX is disabled by default to prevent voice clipping during double-talk,
+        // aggressive AEC gating, and NAT UDP binding expirations on residential routers.
+        dtx: false,
         minPtime: 10,
         ptime: 20,
         maxPtime: 60,
@@ -52,7 +54,7 @@ export function getOpusOptionsForProfile(
         maxBitrate: 320000,
         stereo: stereo,
         inbandFec: true,
-        dtx: true,
+        dtx: false,
         minPtime: 10,
         ptime: 20,
         maxPtime: 60,
@@ -64,7 +66,7 @@ export function getOpusOptionsForProfile(
         maxBitrate: 128000,
         stereo: Boolean(stereo),
         inbandFec: true,
-        dtx: true,
+        dtx: false,
         minPtime: 10,
         ptime: 20,
         maxPtime: 60,
@@ -75,14 +77,14 @@ export function getOpusOptionsForProfile(
 
 /**
  * Optimizes an SDP session description specifically for studio broadcast audio transmission
- * with Opus codec enhancement, packet loss resilience (FEC), stereo, and DTX.
+ * with Opus codec enhancement, packet loss resilience (FEC), stereo, and continuous transmission.
  */
 export function mungeOpusSDP(sdp: string, options: OpusSDPOptions = {}): string {
   const {
     maxBitrate = 128000,
     stereo = false,
     inbandFec = true,
-    dtx = true,
+    dtx = false,
     minPtime = 10,
     ptime = 20,
     maxPtime = 60,
@@ -173,6 +175,7 @@ export type GateState = 'open' | 'attenuated';
  */
 export class AudioDSPManager {
   private audioContext: AudioContext | null = null;
+  private activeStream: MediaStream | null = null; // Retained to prevent Chromium V8 GC audio drop (Issue 349734)
   private sourceNode: MediaStreamAudioSourceNode | null = null;
   private highPassNode: BiquadFilterNode | null = null;
   private gainNode: GainNode | null = null;
@@ -219,6 +222,7 @@ export class AudioDSPManager {
     settings?: Partial<MediaDeviceSettings>
   ): MediaStreamTrack {
     this.cleanup();
+    this.activeStream = stream;
 
     const rawTracks = stream.getAudioTracks();
     if (rawTracks.length === 0) {
@@ -624,8 +628,23 @@ export class AudioDSPManager {
       this.audioContext = null;
     }
 
+    this.activeStream = null;
     this.smoothedLevel = 0;
     this.gateState = 'attenuated';
+  }
+
+  public isAudioContextSuspended(): boolean {
+    return Boolean(this.audioContext && this.audioContext.state === 'suspended');
+  }
+
+  public async resumeContext(): Promise<void> {
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      try {
+        await this.audioContext.resume();
+      } catch (err) {
+        console.warn('[AudioDSP] Failed to resume AudioContext:', err);
+      }
+    }
   }
 }
 

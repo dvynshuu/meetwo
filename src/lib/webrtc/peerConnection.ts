@@ -26,6 +26,7 @@ interface PeerSession {
   ignoreOffer: boolean;
   isSettingRemoteAnswerPending: boolean;
   connectionQuality: ConnectionQuality;
+  needsRenegotiation?: boolean;
   lastStats?: {
     timestamp: number;
     bytesReceived: number;
@@ -175,15 +176,26 @@ export class PeerConnectionManager implements ITransportAdapter {
 
       if (transceiver) {
         let directionChanged = false;
-        if (newTrack) {
+        // CRITICAL AUDIO RESILIENCE: Never demote audio transceiver to 'recvonly' when a track is temporarily null or unhooked.
+        // Keeping audio transceiver in 'sendrecv' allows voice transmission to start/resume instantly with sender.replaceTrack()
+        // WITHOUT triggering risky, uncoordinated SDP renegotiation that can collide, roll back, or get stuck in recvonly.
+        if (kind === 'audio') {
           if (transceiver.direction !== 'sendrecv') {
             transceiver.direction = 'sendrecv';
             directionChanged = true;
           }
         } else {
-          if (transceiver.direction === 'sendrecv') {
-            transceiver.direction = 'recvonly';
-            directionChanged = true;
+          // For video:
+          if (newTrack) {
+            if (transceiver.direction !== 'sendrecv') {
+              transceiver.direction = 'sendrecv';
+              directionChanged = true;
+            }
+          } else {
+            if (transceiver.direction === 'sendrecv') {
+              transceiver.direction = 'recvonly';
+              directionChanged = true;
+            }
           }
         }
 
@@ -264,7 +276,8 @@ export class PeerConnectionManager implements ITransportAdapter {
   private async renegotiatePeer(peerId: string, session: PeerSession): Promise<void> {
     const pc = session.pc;
     if (pc.signalingState !== 'stable') {
-      console.warn(`[WebRTC] Peer ${peerId} signalingState not stable (${pc.signalingState}), waiting for stable before renegotiation`);
+      console.warn(`[WebRTC] Peer ${peerId} signalingState not stable (${pc.signalingState}), queueing renegotiation`);
+      session.needsRenegotiation = true;
       return;
     }
 
@@ -609,6 +622,7 @@ export class PeerConnectionManager implements ITransportAdapter {
       ignoreOffer: false,
       isSettingRemoteAnswerPending: false,
       connectionQuality: 'good',
+      needsRenegotiation: false,
     };
 
     this.peerSessions.set(peerId, session);
@@ -745,6 +759,14 @@ export class PeerConnectionManager implements ITransportAdapter {
       }
     };
 
+    // Auto-flush queued renegotiations as soon as signaling returns to stable
+    pc.onsignalingstatechange = () => {
+      if (pc.signalingState === 'stable' && session.needsRenegotiation) {
+        session.needsRenegotiation = false;
+        this.renegotiatePeer(peerId, session).catch(() => {});
+      }
+    };
+
     // Trigger initial stats collection for the newly established peer session
     this.collectGlobalStats().catch(() => {});
 
@@ -842,6 +864,7 @@ export class PeerConnectionManager implements ITransportAdapter {
 
           // Codec map for this session
           const codecMap = new Map<string, string>();
+          const candidateMap = new Map<string, any>();
           stats.forEach((report) => {
             if (report.type === 'codec') {
               const mime = report.mimeType || '';
@@ -858,6 +881,8 @@ export class PeerConnectionManager implements ITransportAdapter {
               } else if (mime) {
                 codecMap.set(report.id, mime.split('/')[1] || mime);
               }
+            } else if (report.type === 'local-candidate' || report.type === 'remote-candidate') {
+              candidateMap.set(report.id, report);
             }
           });
 
@@ -876,7 +901,10 @@ export class PeerConnectionManager implements ITransportAdapter {
                 rttCount++;
                 sessionRtt = rttMs;
               }
-              if (report.candidateType || report.remoteCandidateType) {
+              const cand = candidateMap.get(report.remoteCandidateId) || candidateMap.get(report.localCandidateId);
+              if (cand?.candidateType) {
+                candidateType = cand.candidateType;
+              } else if (report.candidateType || report.remoteCandidateType) {
                 candidateType = report.candidateType || report.remoteCandidateType;
               }
             }
@@ -892,6 +920,11 @@ export class PeerConnectionManager implements ITransportAdapter {
               if (report.jitter !== undefined) {
                 const jMs = Math.round(report.jitter * 1000);
                 maxJitter = Math.max(maxJitter ?? 0, jMs);
+              }
+              if (report.packetsLost !== undefined && report.packetsLost >= 0) {
+                totalPacketsLost += report.packetsLost;
+                hasPacketData = true;
+                sessionLoss = report.packetsLost;
               }
             }
 
@@ -1101,7 +1134,6 @@ export class PeerConnectionManager implements ITransportAdapter {
           if (aParams.encodings && aParams.encodings.length > 0) {
             if (aParams.encodings[0].priority !== 'high') {
               aParams.encodings[0].priority = 'high';
-              (aParams.encodings[0] as any).networkPriority = 'high';
               await audioSender.setParameters(aParams);
             }
           }

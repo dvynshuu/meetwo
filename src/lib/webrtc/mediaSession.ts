@@ -21,6 +21,11 @@ export class MediaSession {
   private screenAudioTrack: MediaStreamTrack | null = null;
   private isScreenShareStarting: boolean = false;
   private lastUnpluggedKind: 'audio' | 'video' | null = null;
+  private activeMicStream: MediaStream | null = null; // Retained to prevent Chromium V8 GC audio drop (Issue 349734)
+  private isMuted: boolean = false;
+  private audioWatchdogTimer: any = null;
+  private muteDebounceTimer: any = null;
+  private isRecoveringMic: boolean = false;
 
   // Composite MediaStreams
   private localStream: MediaStream = new MediaStream();
@@ -69,8 +74,9 @@ export class MediaSession {
           this.events.onDeviceListChanged();
         }
 
-        // Check if an unplugged device has been restored
-        if (!this.microphoneTrack && this.lastUnpluggedKind === 'audio') {
+        // 1. Check if an unplugged audio device was restored or if active mic track died
+        const isMicDead = !this.microphoneTrack || this.microphoneTrack.readyState === 'ended';
+        if (isMicDead || this.lastUnpluggedKind === 'audio') {
           try {
             const devs = await navigator.mediaDevices.enumerateDevices();
             const mics = devs.filter((d) => d.kind === 'audioinput');
@@ -80,7 +86,23 @@ export class MediaSession {
               this.events.onDeviceReconnected?.('audio', label);
             }
           } catch {}
+        } else if (this.microphoneTrack && this.microphoneTrack.readyState === 'live') {
+          // 2. Active mic is live: verify if its physical hardware was disconnected (e.g. USB/Bluetooth unplug)
+          try {
+            const devs = await navigator.mediaDevices.enumerateDevices();
+            const mics = devs.filter((d) => d.kind === 'audioinput');
+            const trackSettings = this.microphoneTrack.getSettings?.();
+            const currentDevId = trackSettings?.deviceId || this.settings.audioInputId;
+            if (currentDevId && mics.length > 0) {
+              const stillExists = mics.some((m) => m.deviceId === currentDevId);
+              if (!stillExists) {
+                console.warn('[MediaSession] Active microphone disconnected during devicechange, auto-recovering...');
+                this.recoverMicrophone('device_unplugged').catch(() => {});
+              }
+            }
+          } catch {}
         }
+
         if (!this.cameraTrack && this.lastUnpluggedKind === 'video') {
           try {
             const devs = await navigator.mediaDevices.enumerateDevices();
@@ -188,10 +210,11 @@ export class MediaSession {
       throw new Error('Microphone stream returned no audio tracks');
     }
 
-    rawTrack.enabled = true;
+    rawTrack.enabled = !this.isMuted;
     if ('contentHint' in rawTrack) {
       rawTrack.contentHint = 'speech';
     }
+    this.activeMicStream = micStream;
     this.rawMicrophoneTrack = rawTrack;
     this.microphoneTrack = rawTrack; // DIRECT HARDWARE TRACK for 100% native AEC and zero latency
 
@@ -214,16 +237,45 @@ export class MediaSession {
       this.settings
     );
 
-    // Handle external unplug / mute
-    rawTrack.onended = () => {
-      console.warn('[MediaSession] Microphone track ended (device disconnected/unplugged)');
-      this.lastUnpluggedKind = 'audio';
-      this.stopMicrophone();
-      logger.log('device_disconnected', { kind: 'audio' });
-      if (this.events.onDeviceUnplugged) {
-        this.events.onDeviceUnplugged('audio');
+    // Hardware / OS mute handling with auto-recovery debounce
+    rawTrack.onmute = () => {
+      console.warn('[MediaSession] Hardware/OS mute detected on microphone track');
+      if (this.muteDebounceTimer) clearTimeout(this.muteDebounceTimer);
+      // If hardware mute persists for >1500ms while user has not muted in UI, trigger auto-recovery
+      this.muteDebounceTimer = setTimeout(() => {
+        if (this.microphoneTrack && this.microphoneTrack.muted && !this.isMuted) {
+          console.warn('[MediaSession] Hardware mute persisted >1.5s, auto-recovering microphone...');
+          this.recoverMicrophone('hardware_mute_timeout').catch(() => {});
+        }
+      }, 1500);
+    };
+
+    rawTrack.onunmute = () => {
+      console.info('[MediaSession] Hardware/OS unmute detected on microphone track');
+      if (this.muteDebounceTimer) {
+        clearTimeout(this.muteDebounceTimer);
+        this.muteDebounceTimer = null;
       }
     };
+
+    // External unplug or stream death handling with seamless hot-recovery
+    rawTrack.onended = () => {
+      console.warn('[MediaSession] Microphone track ended (device disconnected/unplugged/glitched)');
+      if (!this.isMuted) {
+        // Active unmuted call: immediately attempt seamless recovery without dropping the user from call
+        this.recoverMicrophone('track_ended').catch(() => {});
+      } else {
+        this.lastUnpluggedKind = 'audio';
+        this.stopMicrophone();
+        logger.log('device_disconnected', { kind: 'audio' });
+        if (this.events.onDeviceUnplugged) {
+          this.events.onDeviceUnplugged('audio');
+        }
+      }
+    };
+
+    // Launch continuous background watchdog for stuck mute or dropped buffers
+    this.startAudioWatchdog();
 
     if (this.events.onTrackChanged) {
       this.events.onTrackChanged('audio', rawTrack);
@@ -233,9 +285,87 @@ export class MediaSession {
     return rawTrack;
   }
 
+  /**
+   * Transparently reacquires the microphone stream and hot-swaps it into active calls
+   * when hardware glitches, Bluetooth profiles switch, or OS audio services reset.
+   */
+  public async recoverMicrophone(reason: string): Promise<boolean> {
+    if (this.isRecoveringMic) return false;
+    this.isRecoveringMic = true;
+    console.info(`[MediaSession] Initiating seamless microphone auto-recovery (reason: ${reason})`);
+
+    try {
+      if (this.microphoneTrack) {
+        this.microphoneTrack.onended = null;
+        this.microphoneTrack.onmute = null;
+        this.microphoneTrack.onunmute = null;
+        try { this.microphoneTrack.stop(); } catch {}
+      }
+
+      const newTrack = await this.startMicrophone(this.settings.audioInputId);
+      if (this.isMuted) {
+        newTrack.enabled = false;
+      }
+
+      console.info(`[MediaSession] Microphone successfully auto-recovered: ${newTrack.label || 'Microphone'}`);
+      this.events.onDeviceReconnected?.('audio', newTrack.label || 'Microphone');
+      return true;
+    } catch (err) {
+      console.warn('[MediaSession] Microphone auto-recovery failed:', err);
+      this.lastUnpluggedKind = 'audio';
+      this.stopMicrophone();
+      if (this.events.onDeviceUnplugged) {
+        this.events.onDeviceUnplugged('audio');
+      }
+      return false;
+    } finally {
+      this.isRecoveringMic = false;
+    }
+  }
+
+  private startAudioWatchdog(): void {
+    this.stopAudioWatchdog();
+    this.audioWatchdogTimer = setInterval(async () => {
+      if (!this.microphoneTrack || this.isMuted || this.isRecoveringMic) return;
+
+      // 1. Check if track ended silently without firing onended
+      if (this.microphoneTrack.readyState === 'ended') {
+        console.warn('[MediaSession] Watchdog detected ended microphone track, auto-recovering...');
+        await this.recoverMicrophone('watchdog_track_ended');
+        return;
+      }
+
+      // 2. Check if track is stuck in hardware mute
+      if (this.microphoneTrack.muted) {
+        console.warn('[MediaSession] Watchdog detected hardware-muted microphone track, auto-recovering...');
+        await this.recoverMicrophone('watchdog_track_muted');
+        return;
+      }
+
+      // 3. Resume AudioContext if suspended
+      if (this.dspManager.isAudioContextSuspended()) {
+        await this.dspManager.resumeContext();
+      }
+    }, 2500);
+  }
+
+  private stopAudioWatchdog(): void {
+    if (this.audioWatchdogTimer) {
+      clearInterval(this.audioWatchdogTimer);
+      this.audioWatchdogTimer = null;
+    }
+    if (this.muteDebounceTimer) {
+      clearTimeout(this.muteDebounceTimer);
+      this.muteDebounceTimer = null;
+    }
+  }
+
   public stopMicrophone(notify: boolean = true) {
+    this.stopAudioWatchdog();
     if (this.microphoneTrack) {
       this.microphoneTrack.onended = null;
+      this.microphoneTrack.onmute = null;
+      this.microphoneTrack.onunmute = null;
       try {
         this.microphoneTrack.stop();
       } catch {}
@@ -244,11 +374,20 @@ export class MediaSession {
     }
     if (this.rawMicrophoneTrack && this.rawMicrophoneTrack !== this.microphoneTrack) {
       this.rawMicrophoneTrack.onended = null;
+      this.rawMicrophoneTrack.onmute = null;
+      this.rawMicrophoneTrack.onunmute = null;
       try {
         this.rawMicrophoneTrack.stop();
       } catch {}
     }
     this.rawMicrophoneTrack = null;
+
+    if (this.activeMicStream) {
+      try {
+        this.activeMicStream.getTracks().forEach((t) => t.stop());
+      } catch {}
+      this.activeMicStream = null;
+    }
 
     this.dspManager.cleanup();
     if (notify && this.events.onTrackChanged) {
@@ -263,6 +402,7 @@ export class MediaSession {
   }
 
   public setMicrophoneMute(muted: boolean) {
+    this.isMuted = muted;
     if (this.microphoneTrack) {
       this.microphoneTrack.enabled = !muted;
     }

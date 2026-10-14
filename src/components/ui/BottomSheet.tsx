@@ -19,7 +19,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   title,
   headerAction,
   children,
-  maxHeight = '85vh',
+  maxHeight = 'min(85dvh, 85vh)',
   showHandle = true,
   className = '',
 }) => {
@@ -28,17 +28,27 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   const currentYRef = useRef<number>(0);
   const [dragY, setDragY] = useState<number>(0);
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [isClosing, setIsClosing] = useState<boolean>(false);
+
+  const handleSmoothClose = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose();
+      setIsClosing(false);
+      setDragY(0);
+    }, 180);
+  }, [onClose]);
 
   // Close on Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
+      if (e.key === 'Escape' && isOpen && !isClosing) {
+        handleSmoothClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, isClosing, handleSmoothClose]);
 
   // Lock body scroll when sheet is open
   useEffect(() => {
@@ -78,62 +88,68 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     setIsDragging(false);
     const deltaY = currentYRef.current - startYRef.current;
     if (deltaY > 80) {
-      onClose();
+      handleSmoothClose();
+    } else {
+      setDragY(0);
     }
-    setDragY(0);
   };
 
   if (!isOpen) return null;
 
   const content = (
-    <div className="bottom-sheet-portal" role="dialog" aria-modal="true">
+    <div className={`bottom-sheet-portal ${isClosing ? 'is-closing' : ''}`} role="dialog" aria-modal="true">
       {/* Backdrop */}
       <div
         className="bottom-sheet-backdrop"
-        onClick={onClose}
+        onClick={handleSmoothClose}
         aria-hidden="true"
       />
 
       {/* Sheet Container */}
       <div
         ref={sheetRef}
-        className={`bottom-sheet-container ${className} ${isDragging ? 'is-dragging' : ''}`}
+        className={`bottom-sheet-container ${className} ${isDragging ? 'is-dragging' : ''} ${isClosing ? 'is-closing' : ''}`}
         style={{
           maxHeight,
           transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
           transition: isDragging ? 'none' : 'transform 200ms cubic-bezier(0.16, 1, 0.3, 1)',
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
-        {/* Drag Handle Bar */}
-        {showHandle && (
-          <div className="bottom-sheet-handle-wrap">
-            <div className="bottom-sheet-handle" />
-          </div>
-        )}
-
-        {/* Header (optional) */}
-        {(title || headerAction) && (
-          <div className="bottom-sheet-header">
-            <div className="bottom-sheet-title">{title}</div>
-            <div className="bottom-sheet-actions">
-              {headerAction}
-              <button
-                type="button"
-                className="bottom-sheet-close-btn"
-                onClick={onClose}
-                aria-label="Close"
-              >
-                <X size={18} />
-              </button>
+        {/* Drag Zone (Handle + Header) */}
+        <div
+          className="bottom-sheet-drag-zone"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* Drag Handle Bar */}
+          {showHandle && (
+            <div className="bottom-sheet-handle-wrap" aria-label="Drag down to dismiss">
+              <div className="bottom-sheet-handle" />
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Header (optional) */}
+          {(title || headerAction) && (
+            <div className="bottom-sheet-header">
+              <div className="bottom-sheet-title">{title}</div>
+              <div className="bottom-sheet-actions">
+                {headerAction}
+                <button
+                  type="button"
+                  className="bottom-sheet-close-btn"
+                  onClick={handleSmoothClose}
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Scrollable Body */}
-        <div className="bottom-sheet-body" onTouchStart={(e) => e.stopPropagation()}>
+        <div className="bottom-sheet-body">
           {children}
         </div>
       </div>

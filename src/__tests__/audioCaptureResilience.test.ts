@@ -352,16 +352,16 @@ describe('Audio Capture & DSP Resilience Suite', () => {
     });
   });
 
-  describe('Audio SDP & Quality Presets', () => {
-    it('generates optimal mono parameters by default for vocal clarity', () => {
+  describe('Audio SDP & Quality Presets - Continuous Delivery', () => {
+    it('generates optimal mono parameters with continuous transmission to prevent voice dropouts and NAT timeout', () => {
       const preset = getOpusOptionsForProfile('balanced', false);
       expect(preset.stereo).toBe(false);
       expect(preset.inbandFec).toBe(true);
-      expect(preset.dtx).toBe(true);
+      expect(preset.dtx).toBe(false); // Continuous transmission prevents voice cutoff
       expect(preset.maxBitrate).toBe(128000);
     });
 
-    it('munges Opus SDP preserving mono speech encoding without forced stereo', () => {
+    it('munges Opus SDP preserving mono speech encoding without forced stereo or dtx clipping', () => {
       const sampleSdp = [
         'v=0',
         'm=audio 9 UDP/TLS/RTP/SAVPF 111',
@@ -373,13 +373,61 @@ describe('Audio Capture & DSP Resilience Suite', () => {
         stereo: false,
         maxBitrate: 128000,
         inbandFec: true,
-        dtx: true,
+        dtx: false,
       });
 
       expect(munged).toContain('stereo=0');
       expect(munged).toContain('sprop-stereo=0');
       expect(munged).toContain('useinbandfec=1');
-      expect(munged).toContain('usedtx=1');
+      expect(munged).toContain('usedtx=0');
+    });
+
+    it('seamlessly recovers microphone stream when track.onended triggers during active speech', async () => {
+      let currentTrackIndex = 0;
+      const tracks = [
+        { kind: 'audio', enabled: true, stop: vi.fn(), onended: null as any, getSettings: () => ({ deviceId: 'mic-1' }) },
+        { kind: 'audio', enabled: true, stop: vi.fn(), onended: null as any, getSettings: () => ({ deviceId: 'mic-2' }) },
+      ];
+
+      const getUserMediaMock = vi.fn().mockImplementation(async () => {
+        const tr = tracks[currentTrackIndex++];
+        return new MockMediaStream([tr]);
+      });
+
+      Object.defineProperty(navigator, 'mediaDevices', {
+        value: {
+          getUserMedia: getUserMediaMock,
+          enumerateDevices: vi.fn().mockResolvedValue([]),
+          addEventListener: vi.fn(),
+        },
+        writable: true,
+        configurable: true,
+      });
+
+      const onTrackChanged = vi.fn();
+      const onDeviceReconnected = vi.fn();
+      const mediaSession = new MediaSession({
+        onTrackChanged,
+        onDeviceReconnected,
+      });
+
+      const initialTrack = await mediaSession.startMicrophone();
+      expect(initialTrack).toBe(tracks[0]);
+      expect(onTrackChanged).toHaveBeenCalledWith('audio', tracks[0]);
+
+      // Simulate unexpected track end (Bluetooth profile change, OS glitch, or audio driver reset)
+      expect(tracks[0].onended).toBeDefined();
+      tracks[0].onended();
+
+      // Allow async auto-recovery to execute
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Auto-recovery should have acquired tracks[1] and notified listeners seamlessly
+      expect(mediaSession.getMicrophoneTrack()).toBe(tracks[1]);
+      expect(onDeviceReconnected).toHaveBeenCalled();
+      expect(onTrackChanged).toHaveBeenCalledWith('audio', tracks[1]);
+
+      mediaSession.stopMicrophone();
     });
   });
 });

@@ -1747,6 +1747,7 @@
 .message-item-container {
   position: relative;
   transition: background-color var(--transition-fast);
+  -webkit-touch-callout: none;
 }
 
 .message-item-container:hover {
@@ -1778,8 +1779,10 @@
   color: #ffffff;
 }
 
-.message-item-container:hover .message-hover-actions {
-  display: flex;
+@media (hover: hover) and (pointer: fine) {
+  .message-item-container:hover .message-hover-actions {
+    display: flex;
+  }
 }
 
 .message-hover-actions {
@@ -5953,12 +5956,12 @@
     height: 30px;
   }
 
-  /* Mobile floating controls dock (fits within 240px) */
+  /* Mobile floating controls dock */
   .video-controls-dock {
-    bottom: 10px;
-    padding: 4px 6px;
-    gap: 4px;
-    border-radius: 28px;
+    bottom: calc(16px + var(--safe-area-bottom));
+    padding: 6px 8px;
+    gap: 6px;
+    border-radius: var(--radius-md);
   }
 
   .video-controls-dock::before {
@@ -5969,25 +5972,28 @@
   }
 
   .video-controls-dock .dock-btn {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: var(--radius-sm);
   }
 
   .video-controls-dock .dock-split-wrapper {
-    height: 36px;
-    border-radius: 18px;
+    height: 44px;
+    border-radius: var(--radius-sm);
   }
 
   .video-controls-dock .dock-split-wrapper .dock-btn {
-    width: 34px;
-    height: 34px;
+    width: 44px;
+    height: 44px;
   }
 
   .video-controls-dock .dock-arrow-btn {
     width: 16px;
     min-width: 16px;
-    height: 34px;
-    border-radius: 0 17px 17px 0;
+    height: 44px;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   }
 
   .dock-split-wrapper:hover .dock-arrow-tooltip,
@@ -6004,10 +6010,12 @@
   }
 
   .dock-disconnect-btn {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
     padding: 0;
-    border-radius: 50%;
+    border-radius: var(--radius-sm);
     justify-content: center;
     margin-left: 0;
   }
@@ -6242,14 +6250,30 @@
 }
 
 @media (max-width: 768px) {
+  /* Prevent iOS Safari aggressive auto-zoom on form controls */
+  input,
+  textarea,
+  select,
+  .input-field,
+  .textarea-field,
+  .composer-input,
+  .dm-composer-input {
+    font-size: 16px !important;
+  }
+
+  /* Chat Composer Mobile Layout & Virtual Keyboard handling */
   .composer-container {
     padding: 8px 12px calc(8px + var(--safe-area-bottom));
   }
 
+  .mobile-layout-root.keyboard-open .composer-container {
+    padding-bottom: 8px;
+  }
+
   .composer-box {
-    padding: 6px 10px;
+    padding: 6px 12px;
     min-height: 48px;
-    border-radius: var(--radius-pill);
+    border-radius: var(--radius-lg);
   }
 
   .composer-attach-btn {
@@ -6260,7 +6284,30 @@
   .composer-send-btn {
     width: 38px;
     height: 38px;
-    border-radius: var(--radius-pill);
+    border-radius: var(--radius-sm);
+  }
+
+  /* DM Composer Mobile Layout */
+  .dm-composer-footer {
+    padding: 8px 12px calc(8px + var(--safe-area-bottom));
+  }
+
+  .mobile-layout-root.keyboard-open .dm-composer-footer {
+    padding-bottom: 8px;
+  }
+
+  .dm-composer-form {
+    border-radius: var(--radius-lg);
+    min-height: 48px;
+    padding: 6px 12px;
+  }
+
+  .dm-send-btn {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    border-radius: var(--radius-sm);
   }
 
   /* Full screen thread drawer on mobile */
@@ -6282,23 +6329,35 @@
     background: transparent !important;
   }
 
+  /* Video stage bottom clearance for floating controls dock */
+  .video-room-stage {
+    padding-bottom: calc(76px + var(--safe-area-bottom));
+  }
+
   /* Video controls mobile dock */
   .video-controls-dock.mobile-dock {
     bottom: calc(16px + var(--safe-area-bottom));
-    padding: 6px 14px;
+    padding: 6px 12px;
     gap: 8px;
-    border-radius: var(--radius-pill);
+    border-radius: var(--radius-md);
+    max-width: calc(100vw - 24px);
+    box-sizing: border-box;
   }
 
   .video-controls-dock.mobile-dock .dock-btn {
     width: 44px;
     height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: var(--radius-sm);
   }
 
   .mobile-flip-btn {
     width: 44px;
     height: 44px;
-    border-radius: var(--radius-pill);
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: var(--radius-sm);
     background: var(--bg-surface-active);
     color: var(--accent);
     display: flex;
@@ -6310,9 +6369,65 @@
   .video-controls-dock.mobile-dock .dock-disconnect-btn {
     padding: 0 14px;
     height: 44px;
+    min-height: 44px;
+    border-radius: var(--radius-sm);
   }
 
   .video-controls-dock.mobile-dock .dock-disconnect-text {
     display: none;
+  }
+
+  /* Horizontal Scrolling & Overflow Containment for Navigation Bars */
+  .friends-top-bar,
+  .inbox-top-bar {
+    padding: 0 12px;
+    gap: 10px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .friends-tabs,
+  .inbox-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    flex-shrink: 1;
+  }
+
+  .friends-tabs::-webkit-scrollbar,
+  .inbox-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .inbox-actions .inbox-mark-all-btn span {
+    display: none;
+  }
+
+  .inbox-actions .inbox-mark-all-btn {
+    padding: 6px;
+    min-width: 38px;
+    height: 38px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Dashboard mobile padding and card responsive grid */
+  .home-dashboard-container {
+    padding: 16px 14px calc(16px + var(--safe-area-bottom));
+    gap: 20px;
+  }
+
+  .hero-quick-bar {
+    width: 100%;
+    box-sizing: border-box;
+    justify-content: space-between;
+  }
+
+  .workspaces-grid {
+    grid-template-columns: 1fr;
   }
 }

@@ -89,7 +89,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     const touch = e.touches[0];
     const deltaX = Math.abs(touch.clientX - touchStartPosRef.current.x);
     const deltaY = Math.abs(touch.clientY - touchStartPosRef.current.y);
-    if (deltaX > 8 || deltaY > 8) {
+    if (deltaX > 14 || deltaY > 14) {
       if (longPressTimerRef.current) {
         clearTimeout(longPressTimerRef.current);
         longPressTimerRef.current = null;

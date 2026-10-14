@@ -121,7 +121,7 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
           audioPreset: {
             maxBitrate: 128_000,
           },
-          dtx: true,
+          dtx: false,
           red: true,
           forceStereo: false,
           degradationPreference: 'maintain-framerate',
@@ -281,7 +281,7 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
             videoSimulcastLayers: isVideo ? [VideoPresets.h360, VideoPresets.h720] : undefined,
             videoEncoding: isVideo ? { maxBitrate: 6_000_000, maxFramerate: 60 } : undefined,
             audioPreset: !isVideo ? { maxBitrate: 320_000 } : undefined,
-            dtx: !isVideo,
+            dtx: false,
             red: !isVideo,
             forceStereo: false,
           });
@@ -339,7 +339,7 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
         videoSimulcastLayers: isVideo ? [VideoPresets.h360, VideoPresets.h720] : undefined,
         videoEncoding: isVideo ? { maxBitrate: 6_000_000, maxFramerate: 60 } : undefined,
         audioPreset: !isVideo ? { maxBitrate: 320_000 } : undefined,
-        dtx: !isVideo,
+        dtx: false,
         red: !isVideo,
         forceStereo: false,
       });
@@ -571,8 +571,9 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
       let candidateType: string | undefined = undefined;
 
       for (const statsReport of reports) {
-        // Resolve Codec ID Map to actual negotiated codec MIME types
+        // Resolve Codec ID Map to actual negotiated codec MIME types and candidate map
         const codecMap = new Map<string, string>();
+        const candidateMap = new Map<string, any>();
         statsReport.forEach((report: any) => {
           if (report.type === 'codec') {
             const mime = report.mimeType || '';
@@ -589,17 +590,22 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
             } else if (mime) {
               codecMap.set(report.id, mime.split('/')[1] || mime);
             }
+          } else if (report.type === 'local-candidate' || report.type === 'remote-candidate') {
+            candidateMap.set(report.id, report);
           }
         });
 
-        // Parse candidate-pair, inbound-rtp, and outbound-rtp
+        // Parse candidate-pair, inbound-rtp, outbound-rtp, and remote-inbound-rtp
         statsReport.forEach((report: any) => {
           if (report.type === 'candidate-pair' && (report.nominated || report.state === 'succeeded' || report.selected)) {
             if (report.currentRoundTripTime !== undefined) {
               measuredRtt = Math.round(report.currentRoundTripTime * 1000);
             }
-            if (report.candidatePairType || report.remoteCandidateType) {
-              candidateType = report.candidatePairType || report.remoteCandidateType;
+            const cand = candidateMap.get(report.remoteCandidateId) || candidateMap.get(report.localCandidateId);
+            if (cand?.candidateType) {
+              candidateType = cand.candidateType;
+            } else if (report.candidatePairType || report.remoteCandidateType || report.candidateType) {
+              candidateType = report.candidatePairType || report.remoteCandidateType || report.candidateType;
             }
           }
 
@@ -609,6 +615,11 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
             }
             if (report.jitter !== undefined) {
               measuredJitter = Math.max(measuredJitter || 0, Math.round(report.jitter * 1000));
+            }
+            // For outbound streams, packet loss feedback is sent back by the SFU via RTCP
+            if (report.packetsLost !== undefined && report.packetsLost >= 0) {
+              packetsLost += report.packetsLost;
+              hasPacketData = true;
             }
           }
 
@@ -653,6 +664,10 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
               if (report.bytesSent !== undefined) {
                 bytesSent += report.bytesSent;
                 hasBytesData = true;
+              }
+              if (report.packetsSent !== undefined) {
+                packetsReceived += report.packetsSent;
+                hasPacketData = true;
               }
             }
           }
@@ -711,7 +726,7 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
       this.currentQuality = quality;
       this.currentStats = {
         rtt: measuredRtt,
-        packetLoss: packetLossPercent,
+        packetLoss: packetLossPercent !== undefined ? packetLossPercent : (hasPacketData ? 0 : undefined),
         jitter: measuredJitter,
         bitrate: measuredBitrate ?? (hasBytesData ? 0 : undefined),
         fps: measuredFps,

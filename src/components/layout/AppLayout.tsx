@@ -52,7 +52,7 @@ export const AppLayout: React.FC = () => {
   const [homeTab, setHomeTab] = useState<HomeTab>('dms');
 
   // Mobile layout state
-  const { isMobile } = useViewport();
+  const { isMobile, isKeyboardOpen } = useViewport();
   const [mobileTab, setMobileTab] = useState<MobileTab>('home');
   const [workspaceSheetOpen, setWorkspaceSheetOpen] = useState(false);
   const [channelSheetOpen, setChannelSheetOpen] = useState(false);
@@ -339,7 +339,7 @@ export const AppLayout: React.FC = () => {
   // ====================================================================
   if (isMobile) {
     return (
-      <div className="app-container mobile-layout-root">
+      <div className={`app-container mobile-layout-root ${isKeyboardOpen ? 'keyboard-open' : ''}`}>
         {/* Mobile Header (Hidden in Fullscreen Voice/Stage views) */}
         {!isVoiceView && !isStageView && (
           <MobileHeader
@@ -422,37 +422,41 @@ export const AppLayout: React.FC = () => {
           )}
         </main>
 
-        {/* Persistent Mini Call Bar (rendered whenever in call & browsing elsewhere) */}
-        <MiniCallBar
-          onReturnToCall={() => {
-            setViewMode('server');
-            setMobileTab('spaces');
-          }}
-          isFullCallViewActive={isVoiceView || isStageView}
-        />
+        {/* Persistent Mini Call Bar (hidden while typing to maximize viewport) */}
+        {!isKeyboardOpen && (
+          <MiniCallBar
+            onReturnToCall={() => {
+              setViewMode('server');
+              setMobileTab('spaces');
+            }}
+            isFullCallViewActive={isVoiceView || isStageView}
+          />
+        )}
 
-        {/* Bottom Navigation Bar */}
-        <MobileBottomNav
-          activeTab={mobileTab}
-          onSelectTab={(tab) => {
-            if (tab === 'profile') {
-              setMobileSettingsOpen(true);
-            } else {
-              setMobileTab(tab);
-              if (tab === 'home') {
-                setViewMode('home');
-              } else if (tab === 'dms') {
-                setViewMode('home');
-                setHomeTab('dms');
-              } else if (tab === 'spaces') {
-                setViewMode('server');
-              } else if (tab === 'inbox') {
-                setViewMode('home');
-                setHomeTab('inbox');
+        {/* Bottom Navigation Bar (hidden during active virtual keyboard to give full height to chat) */}
+        {!isKeyboardOpen && (
+          <MobileBottomNav
+            activeTab={mobileTab}
+            onSelectTab={(tab) => {
+              if (tab === 'profile') {
+                setMobileSettingsOpen(true);
+              } else {
+                setMobileTab(tab);
+                if (tab === 'home') {
+                  setViewMode('home');
+                } else if (tab === 'dms') {
+                  setViewMode('home');
+                  setHomeTab('dms');
+                } else if (tab === 'spaces') {
+                  setViewMode('server');
+                } else if (tab === 'inbox') {
+                  setViewMode('home');
+                  setHomeTab('inbox');
+                }
               }
-            }
-          }}
-        />
+            }}
+          />
+        )}
 
         {/* Mobile Workspace Switcher Sheet */}
         <WorkspaceSheet
