@@ -423,6 +423,19 @@ export class PeerConnectionManager implements ITransportAdapter {
     });
   }
 
+  public async sendCallReaction(emoji: string, senderName?: string): Promise<void> {
+    await this.signaling.sendSignal({
+      type: 'reaction',
+      fromPeerId: this.localPeerId,
+      roomId: this.roomId,
+      payload: {
+        emoji,
+        senderId: this.localPeerId,
+        senderName: senderName || this.userProfile?.displayName || this.userProfile?.username || 'Member',
+      },
+    });
+  }
+
   // ==========================================
   // PERFECT NEGOTIATION WITH OPUS OPTIMIZATION
   // ==========================================
@@ -478,6 +491,11 @@ export class PeerConnectionManager implements ITransportAdapter {
 
     if (type === 'stage-hand-dismiss') {
       this.callbacks.onTargetedStageAction?.('lower-hand', payload.targetUserId);
+      return;
+    }
+
+    if (type === 'reaction') {
+      this.callbacks.onCallReaction?.(payload);
       return;
     }
 

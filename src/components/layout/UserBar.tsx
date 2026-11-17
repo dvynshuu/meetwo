@@ -6,6 +6,7 @@ import { Avatar } from '../ui/Avatar';
 import { UserStatus } from '../../types';
 import { CustomStatusModal } from '../ui/CustomStatusModal';
 import { Tooltip } from '../ui/Tooltip';
+import { AudioVisualizer } from '../ui/AudioVisualizer';
 
 interface UserBarProps {
   onOpenSettings: () => void;
@@ -13,7 +14,7 @@ interface UserBarProps {
 
 export const UserBar: React.FC<UserBarProps> = ({ onOpenSettings }) => {
   const { currentUser, setStatus } = useAuth();
-  const { isAudioMuted, toggleAudio, isDeafened, toggleDeafen, isSpeaking } = useMedia();
+  const { isAudioMuted, toggleAudio, isDeafened, toggleDeafen, isSpeaking, isPushToTalk } = useMedia();
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showCustomStatusModal, setShowCustomStatusModal] = useState(false);
   const statusMenuRef = useRef<HTMLDivElement>(null);
@@ -75,7 +76,23 @@ export const UserBar: React.FC<UserBarProps> = ({ onOpenSettings }) => {
 
       {/* Quick Action Buttons: Mic, Deafen, Settings */}
       <div className="user-bar-actions">
-        <Tooltip content={isAudioMuted ? 'Unmute (Ctrl+D)' : isSpeaking ? 'Transmitting Voice' : 'Mute (Ctrl+D)'} position="top">
+        {!isAudioMuted && isSpeaking && (
+          <AudioVisualizer width={24} height={12} barCount={4} activeColor="var(--status-online)" />
+        )}
+        <Tooltip
+          content={
+            isPushToTalk
+              ? isAudioMuted
+                ? 'Push-to-Talk (Hold Space)'
+                : 'Speaking (Release Space to Mute)'
+              : isAudioMuted
+              ? 'Unmute (Ctrl+D)'
+              : isSpeaking
+              ? 'Transmitting Voice'
+              : 'Mute (Ctrl+D)'
+          }
+          position="top"
+        >
           <button
             className={`icon-btn ${isAudioMuted ? 'muted active' : isSpeaking ? 'speaking-active' : ''}`}
             onClick={toggleAudio}

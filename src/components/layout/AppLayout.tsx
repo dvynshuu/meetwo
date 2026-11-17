@@ -1,44 +1,46 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { ServerSidebar } from './ServerSidebar';
 import { ChannelSidebar } from './ChannelSidebar';
 import { HomeSidebar, HomeTab } from './HomeSidebar';
 import { TopAppBar } from './TopAppBar';
 import { MemberList } from './MemberList';
 import { ChatContainer } from '../chat/ChatContainer';
-import { VideoRoom } from '../video/VideoRoom';
-import { StageRoom } from '../video/StageRoom';
-import { ForumContainer } from '../forum/ForumContainer';
-import { SavedMessagesDrawer } from '../chat/SavedMessagesDrawer';
 import { HomeView } from '../home/HomeView';
 import { useServer } from '../../app/providers/ServerContext';
 import { useMedia } from '../../app/providers/MediaContext';
 import { useNavigation } from '../../app/providers/NavigationContext';
 import { useDM } from '../../app/providers/DMContext';
 import { useAuth } from '../../app/providers/AuthContext';
-import { CreateServerModal } from '../servers/CreateServerModal';
-import { CreateChannelModal } from '../servers/CreateChannelModal';
-import { SettingsModal } from '../settings/SettingsModal';
 import { AuthScreen } from '../../features/auth/AuthScreen';
-import { CommandPalette } from '../navigation/CommandPalette';
-import { QuickSwitcher } from '../navigation/QuickSwitcher';
-import { GlobalSearchModal } from '../navigation/GlobalSearchModal';
-import { ServerInviteModal } from '../servers/ServerInviteModal';
-import { InviteAcceptModal } from '../servers/InviteAcceptModal';
-import { AuditLogModal } from '../servers/AuditLogModal';
-import { ChannelBrowserModal } from '../servers/ChannelBrowserModal';
-import { ServerOnboardingModal } from '../servers/ServerOnboardingModal';
 import { NavigationEntry } from '../../types';
 import { useViewport } from '../../lib/hooks/useViewport';
 import { MobileBottomNav, MobileTab } from './MobileBottomNav';
 import { MobileHeader } from './MobileHeader';
 import { MiniCallBar } from './MiniCallBar';
-import { WorkspaceSheet } from '../navigation/WorkspaceSheet';
-import { ChannelSheet } from '../navigation/ChannelSheet';
-import { MobileSettingsSheet } from '../settings/MobileSettingsSheet';
-import { MobileSearchView } from '../navigation/MobileSearchView';
 import { MobileDMList } from '../home/MobileDMList';
 import { DMConversationView } from '../home/DMConversationView';
 import { BottomSheet } from '../ui/BottomSheet';
+
+// Code-split dynamic views and modals via lazy loading to optimize initial payload and TTI
+const VideoRoom = lazy(() => import('../video/VideoRoom').then((m) => ({ default: m.VideoRoom })));
+const StageRoom = lazy(() => import('../video/StageRoom').then((m) => ({ default: m.StageRoom })));
+const ForumContainer = lazy(() => import('../forum/ForumContainer').then((m) => ({ default: m.ForumContainer })));
+const SavedMessagesDrawer = lazy(() => import('../chat/SavedMessagesDrawer').then((m) => ({ default: m.SavedMessagesDrawer })));
+const CreateServerModal = lazy(() => import('../servers/CreateServerModal').then((m) => ({ default: m.CreateServerModal })));
+const CreateChannelModal = lazy(() => import('../servers/CreateChannelModal').then((m) => ({ default: m.CreateChannelModal })));
+const SettingsModal = lazy(() => import('../settings/SettingsModal').then((m) => ({ default: m.SettingsModal })));
+const CommandPalette = lazy(() => import('../navigation/CommandPalette').then((m) => ({ default: m.CommandPalette })));
+const QuickSwitcher = lazy(() => import('../navigation/QuickSwitcher').then((m) => ({ default: m.QuickSwitcher })));
+const GlobalSearchModal = lazy(() => import('../navigation/GlobalSearchModal').then((m) => ({ default: m.GlobalSearchModal })));
+const ServerInviteModal = lazy(() => import('../servers/ServerInviteModal').then((m) => ({ default: m.ServerInviteModal })));
+const InviteAcceptModal = lazy(() => import('../servers/InviteAcceptModal').then((m) => ({ default: m.InviteAcceptModal })));
+const AuditLogModal = lazy(() => import('../servers/AuditLogModal').then((m) => ({ default: m.AuditLogModal })));
+const ChannelBrowserModal = lazy(() => import('../servers/ChannelBrowserModal').then((m) => ({ default: m.ChannelBrowserModal })));
+const ServerOnboardingModal = lazy(() => import('../servers/ServerOnboardingModal').then((m) => ({ default: m.ServerOnboardingModal })));
+const WorkspaceSheet = lazy(() => import('../navigation/WorkspaceSheet').then((m) => ({ default: m.WorkspaceSheet })));
+const ChannelSheet = lazy(() => import('../navigation/ChannelSheet').then((m) => ({ default: m.ChannelSheet })));
+const MobileSettingsSheet = lazy(() => import('../settings/MobileSettingsSheet').then((m) => ({ default: m.MobileSettingsSheet })));
+const MobileSearchView = lazy(() => import('../navigation/MobileSearchView').then((m) => ({ default: m.MobileSearchView })));
 
 export const AppLayout: React.FC = () => {
   const { activeServer, activeChannel, channels, selectServer, selectChannel } = useServer();
@@ -410,15 +412,17 @@ export const AppLayout: React.FC = () => {
             </div>
           ) : (
             /* mobileTab === 'spaces' or channel view */
-            isStageView ? (
-              <StageRoom onOpenSettings={() => setMobileSettingsOpen(true)} />
-            ) : isForumView ? (
-              <ForumContainer />
-            ) : isVoiceView ? (
-              <VideoRoom onOpenSettings={() => setMobileSettingsOpen(true)} />
-            ) : (
-              <ChatContainer />
-            )
+            <Suspense fallback={<div className="loading-state-screen" style={{ minHeight: 200 }} />}>
+              {isStageView ? (
+                <StageRoom onOpenSettings={() => setMobileSettingsOpen(true)} />
+              ) : isForumView ? (
+                <ForumContainer />
+              ) : isVoiceView ? (
+                <VideoRoom onOpenSettings={() => setMobileSettingsOpen(true)} />
+              ) : (
+                <ChatContainer />
+              )}
+            </Suspense>
           )}
         </main>
 
@@ -458,122 +462,119 @@ export const AppLayout: React.FC = () => {
           />
         )}
 
-        {/* Mobile Workspace Switcher Sheet */}
-        <WorkspaceSheet
-          isOpen={workspaceSheetOpen}
-          onClose={() => setWorkspaceSheetOpen(false)}
-          viewMode={viewMode}
-          onSelectHome={() => {
-            setViewMode('home');
-            setMobileTab('home');
-          }}
-          onSelectServer={(sId) => {
-            selectServer(sId);
-            setViewMode('server');
-            setMobileTab('spaces');
-          }}
-          onOpenCreateServer={() => setCreateServerOpen(true)}
-        />
+        {/* Mobile Modals & Sheets (Lazy Loaded) */}
+        <Suspense fallback={null}>
+          <WorkspaceSheet
+            isOpen={workspaceSheetOpen}
+            onClose={() => setWorkspaceSheetOpen(false)}
+            viewMode={viewMode}
+            onSelectHome={() => {
+              setViewMode('home');
+              setMobileTab('home');
+            }}
+            onSelectServer={(sId) => {
+              selectServer(sId);
+              setViewMode('server');
+              setMobileTab('spaces');
+            }}
+            onOpenCreateServer={() => setCreateServerOpen(true)}
+          />
 
-        {/* Mobile Channel Switcher Sheet */}
-        <ChannelSheet
-          isOpen={channelSheetOpen}
-          onClose={() => setChannelSheetOpen(false)}
-          onOpenCreateChannel={() => handleOpenCreateChannel()}
-          onOpenWorkspaceSheet={() => {
-            setChannelSheetOpen(false);
-            setWorkspaceSheetOpen(true);
-          }}
-        />
+          <ChannelSheet
+            isOpen={channelSheetOpen}
+            onClose={() => setChannelSheetOpen(false)}
+            onOpenCreateChannel={() => handleOpenCreateChannel()}
+            onOpenWorkspaceSheet={() => {
+              setChannelSheetOpen(false);
+              setWorkspaceSheetOpen(true);
+            }}
+          />
 
-        {/* Mobile Dedicated Search Screen */}
-        <MobileSearchView
-          isOpen={mobileSearchOpen}
-          onClose={() => setMobileSearchOpen(false)}
-          onNavigateToDM={(convoId) => {
-            setViewMode('home');
-            setMobileTab('dms');
-            selectConversation(convoId);
-          }}
-          onNavigateToServerChannel={(sId, cId) => {
-            selectServer(sId);
-            selectChannel(cId);
-            setViewMode('server');
-            setMobileTab('spaces');
-          }}
-          onNavigateToServer={(sId) => {
-            selectServer(sId);
-            setViewMode('server');
-            setMobileTab('spaces');
-          }}
-        />
+          <MobileSearchView
+            isOpen={mobileSearchOpen}
+            onClose={() => setMobileSearchOpen(false)}
+            onNavigateToDM={(convoId) => {
+              setViewMode('home');
+              setMobileTab('dms');
+              selectConversation(convoId);
+            }}
+            onNavigateToServerChannel={(sId, cId) => {
+              selectServer(sId);
+              selectChannel(cId);
+              setViewMode('server');
+              setMobileTab('spaces');
+            }}
+            onNavigateToServer={(sId) => {
+              selectServer(sId);
+              setViewMode('server');
+              setMobileTab('spaces');
+            }}
+          />
 
-        {/* Mobile Member List Sheet */}
-        <BottomSheet
-          isOpen={mobileMemberListOpen}
-          onClose={() => setMobileMemberListOpen(false)}
-          title="Members"
-          maxHeight="80vh"
-        >
-          <div className="mobile-member-sheet-wrap">
-            <MemberList />
-          </div>
-        </BottomSheet>
+          <BottomSheet
+            isOpen={mobileMemberListOpen}
+            onClose={() => setMobileMemberListOpen(false)}
+            title="Members"
+            maxHeight="80vh"
+          >
+            <div className="mobile-member-sheet-wrap">
+              <MemberList />
+            </div>
+          </BottomSheet>
 
-        {/* Mobile Settings Sheet */}
-        <MobileSettingsSheet
-          isOpen={mobileSettingsOpen}
-          onClose={() => setMobileSettingsOpen(false)}
-        />
+          <MobileSettingsSheet
+            isOpen={mobileSettingsOpen}
+            onClose={() => setMobileSettingsOpen(false)}
+          />
 
-        {/* Global Modals for Mobile */}
-        <CreateServerModal
-          isOpen={createServerOpen}
-          onClose={() => setCreateServerOpen(false)}
-          onCreated={(newServer) => {
-            selectServer(newServer.id);
-            setViewMode('server');
-            setMobileTab('spaces');
-          }}
-        />
+          <CreateServerModal
+            isOpen={createServerOpen}
+            onClose={() => setCreateServerOpen(false)}
+            onCreated={(newServer) => {
+              selectServer(newServer.id);
+              setViewMode('server');
+              setMobileTab('spaces');
+            }}
+          />
 
-        <CreateChannelModal
-          isOpen={createChannelOpen}
-          onClose={() => {
-            setCreateChannelOpen(false);
-            setSelectedCategoryId(undefined);
-          }}
-          defaultCategoryId={selectedCategoryId}
-        />
+          <CreateChannelModal
+            isOpen={createChannelOpen}
+            onClose={() => {
+              setCreateChannelOpen(false);
+              setSelectedCategoryId(undefined);
+            }}
+            defaultCategoryId={selectedCategoryId}
+          />
 
-        <InviteAcceptModal
-          isOpen={Boolean(pendingInvite)}
-          inviteCode={pendingInvite?.code || ''}
-          encodedData={pendingInvite?.encodedData}
-          onClose={() => {
-            setPendingInvite(null);
-            if (window.location.pathname.startsWith('/invite/')) {
-              window.history.replaceState({}, '', '/');
-            }
-          }}
-          onSuccess={(server, channelId) => {
-            setPendingInvite(null);
-            setViewMode('server');
-            setMobileTab('spaces');
-            selectServer(server.id, server);
-            if (channelId) {
-              selectChannel(channelId);
-            }
-            if (window.location.pathname.startsWith('/invite/')) {
-              window.history.replaceState({}, '', '/');
-            }
-          }}
-        />
+          <InviteAcceptModal
+            isOpen={Boolean(pendingInvite)}
+            inviteCode={pendingInvite?.code || ''}
+            encodedData={pendingInvite?.encodedData}
+            onClose={() => {
+              setPendingInvite(null);
+              if (window.location.pathname.startsWith('/invite/')) {
+                window.history.replaceState({}, '', '/');
+              }
+            }}
+            onSuccess={(server, channelId) => {
+              setPendingInvite(null);
+              setViewMode('server');
+              setMobileTab('spaces');
+              selectServer(server.id, server);
+              if (channelId) {
+                selectChannel(channelId);
+              }
+              if (window.location.pathname.startsWith('/invite/')) {
+                window.history.replaceState({}, '', '/');
+              }
+            }}
+          />
 
-        <SavedMessagesDrawer
-          isOpen={savedMessagesOpen}
-          onClose={() => setSavedMessagesOpen(false)}
-        />
+          <SavedMessagesDrawer
+            isOpen={savedMessagesOpen}
+            onClose={() => setSavedMessagesOpen(false)}
+          />
+        </Suspense>
       </div>
     );
   }
@@ -672,138 +673,146 @@ export const AppLayout: React.FC = () => {
               onOpenQuickSwitcher={() => setQuickSwitcherOpen(true)}
               onOpenSavedMessages={() => setSavedMessagesOpen(true)}
             />
-          ) : isStageView ? (
-            <StageRoom onOpenSettings={() => setSettingsOpen(true)} />
-          ) : isForumView ? (
-            <ForumContainer />
-          ) : isVoiceView ? (
-            <VideoRoom onOpenSettings={() => setSettingsOpen(true)} />
           ) : (
-            <ChatContainer />
+            <Suspense fallback={<div className="loading-state-screen" style={{ minHeight: 200 }} />}>
+              {isStageView ? (
+                <StageRoom onOpenSettings={() => setSettingsOpen(true)} />
+              ) : isForumView ? (
+                <ForumContainer />
+              ) : isVoiceView ? (
+                <VideoRoom onOpenSettings={() => setSettingsOpen(true)} />
+              ) : (
+                <ChatContainer />
+              )}
+            </Suspense>
           )}
 
           {/* Member List (shown in text/forum server chat views) */}
           {viewMode === 'server' && !isVoiceView && !isStageView && showMemberList && <MemberList />}
 
           {/* Saved Messages Drawer (slide-over from right) */}
-          <SavedMessagesDrawer
-            isOpen={savedMessagesOpen}
-            onClose={() => setSavedMessagesOpen(false)}
-          />
+          <Suspense fallback={null}>
+            <SavedMessagesDrawer
+              isOpen={savedMessagesOpen}
+              onClose={() => setSavedMessagesOpen(false)}
+            />
+          </Suspense>
         </div>
       </main>
 
-      {/* Quick Switcher (Ctrl+K Navigation) */}
-      <QuickSwitcher
-        isOpen={quickSwitcherOpen}
-        onClose={() => setQuickSwitcherOpen(false)}
-        onNavigateToDM={(convoId) => {
-          setViewMode('home');
-          setHomeTab('dms');
-          selectConversation(convoId);
-        }}
-        onNavigateToServerChannel={(serverId, channelId) => {
-          selectServer(serverId);
-          selectChannel(channelId);
-          setViewMode('server');
-        }}
-        onNavigateToServer={(serverId) => {
-          selectServer(serverId);
-          setViewMode('server');
-        }}
-      />
-
-      {/* Command Palette (Ctrl+Shift+K Actions) */}
-      <CommandPalette
-        isOpen={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onOpenCreateServer={() => setCreateServerOpen(true)}
-        onOpenCreateChannel={() => handleOpenCreateChannel()}
-        onOpenInvite={() => setInviteModalOpen(true)}
-        onOpenAuditLogs={() => setAuditLogOpen(true)}
-        onToggleMemberList={() => setShowMemberList((prev) => !prev)}
-      />
-
-      {/* Channel Browser Modal */}
-      <ChannelBrowserModal
-        isOpen={channelBrowserOpen}
-        onClose={() => setChannelBrowserOpen(false)}
-        onOpenCreateChannel={() => handleOpenCreateChannel()}
-      />
-
-      {/* Server Onboarding Modal */}
-      {activeServer && (
-        <ServerOnboardingModal
-          server={activeServer}
-          channels={channels}
-          isOpen={serverOnboardingOpen}
-          onClose={() => setServerOnboardingOpen(false)}
-          onSelectChannel={(cId) => selectChannel(cId)}
-        />
-      )}
-
-      {/* Modals & Overlays */}
-      <CreateServerModal
-        isOpen={createServerOpen}
-        onClose={() => setCreateServerOpen(false)}
-        onCreated={(newServer) => {
-          selectServer(newServer.id);
-          setViewMode('server');
-        }}
-      />
-
-      <CreateChannelModal
-        isOpen={createChannelOpen}
-        onClose={() => {
-          setCreateChannelOpen(false);
-          setSelectedCategoryId(undefined);
-        }}
-        defaultCategoryId={selectedCategoryId}
-      />
-
-      <SettingsModal
-        isOpen={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
-
-      <GlobalSearchModal
-        isOpen={globalSearchOpen}
-        onClose={() => setGlobalSearchOpen(false)}
-      />
-
-      <ServerInviteModal
-        isOpen={inviteModalOpen}
-        onClose={() => setInviteModalOpen(false)}
-      />
-
-      <InviteAcceptModal
-        isOpen={Boolean(pendingInvite)}
-        inviteCode={pendingInvite?.code || ''}
-        encodedData={pendingInvite?.encodedData}
-        onClose={() => {
-          setPendingInvite(null);
-          if (window.location.pathname.startsWith('/invite/')) {
-            window.history.replaceState({}, '', '/');
-          }
-        }}
-        onSuccess={(server, channelId) => {
-          setPendingInvite(null);
-          setViewMode('server');
-          selectServer(server.id, server);
-          if (channelId) {
+      {/* Desktop Modals & Overlays (Lazy Loaded) */}
+      <Suspense fallback={null}>
+        {/* Quick Switcher (Ctrl+K Navigation) */}
+        <QuickSwitcher
+          isOpen={quickSwitcherOpen}
+          onClose={() => setQuickSwitcherOpen(false)}
+          onNavigateToDM={(convoId) => {
+            setViewMode('home');
+            setHomeTab('dms');
+            selectConversation(convoId);
+          }}
+          onNavigateToServerChannel={(serverId, channelId) => {
+            selectServer(serverId);
             selectChannel(channelId);
-          }
-          if (window.location.pathname.startsWith('/invite/')) {
-            window.history.replaceState({}, '', '/');
-          }
-        }}
-      />
+            setViewMode('server');
+          }}
+          onNavigateToServer={(serverId) => {
+            selectServer(serverId);
+            setViewMode('server');
+          }}
+        />
 
-      <AuditLogModal
-        isOpen={auditLogOpen}
-        onClose={() => setAuditLogOpen(false)}
-      />
+        {/* Command Palette (Ctrl+Shift+K Actions) */}
+        <CommandPalette
+          isOpen={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenCreateServer={() => setCreateServerOpen(true)}
+          onOpenCreateChannel={() => handleOpenCreateChannel()}
+          onOpenInvite={() => setInviteModalOpen(true)}
+          onOpenAuditLogs={() => setAuditLogOpen(true)}
+          onToggleMemberList={() => setShowMemberList((prev) => !prev)}
+        />
+
+        {/* Channel Browser Modal */}
+        <ChannelBrowserModal
+          isOpen={channelBrowserOpen}
+          onClose={() => setChannelBrowserOpen(false)}
+          onOpenCreateChannel={() => handleOpenCreateChannel()}
+        />
+
+        {/* Server Onboarding Modal */}
+        {activeServer && (
+          <ServerOnboardingModal
+            server={activeServer}
+            channels={channels}
+            isOpen={serverOnboardingOpen}
+            onClose={() => setServerOnboardingOpen(false)}
+            onSelectChannel={(cId) => selectChannel(cId)}
+          />
+        )}
+
+        <CreateServerModal
+          isOpen={createServerOpen}
+          onClose={() => setCreateServerOpen(false)}
+          onCreated={(newServer) => {
+            selectServer(newServer.id);
+            setViewMode('server');
+          }}
+        />
+
+        <CreateChannelModal
+          isOpen={createChannelOpen}
+          onClose={() => {
+            setCreateChannelOpen(false);
+            setSelectedCategoryId(undefined);
+          }}
+          defaultCategoryId={selectedCategoryId}
+        />
+
+        <SettingsModal
+          isOpen={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+        />
+
+        <GlobalSearchModal
+          isOpen={globalSearchOpen}
+          onClose={() => setGlobalSearchOpen(false)}
+        />
+
+        <ServerInviteModal
+          isOpen={inviteModalOpen}
+          onClose={() => setInviteModalOpen(false)}
+        />
+
+        <InviteAcceptModal
+          isOpen={Boolean(pendingInvite)}
+          inviteCode={pendingInvite?.code || ''}
+          encodedData={pendingInvite?.encodedData}
+          onClose={() => {
+            setPendingInvite(null);
+            if (window.location.pathname.startsWith('/invite/')) {
+              window.history.replaceState({}, '', '/');
+            }
+          }}
+          onSuccess={(server, channelId) => {
+            setPendingInvite(null);
+            setViewMode('server');
+            selectServer(server.id, server);
+            if (channelId) {
+              selectChannel(channelId);
+            }
+            if (window.location.pathname.startsWith('/invite/')) {
+              window.history.replaceState({}, '', '/');
+            }
+          }}
+        />
+
+        <AuditLogModal
+          isOpen={auditLogOpen}
+          onClose={() => setAuditLogOpen(false)}
+        />
+      </Suspense>
     </div>
   );
 };

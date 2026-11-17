@@ -34,6 +34,7 @@ export interface TransportCallbacks {
   onConnectionQualityChanged?: (peerId: string, quality: ConnectionQuality, stats?: ConnectionStats) => void;
   onConnectionStateChanged?: (state: MediaLifecycleState) => void;
   onTargetedStageAction?: (action: 'invite' | 'demote' | 'lower-hand', targetUserId: string) => void;
+  onCallReaction?: (reaction: { emoji: string; senderId: string; senderName: string }) => void;
 }
 
 export interface ITransportAdapter {
@@ -52,6 +53,7 @@ export interface ITransportAdapter {
   sendSpeakingState(isSpeaking: boolean, level: number): Promise<void>;
   sendStageRole(role: 'host' | 'speaker' | 'listener', isHandRaised?: boolean): Promise<void>;
   sendTargetedStageAction(targetUserId: string, action: 'invite' | 'demote' | 'lower-hand'): Promise<void>;
+  sendCallReaction?(emoji: string, senderName?: string): Promise<void>;
   setAudioProfile?(profile: AudioCompressionProfile, stereo?: boolean): Promise<void> | void;
   getConnectionQuality(): ConnectionQuality;
   getConnectionStats(): ConnectionStats;
@@ -235,6 +237,12 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
           const data = JSON.parse(text);
           if (data.type === 'stage-action' && data.targetUserId && data.action) {
             this.callbacks.onTargetedStageAction?.(data.action, data.targetUserId);
+          } else if (data.type === 'reaction' && data.emoji) {
+            this.callbacks.onCallReaction?.({
+              emoji: data.emoji,
+              senderId: data.senderId || 'peer',
+              senderName: data.senderName || 'Member',
+            });
           }
         } catch {}
       });
@@ -459,6 +467,24 @@ export class LiveKitSFUAdapter implements ITransportAdapter {
       await this.room.localParticipant.publishData(payload, { reliable: true });
     } catch (e) {
       console.warn('[LiveKitSFUAdapter] sendTargetedStageAction failed:', e);
+    }
+  }
+
+  async sendCallReaction(emoji: string, senderName?: string): Promise<void> {
+    if (!this.room?.localParticipant) return;
+    try {
+      const payload = {
+        type: 'reaction',
+        emoji,
+        senderId: this.room.localParticipant.identity,
+        senderName: senderName || this.room.localParticipant.name || 'Member',
+      };
+      await this.room.localParticipant.publishData(
+        new TextEncoder().encode(JSON.stringify(payload)),
+        { reliable: true }
+      );
+    } catch (e) {
+      console.warn('[LiveKitSFUAdapter] sendCallReaction failed:', e);
     }
   }
 

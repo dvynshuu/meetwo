@@ -3,6 +3,7 @@ import { useMedia } from '../../app/providers/MediaContext';
 import { useServer } from '../../app/providers/ServerContext';
 import { useAuth } from '../../app/providers/AuthContext';
 import { Avatar } from '../ui/Avatar';
+import { ReactionBurstOverlay } from './ReactionBurstOverlay';
 import {
   Mic,
   MicOff,
@@ -127,6 +128,9 @@ export const StageRoom: React.FC<StageRoomProps> = ({ onOpenSettings }) => {
 
   return (
     <div className="stage-room-container">
+      {/* Real-time Call Emoji Reaction Bursts */}
+      <ReactionBurstOverlay />
+
       {/* Device State Change Toast Notification */}
       {deviceNotification && (
         <div

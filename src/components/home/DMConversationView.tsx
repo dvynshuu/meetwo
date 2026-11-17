@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Phone, User as UserIcon } from 'lucide-react';
+import { Send, Phone, PhoneCall, User as UserIcon } from 'lucide-react';
 import { useDM } from '../../app/providers/DMContext';
 import { useAuth } from '../../app/providers/AuthContext';
+import { useMedia } from '../../app/providers/MediaContext';
 import { Avatar } from '../ui/Avatar';
 import { Tooltip } from '../ui/Tooltip';
 import { User } from '../../types';
 import { useViewport } from '../../lib/hooks/useViewport';
+import { MarkdownContent } from '../chat/MarkdownContent';
 
 interface DMConversationViewProps {
   conversationId: string;
@@ -14,9 +16,20 @@ interface DMConversationViewProps {
 export const DMConversationView: React.FC<DMConversationViewProps> = ({ conversationId }) => {
   const { currentUser } = useAuth();
   const { conversations, dmMessages, sendDM } = useDM();
+  const { activeRoomId, joinVoiceRoom, leaveVoiceRoom } = useMedia();
   const { isMobile, isKeyboardOpen } = useViewport();
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const isCallActive = activeRoomId === `dm-${conversationId}`;
+
+  const handleToggleCall = () => {
+    if (isCallActive) {
+      leaveVoiceRoom();
+    } else {
+      joinVoiceRoom(`dm-${conversationId}`, false, true);
+    }
+  };
 
   const conversation = conversations.find((c) => c.id === conversationId);
   const otherUser: User | undefined =
@@ -89,9 +102,14 @@ export const DMConversationView: React.FC<DMConversationViewProps> = ({ conversa
         </div>
 
         <div className="dm-header-actions">
-          <Tooltip content="Direct voice calls in Meetwo are hosted in community channels">
-            <button className="icon-btn" aria-label="Voice Call">
-              <Phone size={16} />
+          <Tooltip content={isCallActive ? 'Leave Direct Call' : 'Start Direct Voice & Video Call'}>
+            <button
+              className={`icon-btn ${isCallActive ? 'active-call-btn' : ''}`}
+              onClick={handleToggleCall}
+              aria-label={isCallActive ? 'Leave Call' : 'Start Voice Call'}
+              style={isCallActive ? { color: 'var(--status-online)', background: 'var(--accent-soft)' } : undefined}
+            >
+              {isCallActive ? <PhoneCall size={16} /> : <Phone size={16} />}
             </button>
           </Tooltip>
           <Tooltip content="Profile details">
@@ -142,7 +160,9 @@ export const DMConversationView: React.FC<DMConversationViewProps> = ({ conversa
                     <span className="dm-message-author">{author?.displayName || author?.username}</span>
                     <span className="dm-message-time">{timeStr}</span>
                   </div>
-                  <div className="dm-message-body">{msg.content}</div>
+                  <div className="dm-message-body">
+                    <MarkdownContent content={msg.content} />
+                  </div>
                 </div>
               </div>
             );

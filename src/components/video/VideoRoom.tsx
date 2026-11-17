@@ -7,6 +7,7 @@ import { ChatContainer } from '../chat/ChatContainer';
 import { Tooltip } from '../ui/Tooltip';
 import { BottomSheet } from '../ui/BottomSheet';
 import { useViewport } from '../../lib/hooks/useViewport';
+import { ReactionBurstOverlay } from './ReactionBurstOverlay';
 import {
   Users,
   ShieldCheck,
@@ -181,6 +182,9 @@ export const VideoRoom: React.FC<VideoRoomProps> = ({ onOpenSettings }) => {
 
   return (
     <div className={`video-room-container ${isChatOpen ? 'with-chat' : ''}`}>
+      {/* Real-time Call Emoji Reaction Bursts */}
+      <ReactionBurstOverlay />
+
       {/* Device State Change Toast Notification */}
       {deviceNotification && (
         <div

@@ -23,6 +23,7 @@ import { StageService } from '../../lib/services/stageService';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { useAuth } from './AuthContext';
 import { RemoteAudioRenderer } from '../../components/video/RemoteAudioRenderer';
+import { soundEffects } from '../../lib/utils/soundEffects';
 
 interface MediaContextType {
   activeRoomId: string | null;
@@ -68,6 +69,11 @@ interface MediaContextType {
   demoteToListener: (targetUserId: string) => Promise<void>;
   lowerParticipantHand: (targetUserId: string) => Promise<void>;
   productionConfigError: string | null;
+  subscribeAudioLevel: (callback: (level: number) => void) => () => void;
+  sendCallReaction: (emoji: string) => void;
+  subscribeCallReaction: (callback: (reaction: { emoji: string; senderId: string; senderName: string }) => void) => () => void;
+  isPushToTalk: boolean;
+  setIsPushToTalk: (enabled: boolean) => void;
 }
 
 const MediaContext = createContext<MediaContextType | undefined>(undefined);
@@ -125,6 +131,56 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const isAudioMutedRef = useRef(isAudioMuted);
   const isVideoMutedRef = useRef(isVideoMuted);
+  const audioLevelSubscribersRef = useRef<Set<(level: number) => void>>(new Set());
+  const callReactionSubscribersRef = useRef<Set<(reaction: { emoji: string; senderId: string; senderName: string }) => void>>(new Set());
+
+  const [isPushToTalk, setIsPushToTalk] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('meetwo_ptt_enabled') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleSetPushToTalk = useCallback((enabled: boolean) => {
+    setIsPushToTalk(enabled);
+    try {
+      localStorage.setItem('meetwo_ptt_enabled', enabled ? 'true' : 'false');
+    } catch {}
+  }, []);
+
+  const subscribeAudioLevel = useCallback((cb: (level: number) => void) => {
+    audioLevelSubscribersRef.current.add(cb);
+    return () => {
+      audioLevelSubscribersRef.current.delete(cb);
+    };
+  }, []);
+
+  const subscribeCallReaction = useCallback((cb: (reaction: { emoji: string; senderId: string; senderName: string }) => void) => {
+    callReactionSubscribersRef.current.add(cb);
+    return () => {
+      callReactionSubscribersRef.current.delete(cb);
+    };
+  }, []);
+
+  const sendCallReaction = useCallback((emoji: string) => {
+    if (!currentUser) return;
+    const reaction = {
+      emoji,
+      senderId: currentUser.id,
+      senderName: currentUser.displayName || currentUser.username,
+    };
+    soundEffects.playReaction();
+    callReactionSubscribersRef.current.forEach((cb) => {
+      try {
+        cb(reaction);
+      } catch {}
+    });
+
+    if (transportRef.current && (transportRef.current as any).sendCallReaction) {
+      (transportRef.current as any).sendCallReaction(emoji, reaction.senderName);
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     isAudioMutedRef.current = isAudioMuted;
@@ -146,19 +202,24 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     mediaSessionRef.current.setEvents({
       onAudioLevel: (level, speaking, gate) => {
-        const now = performance.now();
         const speakingChanged = speaking !== lastSpeakingRef.current;
-        const timeElapsed = now - lastAudioLevelUpdateRef.current >= 120;
 
         if (gate) {
           setGateState(gate);
         }
 
-        if (speakingChanged || timeElapsed) {
-          lastAudioLevelUpdateRef.current = now;
+        // Notify direct audio level subscribers without triggering React re-renders of the root context
+        audioLevelSubscribersRef.current.forEach((cb) => {
+          try {
+            cb(level);
+          } catch {}
+        });
+
+        // Only trigger React state updates when speaking state actually transitions
+        if (speakingChanged) {
           lastSpeakingRef.current = speaking;
-          setAudioLevel(level);
           setIsSpeaking(speaking);
+          setAudioLevel(speaking ? level : 0);
         }
 
         if (transportRef.current) {
@@ -598,6 +659,14 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               });
             }
           },
+          onCallReaction: (reaction: { emoji: string; senderId: string; senderName: string }) => {
+            soundEffects.playReaction();
+            callReactionSubscribersRef.current.forEach((cb) => {
+              try {
+                cb(reaction);
+              } catch {}
+            });
+          },
         };
 
         const isProduction =
@@ -649,6 +718,8 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           deviceSettings.audioCompressionProfile,
           deviceSettings.stereoAudio
         );
+
+        soundEffects.playJoin();
       } catch (err) {
         console.error('[MediaEngine] Failed to connect to room:', err);
         setConnectionState('failed');
@@ -683,6 +754,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setProductionConfigError(null);
     setRemoteParticipants(new Map());
     setConnectionStats({ quality: 'unknown' });
+    soundEffects.playLeave();
   }, []);
 
   const openPreJoin = useCallback((roomId: string) => {
@@ -734,6 +806,12 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setIsAudioMuted(nextMuted);
     isAudioMutedRef.current = nextMuted;
 
+    if (nextMuted) {
+      soundEffects.playMute();
+    } else {
+      soundEffects.playUnmute();
+    }
+
     // Discord behavior: If user manually un-mutes microphone while deafened, automatically un-deafen as well
     if (!nextMuted && isDeafenedRef.current) {
       setIsDeafened(false);
@@ -751,6 +829,42 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       transportRef.current.sendMuteState(nextMuted, isVideoMuted).catch(() => {});
     }
   }, [isAudioMuted, isVideoMuted, deviceSettings.audioInputId]);
+
+  // Push-to-talk keyboard handler
+  const pttActiveRef = useRef(false);
+  useEffect(() => {
+    if (!isPushToTalk || !activeRoomId) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !pttActiveRef.current) {
+        const target = e.target as HTMLElement;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+          return;
+        }
+        e.preventDefault();
+        pttActiveRef.current = true;
+        if (isAudioMutedRef.current) {
+          toggleAudio();
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && pttActiveRef.current) {
+        pttActiveRef.current = false;
+        if (!isAudioMutedRef.current) {
+          toggleAudio();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [isPushToTalk, activeRoomId, toggleAudio]);
 
   // Discord Deafen Toggle: Silences incoming audio and mutes microphone
   const toggleDeafen = useCallback(() => {
@@ -1136,6 +1250,11 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         demoteToListener,
         lowerParticipantHand,
         productionConfigError,
+        subscribeAudioLevel,
+        sendCallReaction,
+        subscribeCallReaction,
+        isPushToTalk,
+        setIsPushToTalk: handleSetPushToTalk,
       }}
     >
       {children}

@@ -24,7 +24,7 @@ interface VideoTileProps {
   isScreenTile?: boolean;
 }
 
-export const VideoTile: React.FC<VideoTileProps> = ({
+export const VideoTile: React.FC<VideoTileProps> = React.memo(({
   participant,
   isLocal,
   isFeatured = false,
@@ -33,7 +33,7 @@ export const VideoTile: React.FC<VideoTileProps> = ({
   const tileRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const snapshotCanvasRef = useRef<HTMLCanvasElement>(null);
-  const { participants, pinnedParticipantId, setPinnedParticipantId, deviceSettings, toggleScreenShare } = useMedia();
+  const { pinnedParticipantId, setPinnedParticipantId, deviceSettings, toggleScreenShare } = useMedia();
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showLocalMiniPreview, setShowLocalMiniPreview] = useState(true);
@@ -486,4 +486,4 @@ export const VideoTile: React.FC<VideoTileProps> = ({
       </div>
     </div>
   );
-};
+});

@@ -10,6 +10,8 @@ import { User, Volume2, Video, Sliders, Bell, Mic } from 'lucide-react';
 import { VideoQuality, QualityMode } from '../../types';
 import { playSpeakerTestChime, AudioDSPManager, routeAudioOutput } from '../../lib/webrtc/audioProcessing';
 
+import { soundEffects } from '../../lib/utils/soundEffects';
+
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -30,6 +32,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     isVideoMuted,
     switchCamera,
     switchMicrophone,
+    isPushToTalk,
+    setIsPushToTalk,
   } = useMedia();
 
   const [activeTab, setActiveTab] = useState<'account' | 'voice_video' | 'appearance' | 'notifications'>('account');
@@ -652,6 +656,66 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       </option>
                     ))}
                   </select>
+                </div>
+              </div>
+
+              {/* Input Activation Mode (Voice Activity vs Push-to-Talk) */}
+              <div className="input-group">
+                <label className="input-label">Microphone Activation Mode</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div
+                    onClick={() => setIsPushToTalk(false)}
+                    style={{
+                      padding: '12px 14px',
+                      background: !isPushToTalk ? 'var(--bg-surface-active)' : 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: `1px solid ${!isPushToTalk ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <input
+                        type="radio"
+                        name="inputMode"
+                        checked={!isPushToTalk}
+                        onChange={() => setIsPushToTalk(false)}
+                      />
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Voice Activity
+                      </span>
+                    </div>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, paddingLeft: 22 }}>
+                      Automatically transmits when speaking via adaptive noise gate.
+                    </p>
+                  </div>
+
+                  <div
+                    onClick={() => setIsPushToTalk(true)}
+                    style={{
+                      padding: '12px 14px',
+                      background: isPushToTalk ? 'var(--bg-surface-active)' : 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: `1px solid ${isPushToTalk ? 'var(--accent)' : 'var(--border-subtle)'}`,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <input
+                        type="radio"
+                        name="inputMode"
+                        checked={isPushToTalk}
+                        onChange={() => setIsPushToTalk(true)}
+                      />
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Push-to-Talk
+                      </span>
+                    </div>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, paddingLeft: 22 }}>
+                      Hold <strong>Space</strong> key to transmit. Muted while key is released.
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -1440,21 +1504,90 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </div>
           )}
 
-          {/* TAB 4: Notifications */}
+          {/* TAB 4: Notifications & Audio Feedback */}
           {activeTab === 'notifications' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                <input type="checkbox" defaultChecked />
-                <span style={{ fontSize: 14 }}>Enable Desktop Push Notifications</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                <input type="checkbox" defaultChecked />
-                <span style={{ fontSize: 14 }}>Play sound on incoming direct messages</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                <input type="checkbox" defaultChecked />
-                <span style={{ fontSize: 14 }}>Play chime on voice channel connect/disconnect</span>
-              </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <input type="checkbox" defaultChecked />
+                  <span style={{ fontSize: 14 }}>Enable Desktop Push Notifications</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    defaultChecked={soundEffects.getEnabled()}
+                    onChange={(e) => soundEffects.setEnabled(e.target.checked)}
+                  />
+                  <span style={{ fontSize: 14 }}>Enable Studio Sound Effects (Tactile Chimes & Cues)</span>
+                </label>
+              </div>
+
+              {/* Sound Effects Preview Suite */}
+              <div
+                style={{
+                  padding: 14,
+                  background: 'var(--bg-surface)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                }}
+              >
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                  STUDIO AUDIO PREVIEW
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ fontSize: 12, padding: '6px 10px' }}
+                    onClick={() => soundEffects.playJoin()}
+                  >
+                    ▶ Room Join
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ fontSize: 12, padding: '6px 10px' }}
+                    onClick={() => soundEffects.playLeave()}
+                  >
+                    ▶ Room Leave
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ fontSize: 12, padding: '6px 10px' }}
+                    onClick={() => soundEffects.playUnmute()}
+                  >
+                    ▶ Unmute Cue
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ fontSize: 12, padding: '6px 10px' }}
+                    onClick={() => soundEffects.playMute()}
+                  >
+                    ▶ Mute Cue
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ fontSize: 12, padding: '6px 10px' }}
+                    onClick={() => soundEffects.playReaction()}
+                  >
+                    ▶ Reaction Pop
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ fontSize: 12, padding: '6px 10px' }}
+                    onClick={() => soundEffects.playNotification()}
+                  >
+                    ▶ Notification
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

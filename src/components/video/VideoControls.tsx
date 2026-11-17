@@ -11,6 +11,7 @@ import {
   Activity,
   Check,
   RefreshCw,
+  Smile,
 } from 'lucide-react';
 import { useMedia } from '../../app/providers/MediaContext';
 import { MediaSession } from '../../lib/webrtc/mediaSession';
@@ -37,7 +38,12 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
     switchCamera,
     switchMicrophone,
     leaveVoiceRoom,
+    sendCallReaction,
+    isPushToTalk,
   } = useMedia();
+
+  const [showReactionMenu, setShowReactionMenu] = useState(false);
+  const reactionMenuRef = useRef<HTMLDivElement>(null);
 
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
@@ -59,6 +65,9 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
       }
       if (videoMenuRef.current && !videoMenuRef.current.contains(e.target as Node)) {
         setShowVideoMenu(false);
+      }
+      if (reactionMenuRef.current && !reactionMenuRef.current.contains(e.target as Node)) {
+        setShowReactionMenu(false);
       }
     };
 
@@ -213,6 +222,42 @@ export const VideoControls: React.FC<VideoControlsProps> = ({ onOpenSettings }) 
                 </button>
               ))
             )}
+          </div>
+        )}
+      </div>
+
+      {/* Reactions Burst Trigger */}
+      <div className={`dock-split-wrapper ${showReactionMenu ? 'menu-open' : ''}`} ref={reactionMenuRef}>
+        <Tooltip content="Send Live Reaction" position="top">
+          <button
+            type="button"
+            className={`dock-btn ${showReactionMenu ? 'dock-btn-active' : ''}`}
+            onClick={() => setShowReactionMenu(!showReactionMenu)}
+            aria-label="Send Reaction"
+          >
+            <Smile size={19} />
+          </button>
+        </Tooltip>
+
+        {showReactionMenu && (
+          <div className="control-quick-menu reaction-quick-menu">
+            <div className="control-quick-menu-header">LIVE REACTIONS</div>
+            <div className="dock-reaction-palette">
+              {['🎉', '❤️', '🔥', '👏', '🚀', '😂', '💯', '👀'].map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  className="dock-reaction-item"
+                  onClick={() => {
+                    sendCallReaction(emoji);
+                    setShowReactionMenu(false);
+                  }}
+                  title={`React ${emoji}`}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>

@@ -24,6 +24,7 @@ import { PollMessage } from './PollMessage';
 import { Tooltip } from '../ui/Tooltip';
 import { ServerInviteEmbed } from './ServerInviteEmbed';
 import { MessageActionSheet } from './MessageActionSheet';
+import { MarkdownContent } from './MarkdownContent';
 
 interface MessageItemProps {
   message: Message;
@@ -32,7 +33,7 @@ interface MessageItemProps {
   onOpenThread?: (message: Message) => void;
 }
 
-export const MessageItem: React.FC<MessageItemProps> = ({
+export const MessageItem: React.FC<MessageItemProps> = React.memo(({
   message,
   isGrouped,
   channelName = 'general',
@@ -198,40 +199,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       return <PollMessage poll={pollData} />;
     }
 
-    if (content.startsWith('```') && content.endsWith('```')) {
-      const code = content.slice(3, -3).trim();
-      return (
-        <pre className="message-code-block">
-          <code>{code}</code>
-        </pre>
-      );
-    }
-
-    const parts = content.split(/(\s+)/);
-    return parts.map((part, i) => {
-      if (part.startsWith('@')) {
-        return (
-          <span key={i} className="mention-tag">
-            {part}
-          </span>
-        );
-      }
-      if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
-        return (
-          <code key={i} className="inline-code">
-            {part.slice(1, -1)}
-          </code>
-        );
-      }
-      if (part.startsWith('http://') || part.startsWith('https://')) {
-        return (
-          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="message-link">
-            {part}
-          </a>
-        );
-      }
-      return part;
-    });
+    return <MarkdownContent content={content} />;
   };
 
   const commonEmojis = ['👍', '❤️', '🔥', '😂', '🎉', '🚀', '👀'];
@@ -605,4 +573,4 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       />
     </div>
   );
-};
+});

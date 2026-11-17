@@ -259,7 +259,8 @@ export interface PeerSignalMessage {
     | 'stage-invite'
     | 'stage-demote'
     | 'stage-hand-dismiss'
-    | 'track-update';
+    | 'track-update'
+    | 'reaction';
   fromPeerId: string;
   toPeerId?: string;
   roomId: string;
