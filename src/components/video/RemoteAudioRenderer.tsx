@@ -6,6 +6,7 @@ interface RemoteAudioTrackProps {
   stream: MediaStream;
   isDeafened: boolean;
   sinkId?: string;
+  volume?: number; // 0 to 200, default 100
 }
 
 const RemoteAudioTrack: React.FC<RemoteAudioTrackProps> = ({
@@ -13,6 +14,7 @@ const RemoteAudioTrack: React.FC<RemoteAudioTrackProps> = ({
   stream,
   isDeafened,
   sinkId,
+  volume = 100,
 }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -24,6 +26,9 @@ const RemoteAudioTrack: React.FC<RemoteAudioTrackProps> = ({
       audioEl.srcObject = stream;
     }
     audioEl.muted = isDeafened;
+
+    // Apply per-participant volume level (clamped 0.0 to 1.0 on standard HTMLAudioElement)
+    audioEl.volume = Math.max(0, Math.min(1, volume / 100));
 
     if (sinkId && typeof (audioEl as any).setSinkId === 'function') {
       (audioEl as any).setSinkId(sinkId).catch((err: any) => {
@@ -50,7 +55,7 @@ const RemoteAudioTrack: React.FC<RemoteAudioTrackProps> = ({
     };
 
     attemptPlay();
-  }, [id, stream, isDeafened, sinkId]);
+  }, [id, stream, isDeafened, sinkId, volume]);
 
   return (
     <audio
@@ -76,6 +81,7 @@ interface RemoteAudioRendererProps {
   currentUserId?: string;
   isDeafened: boolean;
   sinkId?: string;
+  userVolumes?: Record<string, number>;
 }
 
 export const RemoteAudioRenderer: React.FC<RemoteAudioRendererProps> = ({
@@ -83,6 +89,7 @@ export const RemoteAudioRenderer: React.FC<RemoteAudioRendererProps> = ({
   currentUserId,
   isDeafened,
   sinkId,
+  userVolumes,
 }) => {
   const remoteParticipants = participants.filter((p) => p.userId !== currentUserId);
 
@@ -104,6 +111,7 @@ export const RemoteAudioRenderer: React.FC<RemoteAudioRendererProps> = ({
           Boolean(p.stream) && p.stream!.getAudioTracks().length > 0;
         const hasScreenAudioTrack =
           Boolean(p.screenStream) && p.screenStream!.getAudioTracks().length > 0;
+        const vol = userVolumes?.[p.userId] ?? p.userVolume ?? 100;
 
         return (
           <React.Fragment key={`remote-audio-group-${p.id}`}>
@@ -113,6 +121,7 @@ export const RemoteAudioRenderer: React.FC<RemoteAudioRendererProps> = ({
                 stream={p.stream}
                 isDeafened={isDeafened}
                 sinkId={sinkId}
+                volume={vol}
               />
             )}
             {hasScreenAudioTrack && p.screenStream && (
@@ -121,6 +130,7 @@ export const RemoteAudioRenderer: React.FC<RemoteAudioRendererProps> = ({
                 stream={p.screenStream}
                 isDeafened={isDeafened}
                 sinkId={sinkId}
+                volume={vol}
               />
             )}
           </React.Fragment>

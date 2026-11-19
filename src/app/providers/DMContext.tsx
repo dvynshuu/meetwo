@@ -4,6 +4,7 @@ import { DMService } from '../../lib/services/dmService';
 import { FriendService } from '../../lib/services/friendService';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { useAuth } from './AuthContext';
+import { soundEffects } from '../../lib/utils/soundEffects';
 
 interface DMContextType {
   conversations: DMConversation[];
@@ -100,6 +101,9 @@ export const DMProvider: React.FC<{ children: React.ReactNode }> = ({ children }
           setDmMessages((prev) => {
             const list = prev[newRow.conversation_id] || [];
             if (list.some((m) => m.id === incomingMsg.id)) return prev;
+            if (currentUser && newRow.author_id !== currentUser.id) {
+              soundEffects.playIncomingMessage();
+            }
             return {
               ...prev,
               [newRow.conversation_id]: [...list, incomingMsg],
@@ -212,6 +216,7 @@ export const DMProvider: React.FC<{ children: React.ReactNode }> = ({ children }
         ...prev,
         [conversationId]: [...(prev[conversationId] || []), sent],
       }));
+      soundEffects.playMessageSent();
 
       setConversations((prev) =>
         prev.map((c) =>

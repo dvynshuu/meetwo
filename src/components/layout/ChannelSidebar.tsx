@@ -21,7 +21,7 @@ import {
 import { useServer } from '../../app/providers/ServerContext';
 import { useMedia } from '../../app/providers/MediaContext';
 import { useInbox } from '../../app/providers/InboxContext';
-import { Channel, ChannelType } from '../../types';
+import { Channel, ChannelType, Participant } from '../../types';
 import { UserBar } from './UserBar';
 import { ActiveCallBar } from './ActiveCallBar';
 import { ChannelContextMenu } from '../navigation/ChannelContextMenu';
@@ -37,6 +37,42 @@ interface ChannelSidebarProps {
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
 }
+
+const VoiceParticipantsList: React.FC<{ participants: Participant[] }> = ({ participants }) => {
+  if (!participants || participants.length === 0) return null;
+  return (
+    <div className="channel-voice-participants">
+      {participants.map((p) => (
+        <div
+          key={p.id}
+          className={`channel-participant-row ${p.isSpeaking ? 'speaking' : ''}`}
+          title={`${p.displayName || p.username}${p.isAudioMuted ? ' (Muted)' : ''}`}
+        >
+          <Avatar
+            src={p.avatarUrl}
+            name={p.displayName || p.username}
+            size={20}
+            className={`voice-participant-avatar ${p.isSpeaking ? 'speaking' : ''}`}
+          />
+          <span className="truncate voice-participant-name">
+            {p.displayName || p.username}
+          </span>
+          <div className="voice-participant-icons">
+            {p.isAudioMuted && (
+              <MicOff size={12} style={{ color: 'var(--danger)' }} />
+            )}
+            {p.isVideoMuted === false && (
+              <Video size={12} style={{ color: 'var(--accent)' }} />
+            )}
+            {p.isScreenSharing && (
+              <Monitor size={12} style={{ color: 'var(--warning)' }} />
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   onOpenCreateChannel,
@@ -363,37 +399,8 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                           </div>
 
                           {/* Show participants inside voice channel */}
-                          {chan.type === 'voice' && isCurrentVoice && participants.length > 0 && (
-                            <div className="channel-voice-participants">
-                              {participants.map((p) => (
-                                <div
-                                  key={p.id}
-                                  className={`channel-participant-row ${p.isSpeaking ? 'speaking' : ''}`}
-                                  title={`${p.displayName || p.username}${p.isAudioMuted ? ' (Muted)' : ''}`}
-                                >
-                                  <Avatar
-                                    src={p.avatarUrl}
-                                    name={p.displayName || p.username}
-                                    size={20}
-                                    className={`voice-participant-avatar ${p.isSpeaking ? 'speaking' : ''}`}
-                                  />
-                                  <span className="truncate voice-participant-name">
-                                    {p.displayName || p.username}
-                                  </span>
-                                  <div className="voice-participant-icons">
-                                    {p.isAudioMuted && (
-                                      <MicOff size={12} style={{ color: 'var(--danger)' }} />
-                                    )}
-                                    {p.isVideoMuted === false && (
-                                      <Video size={12} style={{ color: 'var(--accent)' }} />
-                                    )}
-                                    {p.isScreenSharing && (
-                                      <Monitor size={12} style={{ color: 'var(--warning)' }} />
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+                          {chan.type === 'voice' && isCurrentVoice && (
+                            <VoiceParticipantsList participants={participants} />
                           )}
                         </div>
                       );
@@ -419,19 +426,24 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
             </div>
             {channels.map((chan) => {
               const isActive = activeChannel?.id === chan.id;
+              const isCurrentVoice = activeRoomId === chan.id;
               const unreadState = unreadByChannel[chan.id];
               const hasUnread = Boolean(unreadState && unreadState.count > 0 && !isActive);
 
               return (
-                <div
-                  key={chan.id}
-                  className={`channel-item ${isActive ? 'active' : ''} ${hasUnread ? 'has-unread' : ''}`}
-                  onClick={() => handleChannelClick(chan)}
-                  onContextMenu={(e) => handleChannelContextMenu(e, chan)}
-                >
-                  {hasUnread && <span className="channel-unread-dot" />}
-                  {getChannelIcon(chan.type, chan.name)}
-                  <span className="truncate">{chan.name}</span>
+                <div key={chan.id}>
+                  <div
+                    className={`channel-item ${isActive || isCurrentVoice ? 'active' : ''} ${hasUnread ? 'has-unread' : ''}`}
+                    onClick={() => handleChannelClick(chan)}
+                    onContextMenu={(e) => handleChannelContextMenu(e, chan)}
+                  >
+                    {hasUnread && <span className="channel-unread-dot" />}
+                    {getChannelIcon(chan.type, chan.name)}
+                    <span className="truncate">{chan.name}</span>
+                  </div>
+                  {chan.type === 'voice' && isCurrentVoice && (
+                    <VoiceParticipantsList participants={participants} />
+                  )}
                 </div>
               );
             })}
@@ -446,19 +458,24 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
             </div>
             {uncategorizedChannels.map((chan) => {
               const isActive = activeChannel?.id === chan.id;
+              const isCurrentVoice = activeRoomId === chan.id;
               const unreadState = unreadByChannel[chan.id];
               const hasUnread = Boolean(unreadState && unreadState.count > 0 && !isActive);
 
               return (
-                <div
-                  key={chan.id}
-                  className={`channel-item ${isActive ? 'active' : ''} ${hasUnread ? 'has-unread' : ''}`}
-                  onClick={() => handleChannelClick(chan)}
-                  onContextMenu={(e) => handleChannelContextMenu(e, chan)}
-                >
-                  {hasUnread && <span className="channel-unread-dot" />}
-                  {getChannelIcon(chan.type, chan.name)}
-                  <span className="truncate">{chan.name}</span>
+                <div key={chan.id}>
+                  <div
+                    className={`channel-item ${isActive || isCurrentVoice ? 'active' : ''} ${hasUnread ? 'has-unread' : ''}`}
+                    onClick={() => handleChannelClick(chan)}
+                    onContextMenu={(e) => handleChannelContextMenu(e, chan)}
+                  >
+                    {hasUnread && <span className="channel-unread-dot" />}
+                    {getChannelIcon(chan.type, chan.name)}
+                    <span className="truncate">{chan.name}</span>
+                  </div>
+                  {chan.type === 'voice' && isCurrentVoice && (
+                    <VoiceParticipantsList participants={participants} />
+                  )}
                 </div>
               );
             })}

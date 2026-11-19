@@ -655,6 +655,63 @@
   transform: scale(0.95);
 }
 
+.composer-box.drag-over {
+  border-color: var(--accent) !important;
+  background-color: var(--accent-subtle) !important;
+  box-shadow: 0 0 0 2px var(--accent-border);
+}
+
+/* Discord-Style @Mention Autocomplete Popover */
+.composer-mention-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 16px;
+  width: 260px;
+  max-height: 240px;
+  overflow-y: auto;
+  background-color: var(--surface-3);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: scaleUp 100ms ease-out;
+}
+
+.mention-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  color: var(--text-primary);
+  transition: background-color var(--transition-fast);
+}
+
+.mention-popover-item:hover,
+.mention-popover-item.active {
+  background-color: var(--surface-4);
+}
+
+.mention-popover-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mention-popover-tag {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 /* Typing Indicator */
 .typing-bar {
   height: 20px;
@@ -1344,6 +1401,87 @@
   color: #FFFFFF;
   font-size: 12px;
   font-weight: 600;
+}
+
+/* User Volume Overlay Control */
+.user-tag-volume-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-left: 4px;
+  transition: all var(--transition-fast);
+}
+
+.user-tag-volume-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #FFFFFF;
+}
+
+.tile-volume-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 190px;
+  background-color: var(--surface-3);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 10px 12px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: scaleUp 120ms ease-out;
+}
+
+.tile-volume-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tile-volume-pct {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.tile-volume-range {
+  width: 100%;
+  height: 4px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.tile-volume-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: space-between;
+}
+
+.tile-vol-preset-btn {
+  flex: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  color: var(--text-secondary);
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 0;
+  cursor: pointer;
+  text-align: center;
+  transition: all var(--transition-fast);
+}
+
+.tile-vol-preset-btn:hover {
+  background: var(--accent);
+  color: #FFFFFF;
+  border-color: var(--accent);
 }
 
 /* Discord-Style Floating Video Controls Dock - Only visible on hover or when active */
@@ -3949,10 +4087,39 @@
   animation: linearPulse 1.8s infinite;
 }
 
+.pulse-dot.active-connected {
+  background: var(--status-online);
+  box-shadow: 0 0 8px var(--status-online);
+}
+
 @keyframes linearPulse {
   0% { transform: scale(0.9); opacity: 0.7; }
   50% { transform: scale(1.25); opacity: 1; }
   100% { transform: scale(0.9); opacity: 0.7; }
+}
+
+.active-call-status-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  line-height: 1.2;
+}
+
+.active-call-status-text {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--status-online);
+  letter-spacing: 0.02em;
+}
+
+.active-call-ping {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 4px;
+  border-radius: 3px;
 }
 
 .active-call-title-row {
@@ -4018,6 +4185,12 @@
   background: var(--danger-surface);
   color: var(--danger);
   border-color: rgba(251, 113, 133, 0.3);
+}
+
+.active-call-btn.active-share {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-border);
 }
 
 .active-call-btn.disconnect-btn {

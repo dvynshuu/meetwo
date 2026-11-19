@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, ArrowUpRight, Radio, Volume2 } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, ArrowUpRight, Radio, Volume2, Monitor } from 'lucide-react';
 import { useMedia } from '../../app/providers/MediaContext';
 import { useServer } from '../../app/providers/ServerContext';
 import { Tooltip } from '../ui/Tooltip';
@@ -22,9 +22,12 @@ export const ActiveCallBar: React.FC<ActiveCallBarProps> = ({ onReturnToCall }) 
     participants,
     isAudioMuted,
     isVideoMuted,
+    isScreenSharing,
     connectionState,
+    connectionStats,
     toggleAudio,
     toggleVideo,
+    toggleScreenShare,
     leaveVoiceRoom,
   } = useMedia();
 
@@ -78,6 +81,8 @@ export const ActiveCallBar: React.FC<ActiveCallBarProps> = ({ onReturnToCall }) 
 
   const channelName = callMeta?.channelName || 'Voice Channel';
   const isStage = Boolean(callMeta?.isStage);
+  const isConnected = connectionState === 'connected';
+  const rtt = connectionStats?.rtt !== undefined ? Math.round(connectionStats.rtt) : null;
 
   const handleReturn = () => {
     if (callMeta?.serverId) {
@@ -91,23 +96,30 @@ export const ActiveCallBar: React.FC<ActiveCallBarProps> = ({ onReturnToCall }) 
     }
   };
 
-
   return (
     <div className="active-call-bar" role="region" aria-label="Active Call Controller">
       {/* Top info row */}
-      <div className="active-call-info" onClick={handleReturn} role="button" title="Click to view call">
-        <div className="active-call-status-indicator">
-          <span className="pulse-dot" />
+      <div className="active-call-info" onClick={handleReturn} role="button" title="Click to view voice call">
+        <div
+          className="active-call-status-indicator"
+          title={rtt !== null ? `Voice Connected • Ping: ${rtt}ms` : 'Voice Connected'}
+        >
+          <span className={`pulse-dot ${isConnected ? 'active-connected' : ''}`} />
           {isStage ? <Radio size={14} className="active-call-icon" /> : <Volume2 size={14} className="active-call-icon" />}
         </div>
         <div className="active-call-details truncate">
+          <div className="active-call-status-heading">
+            <span className="active-call-status-text">
+              {isConnected ? 'Voice Connected' : 'Connecting...'}
+            </span>
+            {isConnected && rtt !== null && (
+              <span className="active-call-ping">{rtt}ms</span>
+            )}
+          </div>
           <div className="active-call-title-row">
             <span className="active-call-title truncate">{channelName}</span>
-            <ArrowUpRight size={12} className="active-call-arrow" />
+            <ArrowUpRight size={11} className="active-call-arrow" />
           </div>
-          <span className="active-call-meta">
-            {connectionState === 'connected' ? `${participants.length} connected` : 'Connecting...'}
-          </span>
         </div>
       </div>
 
@@ -136,6 +148,19 @@ export const ActiveCallBar: React.FC<ActiveCallBarProps> = ({ onReturnToCall }) 
             aria-label={isVideoMuted ? 'Start Video' : 'Stop Video'}
           >
             {isVideoMuted ? <VideoOff size={14} /> : <Video size={14} />}
+          </button>
+        </Tooltip>
+
+        <Tooltip content={isScreenSharing ? 'Stop Screen Share' : 'Share Screen'} position="top" style={{ flex: 1, display: 'flex' }}>
+          <button
+            className={`active-call-btn ${isScreenSharing ? 'active-share' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleScreenShare();
+            }}
+            aria-label={isScreenSharing ? 'Stop Screen Share' : 'Share Screen'}
+          >
+            <Monitor size={14} />
           </button>
         </Tooltip>
 

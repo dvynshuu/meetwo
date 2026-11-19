@@ -1,18 +1,20 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Plus, Smile, X, CornerDownRight, File, Loader2 } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Send, Plus, Smile, X, CornerDownRight, File, Loader2, AtSign } from 'lucide-react';
 import { useChat } from '../../app/providers/ChatContext';
 import { usePresence } from '../../app/providers/PresenceContext';
 import { useServer } from '../../app/providers/ServerContext';
 import { useAuth } from '../../app/providers/AuthContext';
 import { StorageService } from '../../lib/services/storageService';
-import { Attachment } from '../../types';
+import { Attachment, ServerMember } from '../../types';
 import { useViewport } from '../../lib/hooks/useViewport';
 import { Tooltip } from '../ui/Tooltip';
+import { Avatar } from '../ui/Avatar';
+import { soundEffects } from '../../lib/utils/soundEffects';
 
 export const MessageComposer: React.FC = () => {
   const { sendMessage, replyingTo, setReplyingTo } = useChat();
   const { sendTyping } = usePresence();
-  const { activeChannel } = useServer();
+  const { activeChannel, members } = useServer();
   const { currentUser } = useAuth();
   const { isMobile } = useViewport();
 
@@ -20,9 +22,16 @@ export const MessageComposer: React.FC = () => {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  // Autocomplete @mention states
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lastTypingTimeRef = useRef<number>(0);
+  const mentionPopoverRef = useRef<HTMLDivElement>(null);
 
   // Auto focus when channel changes ONLY on desktop
   useEffect(() => {
@@ -30,6 +39,45 @@ export const MessageComposer: React.FC = () => {
       textareaRef.current.focus();
     }
   }, [activeChannel?.id, isMobile]);
+
+  // Compute matching members for @mention autocomplete
+  const filteredMembers = useMemo(() => {
+    if (mentionQuery === null) return [];
+    const q = mentionQuery.toLowerCase();
+    return members
+      .filter((m) => {
+        const u = m.user;
+        if (!u) return false;
+        return (
+          u.username.toLowerCase().includes(q) ||
+          u.displayName.toLowerCase().includes(q)
+        );
+      })
+      .slice(0, 6);
+  }, [mentionQuery, members]);
+
+  // Unified file upload processor
+  const uploadFiles = useCallback(async (fileList: FileList | File[]) => {
+    if (!fileList || fileList.length === 0) return;
+    setIsUploading(true);
+    setUploadError(null);
+    const uId = currentUser?.id || 'demo-user';
+
+    try {
+      const uploadedList: Attachment[] = [];
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        const uploaded = await StorageService.uploadAttachment(file, uId);
+        uploadedList.push(uploaded);
+      }
+      setAttachments((prev) => [...prev, ...uploadedList]);
+    } catch (err: any) {
+      setUploadError(err.message || 'Failed to upload attachment');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, [currentUser?.id]);
 
   const handleSend = useCallback(() => {
     if (!content.trim() && attachments.length === 0) return;
@@ -41,15 +89,77 @@ export const MessageComposer: React.FC = () => {
       attachments.length > 0 ? attachments : undefined
     );
 
+    soundEffects.playMessageSent();
+
     setContent('');
     setAttachments([]);
     setUploadError(null);
+    setMentionQuery(null);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
   }, [content, attachments, replyingTo, sendMessage, isUploading]);
 
+  // Check for @mention trigger
+  const checkForMention = (text: string, cursorPos: number) => {
+    const textBeforeCursor = text.slice(0, cursorPos);
+    const match = textBeforeCursor.match(/(?:^|\s)@([a-zA-Z0-9_\-\.]*)$/);
+    if (match) {
+      setMentionQuery(match[1]);
+      setMentionIndex(0);
+    } else {
+      setMentionQuery(null);
+    }
+  };
+
+  const selectMention = useCallback((member: ServerMember) => {
+    if (!member.user) return;
+    const username = member.user.username;
+    const cursorPos = textareaRef.current?.selectionStart ?? content.length;
+    const textBefore = content.slice(0, cursorPos);
+    const textAfter = content.slice(cursorPos);
+
+    const replacedBefore = textBefore.replace(/(?:^|\s)@([a-zA-Z0-9_\-\.]*)$/, (matched) => {
+      return matched.startsWith(' ') ? ` @${username} ` : `@${username} `;
+    });
+
+    const updatedContent = replacedBefore + textAfter;
+    setContent(updatedContent);
+    setMentionQuery(null);
+
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        const newPos = replacedBefore.length;
+        textareaRef.current.setSelectionRange(newPos, newPos);
+      }
+    }, 0);
+  }, [content]);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (filteredMembers.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev + 1) % filteredMembers.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev - 1 + filteredMembers.length) % filteredMembers.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        selectMention(filteredMembers[mentionIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionQuery(null);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -57,7 +167,9 @@ export const MessageComposer: React.FC = () => {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(e.target.value);
+    const val = e.target.value;
+    setContent(val);
+    checkForMention(val, e.target.selectionStart || val.length);
 
     // Auto-expand height
     e.target.style.height = 'auto';
@@ -71,32 +183,46 @@ export const MessageComposer: React.FC = () => {
     }
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Clipboard paste handling (images, screenshots, files)
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const clipboardFiles = e.clipboardData.files;
+    if (clipboardFiles && clipboardFiles.length > 0) {
+      e.preventDefault();
+      uploadFiles(clipboardFiles);
+    }
+  }, [uploadFiles]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setIsUploading(true);
-    setUploadError(null);
-    const uId = currentUser?.id || 'demo-user';
-
-    try {
-      const uploadedList: Attachment[] = [];
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const uploaded = await StorageService.uploadAttachment(file, uId);
-        uploadedList.push(uploaded);
-      }
-      setAttachments((prev) => [...prev, ...uploadedList]);
-    } catch (err: any) {
-      setUploadError(err.message || 'Failed to upload attachment');
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+    if (files && files.length > 0) {
+      uploadFiles(files);
     }
   };
 
   const removeAttachment = (id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  // Drag and drop events
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      uploadFiles(e.dataTransfer.files);
+    }
   };
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -119,6 +245,9 @@ export const MessageComposer: React.FC = () => {
     const handleClickOutside = (e: MouseEvent) => {
       if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
         setShowEmojiPicker(false);
+      }
+      if (mentionPopoverRef.current && !mentionPopoverRef.current.contains(e.target as Node)) {
+        setMentionQuery(null);
       }
     };
     if (showEmojiPicker) {
@@ -194,7 +323,12 @@ export const MessageComposer: React.FC = () => {
         </div>
       )}
 
-      <div className="composer-box">
+      <div
+        className={`composer-box ${isDraggingOver ? 'drag-over' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         {/* Hidden File Input */}
         <input
           ref={fileInputRef}
@@ -203,6 +337,35 @@ export const MessageComposer: React.FC = () => {
           style={{ display: 'none' }}
           onChange={handleFileSelect}
         />
+
+        {/* Discord-style @Mention Autocomplete Popover */}
+        {filteredMembers.length > 0 && (
+          <div className="composer-mention-popover" ref={mentionPopoverRef} role="listbox">
+            <div style={{ padding: '4px 8px', fontSize: 10, fontWeight: 700, color: 'var(--text-dim)', letterSpacing: '0.04em' }}>
+              MEMBERS MATCHING @{mentionQuery}
+            </div>
+            {filteredMembers.map((m, idx) => {
+              const u = m.user!;
+              const isSelected = idx === mentionIndex;
+              return (
+                <button
+                  key={m.userId}
+                  type="button"
+                  className={`mention-popover-item ${isSelected ? 'active' : ''}`}
+                  onClick={() => selectMention(m)}
+                  role="option"
+                  aria-selected={isSelected}
+                >
+                  <Avatar src={u.avatarUrl} name={u.displayName || u.username} size={22} />
+                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                    <span className="mention-popover-name truncate">{u.displayName || u.username}</span>
+                    <span className="mention-popover-tag truncate">@{u.username}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Discord-style Circular Plus Attachment Button */}
         <Tooltip content="Attach File or Media" position="top">
@@ -223,6 +386,7 @@ export const MessageComposer: React.FC = () => {
           value={content}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           rows={1}
         />
 

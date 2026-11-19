@@ -87,6 +87,7 @@ export interface Message {
   isOptimistic?: boolean;
   isEdited?: boolean;
   isPinned?: boolean;
+  userVolume?: number; // 0 to 200, default 100
   isBookmarked?: boolean;
   replyToId?: string | null;
   replyTo?: {
@@ -243,6 +244,7 @@ export interface Participant {
   connectionQuality?: ConnectionQuality;
   stats?: ConnectionStats;
   isPinned?: boolean;
+  userVolume?: number; // 0 to 200, default 100
 }
 
 export interface PeerSignalMessage {

@@ -12,6 +12,9 @@ import {
   EyeOff,
   Tv,
   RefreshCw,
+  Volume2,
+  VolumeX,
+  Volume1,
 } from 'lucide-react';
 import { Participant } from '../../types';
 import { Avatar } from '../ui/Avatar';
@@ -33,13 +36,28 @@ export const VideoTile: React.FC<VideoTileProps> = React.memo(({
   const tileRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const snapshotCanvasRef = useRef<HTMLCanvasElement>(null);
-  const { pinnedParticipantId, setPinnedParticipantId, deviceSettings, toggleScreenShare } = useMedia();
+  const volumePopoverRef = useRef<HTMLDivElement>(null);
+  const { pinnedParticipantId, setPinnedParticipantId, deviceSettings, toggleScreenShare, userVolumes, setUserVolume } = useMedia();
 
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [showLocalMiniPreview, setShowLocalMiniPreview] = useState(true);
   const [showFullLocalVideo, setShowFullLocalVideo] = useState(true);
   const [showFsBar, setShowFsBar] = useState(true);
   const fsBarTimeoutRef = useRef<any>(null);
+
+  const currentVol = userVolumes?.[participant.userId] ?? participant.userVolume ?? 100;
+
+  useEffect(() => {
+    if (!showVolumeSlider) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (volumePopoverRef.current && !volumePopoverRef.current.contains(e.target as Node)) {
+        setShowVolumeSlider(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showVolumeSlider]);
 
   // Track fullscreen changes safely
   useEffect(() => {
@@ -482,6 +500,80 @@ export const VideoTile: React.FC<VideoTileProps> = React.memo(({
           <span className="user-tag-name truncate">
             {isScreenTile ? screenTitle : (participant.displayName || participant.username)} {isLocal && !isScreenTile && '(You)'}
           </span>
+
+          {/* Discord Per-User Volume Control Button */}
+          {!isLocal && !isScreenTile && (
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }} ref={volumePopoverRef}>
+              <button
+                type="button"
+                className="user-tag-volume-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowVolumeSlider(!showVolumeSlider);
+                }}
+                title={`User Volume: ${currentVol}%`}
+                aria-label={`Adjust volume for ${participant.displayName || participant.username}`}
+              >
+                {currentVol === 0 ? (
+                  <VolumeX size={12} style={{ color: 'var(--danger)' }} />
+                ) : currentVol < 70 ? (
+                  <Volume1 size={12} />
+                ) : (
+                  <Volume2 size={12} />
+                )}
+                {currentVol !== 100 && <span style={{ fontSize: 10, marginLeft: 2, fontWeight: 700 }}>{currentVol}%</span>}
+              </button>
+
+              {/* Discord-Grade Floating Volume Popover */}
+              {showVolumeSlider && (
+                <div className="tile-volume-popover" onClick={(e) => e.stopPropagation()}>
+                  <div className="tile-volume-header">
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.04em' }}>USER VOLUME</span>
+                    <span className="tile-volume-pct">{currentVol}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={200}
+                    value={currentVol}
+                    onChange={(e) => setUserVolume(participant.userId, Number(e.target.value))}
+                    className="tile-volume-range"
+                    aria-label="User volume slider"
+                  />
+                  <div className="tile-volume-actions">
+                    <button
+                      type="button"
+                      className="tile-vol-preset-btn"
+                      onClick={() => setUserVolume(participant.userId, currentVol === 0 ? 100 : 0)}
+                    >
+                      {currentVol === 0 ? 'Unmute' : 'Mute'}
+                    </button>
+                    <button
+                      type="button"
+                      className="tile-vol-preset-btn"
+                      onClick={() => setUserVolume(participant.userId, 100)}
+                    >
+                      100%
+                    </button>
+                    <button
+                      type="button"
+                      className="tile-vol-preset-btn"
+                      onClick={() => setUserVolume(participant.userId, 150)}
+                    >
+                      150%
+                    </button>
+                    <button
+                      type="button"
+                      className="tile-vol-preset-btn"
+                      onClick={() => setUserVolume(participant.userId, 200)}
+                    >
+                      200%
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { MessageService } from '../../lib/services/messageService';
 import { ReadStateService } from '../../lib/services/readStateService';
 import { useAuth } from './AuthContext';
 import { useServer } from './ServerContext';
+import { soundEffects } from '../../lib/utils/soundEffects';
 
 interface ChatContextType {
   messages: Message[];
@@ -138,6 +139,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 }
 
                 if (prev.some((m) => m.id === formattedMsg.id)) return prev;
+                if (currentUser && newMsg.author_id !== currentUser.id) {
+                  soundEffects.playIncomingMessage();
+                }
                 return [...prev, formattedMsg];
               });
 
@@ -316,6 +320,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       setMessages((prev) => [...prev, optimisticMsg]);
+      soundEffects.playMessageSent();
       setReplyingTo(null);
 
       try {

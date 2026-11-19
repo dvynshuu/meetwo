@@ -75,6 +75,8 @@ interface MediaContextType {
   subscribeCallReaction: (callback: (reaction: { emoji: string; senderId: string; senderName: string }) => void) => () => void;
   isPushToTalk: boolean;
   setIsPushToTalk: (enabled: boolean) => void;
+  userVolumes: Record<string, number>;
+  setUserVolume: (userId: string, volume: number) => void;
 }
 
 const MediaContext = createContext<MediaContextType | undefined>(undefined);
@@ -149,6 +151,27 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       localStorage.setItem('meetwo_ptt_enabled', enabled ? 'true' : 'false');
     } catch {}
+  }, []);
+
+  // Discord Per-User Local Volume Control (0% to 200%, default 100%)
+  const [userVolumes, setUserVolumes] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem('meetwo_user_volumes');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const handleSetUserVolume = useCallback((userId: string, volume: number) => {
+    const clamped = Math.max(0, Math.min(200, Math.round(volume)));
+    setUserVolumes((prev) => {
+      const next = { ...prev, [userId]: clamped };
+      try {
+        localStorage.setItem('meetwo_user_volumes', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   }, []);
 
   const subscribeAudioLevel = useCallback((cb: (level: number) => void) => {
@@ -877,6 +900,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     isDeafenedRef.current = nextDeafened;
 
     if (nextDeafened) {
+      soundEffects.playDeafen();
       prevMutedBeforeDeafenRef.current = isAudioMuted;
       if (!isAudioMuted) {
         mediaSessionRef.current.setMicrophoneMute(true);
@@ -888,6 +912,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
     } else {
+      soundEffects.playUndeafen();
       if (!prevMutedBeforeDeafenRef.current) {
         mediaSessionRef.current.setMicrophoneMute(false);
         setIsAudioMuted(false);
@@ -1206,6 +1231,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       list.push({
         ...p,
         isPinned: pinnedParticipantId === p.id,
+        userVolume: userVolumes[p.userId] ?? 100,
       });
     });
 
@@ -1225,6 +1251,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     connectionStats,
     pinnedParticipantId,
     remoteParticipants,
+    userVolumes,
   ]);
 
   const mediaContextValue = useMemo<MediaContextType>(
@@ -1277,6 +1304,8 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       subscribeCallReaction,
       isPushToTalk,
       setIsPushToTalk: handleSetPushToTalk,
+      userVolumes,
+      setUserVolume: handleSetUserVolume,
     }),
     [
       activeRoomId,
@@ -1327,6 +1356,8 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       subscribeCallReaction,
       isPushToTalk,
       handleSetPushToTalk,
+      userVolumes,
+      handleSetUserVolume,
     ]
   );
 
@@ -1338,6 +1369,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         currentUserId={currentUser?.id}
         isDeafened={isDeafened}
         sinkId={deviceSettings.audioOutputId}
+        userVolumes={userVolumes}
       />
     </MediaContext.Provider>
   );

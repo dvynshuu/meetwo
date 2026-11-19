@@ -349,6 +349,55 @@
   flex-shrink: 0;
 }
 
+/* Voice Channel In-Sidebar Participants Tree */
+.channel-voice-participants {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 4px 24px;
+}
+
+.channel-participant-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+  transition: background-color var(--transition-fast);
+  cursor: default;
+}
+
+.channel-participant-row:hover {
+  background-color: var(--surface-2);
+}
+
+.voice-participant-avatar {
+  border-radius: 50%;
+  transition: box-shadow var(--transition-fast);
+}
+
+.voice-participant-avatar.speaking {
+  box-shadow: 0 0 0 2px var(--status-online), 0 0 6px rgba(39, 166, 68, 0.5);
+}
+
+.voice-participant-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.channel-participant-row.speaking .voice-participant-name {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.voice-participant-icons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* Voice Status Bar (When connected to voice room) */
 .voice-status-bar {
   margin: 8px;
