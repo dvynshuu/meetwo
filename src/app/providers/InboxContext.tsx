@@ -172,19 +172,31 @@ export const InboxProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     [currentUser]
   );
 
+  const inboxContextValue = useMemo(
+    () => ({
+      inboxItems,
+      unreadMentionCount,
+      totalUnreadCount,
+      unreadByChannel: channelUnreadMap,
+      markRead,
+      markAllRead,
+      markChannelRead,
+      refreshInbox: loadNotifications,
+    }),
+    [
+      inboxItems,
+      unreadMentionCount,
+      totalUnreadCount,
+      channelUnreadMap,
+      markRead,
+      markAllRead,
+      markChannelRead,
+      loadNotifications,
+    ]
+  );
+
   return (
-    <InboxContext.Provider
-      value={{
-        inboxItems,
-        unreadMentionCount,
-        totalUnreadCount,
-        unreadByChannel: channelUnreadMap,
-        markRead,
-        markAllRead,
-        markChannelRead,
-        refreshInbox: loadNotifications,
-      }}
-    >
+    <InboxContext.Provider value={inboxContextValue}>
       {children}
     </InboxContext.Provider>
   );

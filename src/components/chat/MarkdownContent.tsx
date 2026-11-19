@@ -199,8 +199,26 @@ function renderInlineFormatting(text: string, keyPrefix: string): React.ReactNod
 const JUMBO_EMOJI_REGEX =
   /^(\p{Extended_Pictographic}|\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?|\p{Emoji_Component}|\s){1,3}$/u;
 
-export const MarkdownContent: React.FC<MarkdownContentProps> = ({ content }) => {
+export const MarkdownContent: React.FC<MarkdownContentProps> = React.memo(({ content }) => {
   if (!content) return null;
+
+  // Ultra-fast path: plain text without markdown or link syntax
+  // Bypasses all regex engines and array allocations for ~90% of conversational chat messages
+  if (
+    !content.includes('`') &&
+    !content.includes('*') &&
+    !content.includes('_') &&
+    !content.includes('~') &&
+    !content.includes('@') &&
+    !content.includes('>') &&
+    !content.includes('|') &&
+    !content.includes('http') &&
+    !content.includes('\n') &&
+    content.length > 0 &&
+    content.charCodeAt(0) > 127 ? !JUMBO_EMOJI_REGEX.test(content.trim()) : true
+  ) {
+    return <span className="markdown-line">{content}</span>;
+  }
 
   // Check for Jumbo emoji message
   const trimmed = content.trim();
@@ -245,7 +263,7 @@ export const MarkdownContent: React.FC<MarkdownContentProps> = ({ content }) => 
   }
 
   return <div className="markdown-rendered-content">{segments}</div>;
-};
+});
 
 /**
  * Handles blockquotes (> quote) and line-by-line inline formatting

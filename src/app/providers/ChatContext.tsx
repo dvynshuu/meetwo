@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { Message, Attachment, MessageReaction } from '../../types';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { mockStore } from '../../lib/supabase/mockStore';
@@ -419,12 +419,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const togglePin = useCallback(
     async (messageId: string) => {
-      const target = messages.find((m) => m.id === messageId);
-      if (!target) return;
-      const nextPinned = !target.isPinned;
-
+      let nextPinned = false;
       setMessages((prev) =>
-        prev.map((m) => (m.id === messageId ? { ...m, isPinned: nextPinned } : m))
+        prev.map((m) => {
+          if (m.id === messageId) {
+            nextPinned = !m.isPinned;
+            return { ...m, isPinned: nextPinned };
+          }
+          return m;
+        })
       );
 
       try {
@@ -438,23 +441,36 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('[ChatContext] Failed to toggle pin in backend:', err);
       }
     },
-    [messages]
+    []
+  );
+
+  const chatContextValue = useMemo(
+    () => ({
+      messages,
+      isLoadingMessages,
+      replyingTo,
+      setReplyingTo,
+      sendMessage,
+      editMessage,
+      deleteMessage,
+      toggleReaction,
+      togglePin,
+    }),
+    [
+      messages,
+      isLoadingMessages,
+      replyingTo,
+      setReplyingTo,
+      sendMessage,
+      editMessage,
+      deleteMessage,
+      toggleReaction,
+      togglePin,
+    ]
   );
 
   return (
-    <ChatContext.Provider
-      value={{
-        messages,
-        isLoadingMessages,
-        replyingTo,
-        setReplyingTo,
-        sendMessage,
-        editMessage,
-        deleteMessage,
-        toggleReaction,
-        togglePin,
-      }}
-    >
+    <ChatContext.Provider value={chatContextValue}>
       {children}
     </ChatContext.Provider>
   );

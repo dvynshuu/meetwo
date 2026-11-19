@@ -69,6 +69,18 @@ export class BookmarkService {
   }
 
   /**
+   * Synchronously checks whether a message is bookmarked if the cache is populated.
+   * Returns undefined if cache hasn't loaded yet.
+   */
+  public static isBookmarkedSync(userId: string, messageId: string): boolean | undefined {
+    const userSet = this.cache.get(userId);
+    if (userSet) {
+      return userSet.has(messageId);
+    }
+    return undefined;
+  }
+
+  /**
    * Checks whether a message is bookmarked by user.
    * Uses memory cache if available, or falls back to preloading user bookmarks once.
    */

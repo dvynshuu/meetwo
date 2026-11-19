@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useRef,
   useCallback,
+  useMemo,
 } from 'react';
 import {
   Participant,
@@ -16,7 +17,7 @@ import {
 } from '../../types';
 import { MediaSession } from '../../lib/webrtc/mediaSession';
 import { PeerConnectionManager } from '../../lib/webrtc/peerConnection';
-import { LiveKitSFUAdapter, ITransportAdapter } from '../../lib/webrtc/transportAdapter';
+import { ITransportAdapter } from '../../lib/webrtc/transportAdapter';
 import { getLiveKitToken } from '../../lib/webrtc/livekitToken';
 import { ReconnectionManager } from '../../lib/webrtc/reconnectionManager';
 import { StageService } from '../../lib/services/stageService';
@@ -123,6 +124,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const lastAudioLevelUpdateRef = useRef<number>(0);
   const lastSpeakingRef = useRef<boolean>(false);
+  const lastGateRef = useRef<'open' | 'attenuated'>('open');
 
   const [gateState, setGateState] = useState<'open' | 'attenuated'>('open');
   const [deviceSettings, setDeviceSettings] = useState<MediaDeviceSettings>(
@@ -204,7 +206,8 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       onAudioLevel: (level, speaking, gate) => {
         const speakingChanged = speaking !== lastSpeakingRef.current;
 
-        if (gate) {
+        if (gate && gate !== lastGateRef.current) {
+          lastGateRef.current = gate;
           setGateState(gate);
         }
 
@@ -677,6 +680,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (livekitUrl && livekitToken && !isDemoMode) {
           console.info('[MediaEngine] Initializing LiveKit SFU Transport (Primary Production Transport)');
           setProductionConfigError(null);
+          const { LiveKitSFUAdapter } = await import('../../lib/webrtc/livekitAdapter');
           transport = new LiveKitSFUAdapter(livekitUrl, livekitToken, callbacks);
         } else if (isProduction && !import.meta.env.DEV && !isDemoMode) {
           const errMsg = 'LiveKit SFU connection error: Valid token or server configuration unavailable.';
@@ -699,7 +703,7 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             avatarUrl: currentUser.avatarUrl,
           });
         } catch (joinErr: any) {
-          if (transport instanceof LiveKitSFUAdapter && (import.meta.env.DEV || isDemoMode || !isProduction)) {
+          if (transport.kind === 'livekit' && (import.meta.env.DEV || isDemoMode || !isProduction)) {
             console.warn('[MediaEngine] LiveKit SFU join failed, falling back to WebRTC Mesh:', joinErr);
             transport = new PeerConnectionManager(currentUser.id, callbacks);
             transportRef.current = transport;
@@ -1172,91 +1176,162 @@ export const MediaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, [activeRoomId]);
 
-  // Combine local participant with remote participants
-  const participants: Participant[] = [];
-  if (currentUser && activeRoomId) {
-    participants.push({
-      id: currentUser.id,
-      userId: currentUser.id,
-      username: currentUser.username,
-      displayName: currentUser.displayName,
-      avatarUrl: currentUser.avatarUrl,
-      stream: localStream || undefined,
-      screenStream: screenStream || undefined,
-      isAudioMuted,
-      isVideoMuted,
-      isScreenSharing,
-      isSpeaking,
-      stageRole: myStageRole,
-      isStageSpeaker: myStageRole === 'host' || myStageRole === 'speaker',
-      isHandRaised: myHandRaised,
-      audioLevel,
-      connectionQuality: connectionStats.quality,
-      stats: connectionStats,
-      isPinned: pinnedParticipantId === currentUser.id,
-    });
-  }
-
-  remoteParticipants.forEach((p) => {
-    participants.push({
-      ...p,
-      isPinned: pinnedParticipantId === p.id,
-    });
-  });
-
-  return (
-    <MediaContext.Provider
-      value={{
-        activeRoomId,
-        connectionState,
-        connectionStats,
-        reconnectMessage,
-        deviceNotification,
-        dismissDeviceNotification,
-        localStream,
-        screenStream,
+  // Combine local participant with remote participants memoized to avoid downstream re-renders
+  const participants = useMemo<Participant[]>(() => {
+    const list: Participant[] = [];
+    if (currentUser && activeRoomId) {
+      list.push({
+        id: currentUser.id,
+        userId: currentUser.id,
+        username: currentUser.username,
+        displayName: currentUser.displayName,
+        avatarUrl: currentUser.avatarUrl,
+        stream: localStream || undefined,
+        screenStream: screenStream || undefined,
         isAudioMuted,
         isVideoMuted,
-        isDeafened,
         isScreenSharing,
-        audioLevel,
         isSpeaking,
-        gateState,
-        participants,
-        pinnedParticipantId,
-        setPinnedParticipantId,
-        deviceSettings,
-        pendingRoomId,
-        isPreJoinOpen,
-        isDiagnosticsOpen,
-        openDiagnostics,
-        closeDiagnostics,
-        toggleDiagnostics,
-        openPreJoin,
-        closePreJoin,
-        joinVoiceRoom,
-        leaveVoiceRoom,
-        toggleAudio,
-        toggleVideo,
-        toggleDeafen,
-        toggleScreenShare,
-        switchCamera,
-        switchMicrophone,
-        updateSettings,
-        raiseHand,
-        lowerHand,
-        setStageRole,
-        inviteToStage,
-        demoteToListener,
-        lowerParticipantHand,
-        productionConfigError,
-        subscribeAudioLevel,
-        sendCallReaction,
-        subscribeCallReaction,
-        isPushToTalk,
-        setIsPushToTalk: handleSetPushToTalk,
-      }}
-    >
+        stageRole: myStageRole,
+        isStageSpeaker: myStageRole === 'host' || myStageRole === 'speaker',
+        isHandRaised: myHandRaised,
+        audioLevel,
+        connectionQuality: connectionStats.quality,
+        stats: connectionStats,
+        isPinned: pinnedParticipantId === currentUser.id,
+      });
+    }
+
+    remoteParticipants.forEach((p) => {
+      list.push({
+        ...p,
+        isPinned: pinnedParticipantId === p.id,
+      });
+    });
+
+    return list;
+  }, [
+    currentUser,
+    activeRoomId,
+    localStream,
+    screenStream,
+    isAudioMuted,
+    isVideoMuted,
+    isScreenSharing,
+    isSpeaking,
+    myStageRole,
+    myHandRaised,
+    audioLevel,
+    connectionStats,
+    pinnedParticipantId,
+    remoteParticipants,
+  ]);
+
+  const mediaContextValue = useMemo<MediaContextType>(
+    () => ({
+      activeRoomId,
+      connectionState,
+      connectionStats,
+      reconnectMessage,
+      deviceNotification,
+      dismissDeviceNotification,
+      localStream,
+      screenStream,
+      isAudioMuted,
+      isVideoMuted,
+      isDeafened,
+      isScreenSharing,
+      audioLevel,
+      isSpeaking,
+      gateState,
+      participants,
+      pinnedParticipantId,
+      setPinnedParticipantId,
+      deviceSettings,
+      pendingRoomId,
+      isPreJoinOpen,
+      isDiagnosticsOpen,
+      openDiagnostics,
+      closeDiagnostics,
+      toggleDiagnostics,
+      openPreJoin,
+      closePreJoin,
+      joinVoiceRoom,
+      leaveVoiceRoom,
+      toggleAudio,
+      toggleVideo,
+      toggleDeafen,
+      toggleScreenShare,
+      switchCamera,
+      switchMicrophone,
+      updateSettings,
+      raiseHand,
+      lowerHand,
+      setStageRole,
+      inviteToStage,
+      demoteToListener,
+      lowerParticipantHand,
+      productionConfigError,
+      subscribeAudioLevel,
+      sendCallReaction,
+      subscribeCallReaction,
+      isPushToTalk,
+      setIsPushToTalk: handleSetPushToTalk,
+    }),
+    [
+      activeRoomId,
+      connectionState,
+      connectionStats,
+      reconnectMessage,
+      deviceNotification,
+      dismissDeviceNotification,
+      localStream,
+      screenStream,
+      isAudioMuted,
+      isVideoMuted,
+      isDeafened,
+      isScreenSharing,
+      audioLevel,
+      isSpeaking,
+      gateState,
+      participants,
+      pinnedParticipantId,
+      setPinnedParticipantId,
+      deviceSettings,
+      pendingRoomId,
+      isPreJoinOpen,
+      isDiagnosticsOpen,
+      openDiagnostics,
+      closeDiagnostics,
+      toggleDiagnostics,
+      openPreJoin,
+      closePreJoin,
+      joinVoiceRoom,
+      leaveVoiceRoom,
+      toggleAudio,
+      toggleVideo,
+      toggleDeafen,
+      toggleScreenShare,
+      switchCamera,
+      switchMicrophone,
+      updateSettings,
+      raiseHand,
+      lowerHand,
+      setStageRole,
+      inviteToStage,
+      demoteToListener,
+      lowerParticipantHand,
+      productionConfigError,
+      subscribeAudioLevel,
+      sendCallReaction,
+      subscribeCallReaction,
+      isPushToTalk,
+      handleSetPushToTalk,
+    ]
+  );
+
+  return (
+    <MediaContext.Provider value={mediaContextValue}>
       {children}
       <RemoteAudioRenderer
         participants={participants}

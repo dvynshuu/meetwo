@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { NavigationEntry } from '../../types';
 
 const RECENT_KEY = 'mw:nav:recent';
@@ -88,20 +88,33 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const canGoBack = currentIndex > 0;
   const canGoForward = currentIndex < history.length - 1;
 
+  const navigationContextValue = useMemo(
+    () => ({
+      history,
+      currentIndex,
+      canGoBack,
+      canGoForward,
+      recentDestinations,
+      pushNavigation,
+      goBack,
+      goForward,
+      clearRecents,
+    }),
+    [
+      history,
+      currentIndex,
+      canGoBack,
+      canGoForward,
+      recentDestinations,
+      pushNavigation,
+      goBack,
+      goForward,
+      clearRecents,
+    ]
+  );
+
   return (
-    <NavigationContext.Provider
-      value={{
-        history,
-        currentIndex,
-        canGoBack,
-        canGoForward,
-        recentDestinations,
-        pushNavigation,
-        goBack,
-        goForward,
-        clearRecents,
-      }}
-    >
+    <NavigationContext.Provider value={navigationContextValue}>
       {children}
     </NavigationContext.Provider>
   );

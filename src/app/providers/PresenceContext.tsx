@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { TypingUser, UserStatus } from '../../types';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { mockStore } from '../../lib/supabase/mockStore';
@@ -149,18 +149,21 @@ export const PresenceProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     [currentUser, userStatuses]
   );
 
-  const typingUsers = Array.from(typingMap.values());
-  const onlineUserIds = new Set(userStatuses.keys());
+  const typingUsers = useMemo(() => Array.from(typingMap.values()), [typingMap]);
+  const onlineUserIds = useMemo(() => new Set(userStatuses.keys()), [userStatuses]);
+
+  const presenceContextValue = useMemo(
+    () => ({
+      typingUsers,
+      sendTyping,
+      getUserStatus,
+      onlineUserIds,
+    }),
+    [typingUsers, sendTyping, getUserStatus, onlineUserIds]
+  );
 
   return (
-    <PresenceContext.Provider
-      value={{
-        typingUsers,
-        sendTyping,
-        getUserStatus,
-        onlineUserIds,
-      }}
-    >
+    <PresenceContext.Provider value={presenceContextValue}>
       {children}
     </PresenceContext.Provider>
   );

@@ -291,24 +291,41 @@ export const DMProvider: React.FC<{ children: React.ReactNode }> = ({ children }
     [currentUser]
   );
 
+  const dmContextValue = useMemo(
+    () => ({
+      conversations,
+      activeConversationId,
+      activeConversation,
+      dmMessages,
+      friends,
+      totalUnreadDMs,
+      selectConversation,
+      sendDM,
+      startConversationWithUser,
+      markConversationRead,
+      acceptFriendRequest,
+      addFriend,
+      removeFriend,
+    }),
+    [
+      conversations,
+      activeConversationId,
+      activeConversation,
+      dmMessages,
+      friends,
+      totalUnreadDMs,
+      selectConversation,
+      sendDM,
+      startConversationWithUser,
+      markConversationRead,
+      acceptFriendRequest,
+      addFriend,
+      removeFriend,
+    ]
+  );
+
   return (
-    <DMContext.Provider
-      value={{
-        conversations,
-        activeConversationId,
-        activeConversation,
-        dmMessages,
-        friends,
-        totalUnreadDMs,
-        selectConversation,
-        sendDM,
-        startConversationWithUser,
-        markConversationRead,
-        acceptFriendRequest,
-        addFriend,
-        removeFriend,
-      }}
-    >
+    <DMContext.Provider value={dmContextValue}>
       {children}
     </DMContext.Provider>
   );

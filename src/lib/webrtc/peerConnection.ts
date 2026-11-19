@@ -36,6 +36,7 @@ interface PeerSession {
 }
 
 export class PeerConnectionManager implements ITransportAdapter {
+  readonly kind = 'p2p' as const;
   private localPeerId: string;
   private roomId: string = '';
   private localStream: MediaStream | null = null;

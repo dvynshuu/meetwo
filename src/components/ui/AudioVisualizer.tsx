@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { useMedia } from '../../app/providers/MediaContext';
 
 interface AudioVisualizerProps {
@@ -22,31 +22,16 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   const { subscribeAudioLevel, isAudioMuted } = useMedia();
   const currentLevelRef = useRef<number>(0);
   const animFrameRef = useRef<number | null>(null);
+  const isLoopRunningRef = useRef<boolean>(false);
+  const smoothedLevelRef = useRef<number>(0);
 
-  useEffect(() => {
-    const unsub = subscribeAudioLevel((level) => {
-      currentLevelRef.current = level;
-    });
-    return unsub;
-  }, [subscribeAudioLevel]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let smoothedLevel = 0;
-
-    const render = () => {
-      const targetLevel = isAudioMuted ? 0 : currentLevelRef.current;
-      smoothedLevel += (targetLevel - smoothedLevel) * 0.25;
-
+  const drawBars = useCallback(
+    (ctx: CanvasRenderingContext2D, level: number) => {
       ctx.clearRect(0, 0, width, height);
 
       const barWidth = Math.max(2, Math.floor((width - (barCount - 1) * 2) / barCount));
       const gap = 2;
-      const normalized = Math.min(100, Math.max(0, smoothedLevel)) / 100;
+      const normalized = Math.min(100, Math.max(0, level)) / 100;
       const activeBars = Math.round(normalized * barCount);
 
       for (let i = 0; i < barCount; i++) {
@@ -63,18 +48,60 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
         ctx.roundRect ? ctx.roundRect(x, y, barWidth, barH, 1.5) : ctx.rect(x, y, barWidth, barH);
         ctx.fill();
       }
+    },
+    [width, height, barCount, activeColor, inactiveColor]
+  );
+
+  const startLoop = useCallback(() => {
+    if (isLoopRunningRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    isLoopRunningRef.current = true;
+
+    const render = () => {
+      const targetLevel = isAudioMuted ? 0 : currentLevelRef.current;
+      smoothedLevelRef.current += (targetLevel - smoothedLevelRef.current) * 0.25;
+
+      drawBars(ctx, smoothedLevelRef.current);
+
+      // Sleep loop when audio is completely quiet or muted to save CPU / battery
+      if (targetLevel === 0 && smoothedLevelRef.current < 0.2) {
+        smoothedLevelRef.current = 0;
+        drawBars(ctx, 0);
+        isLoopRunningRef.current = false;
+        animFrameRef.current = null;
+        return;
+      }
 
       animFrameRef.current = requestAnimationFrame(render);
     };
 
     animFrameRef.current = requestAnimationFrame(render);
+  }, [drawBars, isAudioMuted]);
 
+  useEffect(() => {
+    startLoop();
     return () => {
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+        isLoopRunningRef.current = false;
       }
     };
-  }, [width, height, barCount, activeColor, inactiveColor, isAudioMuted]);
+  }, [startLoop]);
+
+  useEffect(() => {
+    const unsub = subscribeAudioLevel((level) => {
+      currentLevelRef.current = level;
+      if (level > 0 && !isLoopRunningRef.current) {
+        startLoop();
+      }
+    });
+    return unsub;
+  }, [subscribeAudioLevel, startLoop]);
 
   return (
     <canvas

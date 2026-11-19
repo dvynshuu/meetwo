@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { User, UserStatus } from '../../types';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
 import { mockStore } from '../../lib/supabase/mockStore';
@@ -167,7 +167,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [isProduction]);
 
-  const login = async (email: string, password?: string): Promise<boolean> => {
+  const login = useCallback(async (email: string, password?: string): Promise<boolean> => {
     setIsLoading(true);
     setError(null);
     try {
@@ -213,9 +213,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isProduction]);
 
-  const signup = async (username: string, email: string, password?: string): Promise<boolean> => {
+  const signup = useCallback(async (username: string, email: string, password?: string): Promise<boolean> => {
     setIsLoading(true);
     setError(null);
     try {
@@ -260,9 +260,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isProduction]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     setIsLoading(true);
     try {
       if (isSupabaseConfigured && supabase) {
@@ -274,9 +274,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentUser(null);
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const updateProfile = async (updates: Partial<User>) => {
+  const updateProfile = useCallback(async (updates: Partial<User>) => {
     if (!currentUser) return;
     const updated: User = { ...currentUser, ...updates, updatedAt: new Date().toISOString() };
     if (isSupabaseConfigured && supabase) {
@@ -295,36 +295,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mockStore.setCurrentUser(updated);
     }
     setCurrentUser(updated);
-  };
+  }, [currentUser]);
 
-  const setStatus = async (status: UserStatus) => {
+  const setStatus = useCallback(async (status: UserStatus) => {
     await updateProfile({ status });
-  };
+  }, [updateProfile]);
 
-  const switchDemoUser = (userId: string) => {
+  const switchDemoUser = useCallback((userId: string) => {
     if (isProduction) return;
     const target = mockStore.getAllUsers().find((u) => u.id === userId);
     if (target) {
       mockStore.setCurrentUser(target);
       setCurrentUser(target);
     }
-  };
+  }, [isProduction]);
+
+  const authContextValue = useMemo(
+    () => ({
+      currentUser,
+      isLoading,
+      error,
+      isDemoMode: !isProduction && !isSupabaseConfigured,
+      login,
+      signup,
+      logout,
+      updateProfile,
+      switchDemoUser,
+      setStatus,
+    }),
+    [
+      currentUser,
+      isLoading,
+      error,
+      isProduction,
+      login,
+      signup,
+      logout,
+      updateProfile,
+      switchDemoUser,
+      setStatus,
+    ]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        currentUser,
-        isLoading,
-        error,
-        isDemoMode: !isProduction && !isSupabaseConfigured,
-        login,
-        signup,
-        logout,
-        updateProfile,
-        switchDemoUser,
-        setStatus,
-      }}
-    >
+    <AuthContext.Provider value={authContextValue}>
       {children}
     </AuthContext.Provider>
   );

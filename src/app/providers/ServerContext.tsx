@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { Server, Channel, ServerMember, ChannelType, ChannelCategory, Invite } from '../../types';
 import { serverRepository, channelRepository, ResolvedInvite } from '../../lib/repositories';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase/client';
@@ -286,30 +286,53 @@ export const ServerProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, [currentUser?.id, activeServer?.id]);
 
+  const serverContextValue = useMemo(
+    () => ({
+      servers,
+      activeServer,
+      channels,
+      allChannels,
+      categories,
+      activeChannel,
+      members,
+      isLoading,
+      error,
+      selectServer,
+      selectChannel,
+      createServer,
+      createChannel,
+      createCategory,
+      createInvite,
+      resolveInvite,
+      acceptInvite,
+      joinServer,
+      refreshServers,
+    }),
+    [
+      servers,
+      activeServer,
+      channels,
+      allChannels,
+      categories,
+      activeChannel,
+      members,
+      isLoading,
+      error,
+      selectServer,
+      selectChannel,
+      createServer,
+      createChannel,
+      createCategory,
+      createInvite,
+      resolveInvite,
+      acceptInvite,
+      joinServer,
+      refreshServers,
+    ]
+  );
+
   return (
-    <ServerContext.Provider
-      value={{
-        servers,
-        activeServer,
-        channels,
-        allChannels,
-        categories,
-        activeChannel,
-        members,
-        isLoading,
-        error,
-        selectServer,
-        selectChannel,
-        createServer,
-        createChannel,
-        createCategory,
-        createInvite,
-        resolveInvite,
-        acceptInvite,
-        joinServer,
-        refreshServers,
-      }}
-    >
+    <ServerContext.Provider value={serverContextValue}>
       {children}
     </ServerContext.Provider>
   );

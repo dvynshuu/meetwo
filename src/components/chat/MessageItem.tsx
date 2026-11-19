@@ -33,6 +33,31 @@ interface MessageItemProps {
   onOpenThread?: (message: Message) => void;
 }
 
+const formatTime = (isoString: string) => {
+  try {
+    const date = new Date(isoString);
+    const now = new Date();
+    const isToday =
+      date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear();
+
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return isToday ? `Today at ${timeStr}` : `${date.toLocaleDateString()} ${timeStr}`;
+  } catch {
+    return '';
+  }
+};
+
+const formatShortTime = (isoString: string) => {
+  try {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+};
+
 export const MessageItem: React.FC<MessageItemProps> = React.memo(({
   message,
   isGrouped,
@@ -50,11 +75,21 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
      message.content?.includes('@here'))
   );
 
-  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(() => {
+    if (currentUser?.id && message.id) {
+      return BookmarkService.isBookmarkedSync(currentUser.id, message.id) ?? false;
+    }
+    return false;
+  });
 
   useEffect(() => {
     if (currentUser?.id && message.id) {
-      BookmarkService.isBookmarked(currentUser.id, message.id).then(setIsBookmarked);
+      const syncVal = BookmarkService.isBookmarkedSync(currentUser.id, message.id);
+      if (syncVal !== undefined) {
+        setIsBookmarked(syncVal);
+      } else {
+        BookmarkService.isBookmarked(currentUser.id, message.id).then(setIsBookmarked);
+      }
     }
   }, [currentUser?.id, message.id]);
 
@@ -106,6 +141,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
   };
 
   useEffect(() => {
+    if (!showMoreMenu) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
         setShowMoreMenu(false);
@@ -113,32 +149,7 @@ export const MessageItem: React.FC<MessageItemProps> = React.memo(({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const formatTime = (isoString: string) => {
-    try {
-      const date = new Date(isoString);
-      const now = new Date();
-      const isToday =
-        date.getDate() === now.getDate() &&
-        date.getMonth() === now.getMonth() &&
-        date.getFullYear() === now.getFullYear();
-
-      const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      return isToday ? `Today at ${timeStr}` : `${date.toLocaleDateString()} ${timeStr}`;
-    } catch {
-      return '';
-    }
-  };
-
-  const formatShortTime = (isoString: string) => {
-    try {
-      const date = new Date(isoString);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch {
-      return '';
-    }
-  };
+  }, [showMoreMenu]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);

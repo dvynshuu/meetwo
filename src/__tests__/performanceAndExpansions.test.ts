@@ -77,6 +77,28 @@ describe('Performance Optimizations & Feature Expansions Suite', () => {
 
       toggleSpy.mockRestore();
     });
+
+    it('synchronously verifies bookmark status with isBookmarkedSync when cache is populated', async () => {
+      // Unpopulated cache returns undefined
+      expect(BookmarkService.isBookmarkedSync('u123', 'msg-1')).toBeUndefined();
+
+      vi.spyOn(bookmarkRepository, 'getBookmarks').mockResolvedValue([
+        {
+          id: 'bm-1',
+          userId: 'u123',
+          messageId: 'msg-1',
+          channelName: 'general',
+          createdAt: new Date().toISOString(),
+          message: { id: 'msg-1', content: 'Cached note' } as Message,
+        },
+      ]);
+
+      await BookmarkService.preloadBookmarks('u123');
+
+      // Now synchronous checks return exact boolean immediately with 0 delay and 0 promises
+      expect(BookmarkService.isBookmarkedSync('u123', 'msg-1')).toBe(true);
+      expect(BookmarkService.isBookmarkedSync('u123', 'msg-unknown')).toBe(false);
+    });
   });
 
   describe('SoundEffects Engine', () => {
@@ -96,6 +118,17 @@ describe('Performance Optimizations & Feature Expansions Suite', () => {
       expect(() => soundEffects.playUnmute()).not.toThrow();
       expect(() => soundEffects.playReaction()).not.toThrow();
       expect(() => soundEffects.playNotification()).not.toThrow();
+    });
+  });
+
+  describe('Transport Architecture & Dynamic Decoupling', () => {
+    it('provides discriminative transport kind without eager SFU initialization', async () => {
+      const { PeerConnectionManager } = await import('../lib/webrtc/peerConnection');
+      const p2p = new PeerConnectionManager('user-test', {
+        onRemoteStream: () => {},
+        onPeerLeft: () => {},
+      });
+      expect(p2p.kind).toBe('p2p');
     });
   });
 });

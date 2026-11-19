@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Hash, Pin } from 'lucide-react';
 import { useChat } from '../../app/providers/ChatContext';
 import { useServer } from '../../app/providers/ServerContext';
@@ -23,7 +23,34 @@ export const ChatContainer: React.FC<ChatContainerProps> = () => {
   const [activeThreadMessage, setActiveThreadMessage] = useState<Message | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
+  const [visibleLimit, setVisibleLimit] = useState(60);
   const prevMessageCountRef = useRef(messages.length);
+
+  // Reset windowing limit when channel changes
+  useEffect(() => {
+    setVisibleLimit(60);
+  }, [activeChannel?.id]);
+
+  const handleOpenThread = useCallback((msg: Message) => {
+    setActiveThreadMessage(msg);
+  }, []);
+
+  const handleLoadEarlier = useCallback(() => {
+    if (!containerRef.current) return;
+    const scrollContainer = containerRef.current;
+    const oldScrollHeight = scrollContainer.scrollHeight;
+    const oldScrollTop = scrollContainer.scrollTop;
+
+    setVisibleLimit((prev) => Math.min(messages.length, prev + 60));
+
+    // Preserve scroll position so viewport does not jump
+    requestAnimationFrame(() => {
+      if (containerRef.current) {
+        const newScrollHeight = containerRef.current.scrollHeight;
+        containerRef.current.scrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight);
+      }
+    });
+  }, [messages.length]);
 
   const handleScroll = () => {
     if (!containerRef.current) return;
@@ -32,6 +59,10 @@ export const ChatContainer: React.FC<ChatContainerProps> = () => {
     setIsAtBottom(nearBottom);
     if (nearBottom) {
       setHasNewMessagesBelow(false);
+    }
+    // Auto-load older messages when user scrolls near top
+    if (scrollTop < 40 && messages.length > visibleLimit) {
+      handleLoadEarlier();
     }
   };
 
@@ -109,38 +140,70 @@ export const ChatContainer: React.FC<ChatContainerProps> = () => {
 
         <div className="chat-messages-container" ref={containerRef} onScroll={handleScroll}>
           {/* Channel Start Banner / Editorial Welcome */}
-          <div className="messages-empty-state">
-            <div className="messages-empty-hash">
-              <Hash size={28} />
+          {messages.length <= visibleLimit && (
+            <div className="messages-empty-state">
+              <div className="messages-empty-hash">
+                <Hash size={28} />
+              </div>
+              <h2>Welcome to #{activeChannel.name}</h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.5 }}>
+                This is the beginning of the #{activeChannel.name} channel.
+                {activeChannel.topic ? ` ${activeChannel.topic}` : ''}
+              </p>
             </div>
-            <h2>Welcome to #{activeChannel.name}</h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.5 }}>
-              This is the beginning of the #{activeChannel.name} channel.
-              {activeChannel.topic ? ` ${activeChannel.topic}` : ''}
-            </p>
-          </div>
+          )}
 
-          {/* Messages List */}
-          {messages.map((message, index) => {
-            const prev = messages[index - 1];
-            const isSameAuthor = prev && prev.authorId === message.authorId;
-            const isWithin5Min =
-              prev &&
-              Math.abs(
-                new Date(message.createdAt).getTime() - new Date(prev.createdAt).getTime()
-              ) < 300000;
-            const isGrouped = Boolean(isSameAuthor && isWithin5Min);
+          {/* Load Earlier Messages Button */}
+          {messages.length > visibleLimit && (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 8px' }}>
+              <button
+                type="button"
+                onClick={handleLoadEarlier}
+                className="load-earlier-btn"
+                style={{
+                  background: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 6,
+                  color: 'var(--text-muted)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  padding: '6px 14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                Load {messages.length - visibleLimit} earlier messages
+              </button>
+            </div>
+          )}
 
-            return (
-              <MessageItem
-                key={message.id}
-                message={message}
-                isGrouped={isGrouped}
-                channelName={activeChannel.name}
-                onOpenThread={(msg) => setActiveThreadMessage(msg)}
-              />
-            );
-          })}
+          {/* Windowed Messages List */}
+          {(() => {
+            const startIndex = messages.length > visibleLimit ? messages.length - visibleLimit : 0;
+            const visibleMessages = messages.slice(startIndex);
+
+            return visibleMessages.map((message, i) => {
+              const actualIndex = startIndex + i;
+              const prev = messages[actualIndex - 1];
+              const isSameAuthor = prev && prev.authorId === message.authorId;
+              const isWithin5Min =
+                prev &&
+                Math.abs(
+                  new Date(message.createdAt).getTime() - new Date(prev.createdAt).getTime()
+                ) < 300000;
+              const isGrouped = Boolean(isSameAuthor && isWithin5Min);
+
+              return (
+                <MessageItem
+                  key={message.id}
+                  message={message}
+                  isGrouped={isGrouped}
+                  channelName={activeChannel.name}
+                  onOpenThread={handleOpenThread}
+                />
+              );
+            });
+          })()}
 
           <div ref={bottomRef} style={{ height: 1 }} />
         </div>
